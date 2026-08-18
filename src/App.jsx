@@ -178,6 +178,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
           <Route path="/super-admin/admins" element={<Admins />} />
+          <Route path="/super-admin/clinics/add" element={<Clinics />} />
           <Route path="/super-admin/clinics" element={<Clinics />} />
           <Route path="/super-admin/branches" element={<Branches />} />
           <Route path="/super-admin/users-permissions" element={<UsersPermissions />} />

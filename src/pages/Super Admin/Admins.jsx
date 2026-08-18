@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
+import UserProfileMenu from '../../components/UserProfileMenu'
 import { superAdminNavigation } from '../../components/superAdminNavigation'
 import {
   assignPharmacyAdmin,
@@ -14,6 +15,7 @@ import {
   updatePharmacyAdmin,
 } from '../../config/api'
 import './superadmin.css'
+import './AdminsModern.css'
 import './AdminsSidebar.css'
 import './AdminsTopbar.css'
 
@@ -263,161 +265,281 @@ function Admins() {
   }
 
   return (
-    <div className="management-page">
-      <aside className="management-sidebar" aria-label="Super admin navigation">
-        <div className="management-brand">
-          <b>+</b>
-          <div>
-            <strong>PMS</strong><small>Super Admin Console</small>
+    <div className="admins-page-shell">
+      <aside className="admins-sidebar" aria-label="Super admin navigation">
+        <div className="admins-brand">
+          <div className="admins-brand-mark">PMS</div>
+          <div className="admins-brand-copy">
+            <strong>PMS</strong>
+            <small>Super Admin Console</small>
           </div>
         </div>
-        <nav>
+
+        <nav className="admins-nav">
           {superAdminNavigation.map(({ label, path, icon, color }) => (
-            <button type="button" className={label === 'Admins' ? 'active' : ''} onClick={() => navigate(path)} key={label}>
-              <span className={`nav-icon nav-icon-${color}`} aria-hidden="true">{icon}</span>
-              {label}
+            <button
+              key={label}
+              type="button"
+              className={`admins-nav-link${label === 'Admins' ? ' is-active' : ''}`}
+              onClick={() => navigate(path)}
+            >
+              <span className={`admins-icon accent-${color}`} aria-hidden="true">{icon}</span>
+              <span>{label}</span>
             </button>
           ))}
         </nav>
-        <div className="management-sidebar-footer"><span>SA</span><div><strong>Super Admin</strong><small>Super Admin</small><em>Online</em></div></div>
+
+        <div className="admins-sidebar-footer">
+          <span className="admins-sidebar-avatar">SA</span>
+          <div>
+            <strong>Super Admin</strong>
+            <small>Super Admin</small>
+            <em>● Online</em>
+          </div>
+        </div>
       </aside>
 
-      <main className="management-main">
-        <header className="management-header">
-          <button className="management-menu" type="button">☰</button>
-          <div className="management-title">
-            <h1>Pharmacy Admins</h1>
-            <p>Super Admin / Pharmacy Admins</p>
-          </div>
-          <label className="management-top-search">
-            <span>⌕</span>
+      <main className="admins-main">
+        <header className="admins-topbar">
+          <label className="admins-global-search" aria-label="Global search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="M16 16L21 21" /></svg>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search dashboard, clinics, admins, reports..." />
           </label>
-          <button className="management-notification" type="button">♧<b>1</b></button>
-          <button className="management-profile-button" type="button"><span>SA</span><strong>Super Admin</strong><small>Online</small></button>
+
+          <div className="admins-topbar-right">
+            <button type="button" className="admins-notification" aria-label="Notifications">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+              <span>15</span>
+            </button>
+            <UserProfileMenu roleType="super-admin" />
+          </div>
         </header>
 
-        <section className="management-card">
-          <div className="management-card-header">
+        <section className="admins-content">
+          <div className="admins-section-header">
             <div>
-              <h2>Manage Pharmacy Admins</h2>
-              <p>Loaded from backend Super Admin APIs.</p>
+              <h1>Admin Management</h1>
+              <p>{filteredAdmins.length} admins found</p>
             </div>
-            <button type="button" onClick={openCreate}>Create Admin</button>
+            <button type="button" className="admins-primary-button" onClick={openCreate}>
+              <span>＋</span>
+              Create Admin
+            </button>
           </div>
 
-          <label className="management-search">
-            <span>⌕</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search pharmacy admins" />
-          </label>
+          <div className="admins-toolbar">
+            <label className="admins-table-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="M16 16L21 21" /></svg>
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search admins by name, email, clinic, or role..." />
+            </label>
 
-          <div className="management-table-wrap">
-            <table>
+            <button type="button" className="admins-filter-button">
+              All
+              <span>▾</span>
+            </button>
+          </div>
+
+          {(createOpen || editingAdmin) ? (
+            <div className="admins-create-panel" aria-label={editingAdmin ? 'Edit admin form' : 'Create admin form'}>
+              <div className="admins-form-header">
+                <h2>{editingAdmin ? 'Edit Admin' : 'Create new admin'}</h2>
+                <p>Manage administrator access for a clinic.</p>
+              </div>
+
+              <form className="admins-form" onSubmit={handleSubmit}>
+                <div className="admins-form-grid">
+                  <label className="admins-field">
+                    <span>Full Name</span>
+                    <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Jane Smith" required />
+                  </label>
+
+                  <label className="admins-field">
+                    <span>Email</span>
+                    <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="superadmin@gmail.com" required />
+                  </label>
+
+                  <label className="admins-field">
+                    <span>Phone</span>
+                    <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} placeholder="10-digit Indian mobile number" />
+                  </label>
+
+                  <label className="admins-field">
+                    <span>Role</span>
+                    <select value="Admin" readOnly>
+                      <option value="Admin">Admin</option>
+                    </select>
+                  </label>
+
+                  <label className="admins-field admins-field-wide">
+                    <span>Assigned clinic</span>
+                    <select value={form.hospitalId} onChange={(event) => {
+                      setForm({ ...form, hospitalId: event.target.value, branchId: '' })
+                      loadBranches(event.target.value)
+                    }}>
+                      <option value="">Select clinic</option>
+                      {hospitals.map((hospital) => <option value={getHospitalId(hospital)} key={getHospitalId(hospital)}>{getHospitalName(hospital)}</option>)}
+                    </select>
+                  </label>
+
+                </div>
+
+                <div className="admins-toggle-row">
+                  <div>
+                    <strong>Send welcome email</strong>
+                    <small>With login instructions</small>
+                  </div>
+                  <button type="button" className="admins-toggle is-on" aria-label="Toggle welcome email">
+                    <span className="admins-toggle-knob" />
+                  </button>
+                </div>
+
+                <div className="admins-form-actions">
+                  <button type="button" className="admins-cancel-button" onClick={closeEditor}>Cancel</button>
+                  <button type="submit" className="admins-submit-button" disabled={saving}>
+                    {saving ? 'Saving...' : editingAdmin ? 'Save Admin' : 'Create admin'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+
+          <div className="admins-table-card">
+            <table className="admins-table">
               <thead>
                 <tr>
+                  <th>S.No.</th>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Phone</th>
-                  <th>Hospital</th>
-                  <th>Branch</th>
+                  <th>Assigned Clinic</th>
+                  <th>Mobile Number</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="7">Loading admins...</td></tr>
-                ) : filteredAdmins.length ? filteredAdmins.map((admin) => (
+                  <tr><td colSpan="7" className="admins-empty-cell">Loading admins...</td></tr>
+                ) : filteredAdmins.length ? filteredAdmins.map((admin, index) => (
                   <tr key={getId(admin)}>
-                    <td>{getName(admin)}</td>
+                    <td>{index + 1}</td>
+                    <td className="admin-name-cell">
+                      <span className="admin-avatar">{getName(admin).split(' ').slice(0,2).map((part) => part.charAt(0)).join('').slice(0,2).toUpperCase() || 'A'}</span>
+                      {getName(admin)}
+                    </td>
                     <td>{admin?.email || '-'}</td>
+                    <td>
+                      {admin?.hospital?.name || admin?.hospitalName ? (
+                        <span className="admin-clinic-pill">
+                          <span className="admin-clinic-dot">◉</span>
+                          {admin?.hospital?.name || admin?.hospitalName}
+                        </span>
+                      ) : '-'}
+                    </td>
                     <td>{admin?.phone || admin?.mobile || '-'}</td>
-                    <td>{admin?.hospital?.name || admin?.hospitalName || '-'}</td>
-                    <td>{admin?.branch?.name || admin?.branchName || '-'}</td>
-                    <td><span className={`management-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
-                    <td className="management-actions">
-                      <button type="button" onClick={() => openEdit(admin)}>Edit</button>
-                      <button type="button" onClick={() => openAssign(admin)}>Assign</button>
-                      <button type="button" onClick={() => handleStatus(admin)}>Status</button>
-                      <button type="button" onClick={() => setResettingAdmin(admin)}>Reset</button>
-                      <button type="button" onClick={() => handleDelete(admin)}>Delete</button>
+                    <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
+                    <td>
+                      <div className="admin-action-group">
+                        <button type="button" className="admin-action-button view" aria-label="View admin" title="View admin" onClick={() => openEdit(admin)}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+                        </button>
+                        <button type="button" className="admin-action-button edit" aria-label="Edit admin" title="Edit admin" onClick={() => openEdit(admin)}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
+                        </button>
+                        <button type="button" className="admin-action-button assign" aria-label="Assign admin" title="Assign admin" onClick={() => openAssign(admin)}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12l3 3 7-7" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                        </button>
+                        <button type="button" className="admin-action-button danger" aria-label="Delete admin" title="Delete admin" onClick={() => handleDelete(admin)}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )) : (
-                  <tr><td className="management-empty" colSpan="7">No pharmacy admins found.</td></tr>
+                  <tr><td className="admins-empty-cell" colSpan="7">No pharmacy admins found.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          <div className="admins-pagination-row">
+            <span>Showing {filteredAdmins.length} of {admins.length} admins</span>
+            <div className="admins-pagination">
+              <button type="button">First</button>
+              <button type="button">Prev</button>
+              <button type="button" className="is-current">1</button>
+              <button type="button">Next</button>
+              <button type="button">Last</button>
+            </div>
+          </div>
         </section>
       </main>
 
-      {(createOpen || editingAdmin) ? (
-        <div className="user-modal">
-          <form onSubmit={handleSubmit}>
-            <button type="button" onClick={closeEditor}>×</button>
-            <h2>{editingAdmin ? 'Edit Admin' : 'Create Admin'}</h2>
-            <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
-            <label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
-            <label>Phone<input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
-            <label>Password<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required={!editingAdmin} /></label>
-            <label>
-              Hospital
-              <select value={form.hospitalId} onChange={(event) => {
-                setForm({ ...form, hospitalId: event.target.value, branchId: '' })
-                loadBranches(event.target.value)
-              }}>
-                <option value="">Select hospital</option>
-                {hospitals.map((hospital) => <option value={getHospitalId(hospital)} key={getHospitalId(hospital)}>{getHospitalName(hospital)}</option>)}
-              </select>
-            </label>
-            <label>
-              Branch
-              <select value={form.branchId} onChange={(event) => setForm({ ...form, branchId: event.target.value })} disabled={!form.hospitalId}>
-                <option value="">Select branch</option>
-                {branches.map((branch) => <option value={getBranchId(branch)} key={getBranchId(branch)}>{getBranchName(branch)}</option>)}
-              </select>
-            </label>
-            <button className="modal-save" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-          </form>
-        </div>
-      ) : null}
-
       {assigningAdmin ? (
-        <div className="user-modal">
-          <form onSubmit={handleAssign}>
-            <button type="button" onClick={() => setAssigningAdmin(null)}>×</button>
-            <h2>Assign Pharmacy</h2>
-            <label>
-              Hospital
-              <select value={form.hospitalId} onChange={(event) => {
-                setForm({ ...form, hospitalId: event.target.value, branchId: '' })
-                loadBranches(event.target.value)
-              }} required>
-                <option value="">Select hospital</option>
-                {hospitals.map((hospital) => <option value={getHospitalId(hospital)} key={getHospitalId(hospital)}>{getHospitalName(hospital)}</option>)}
-              </select>
-            </label>
-            <label>
-              Branch
-              <select value={form.branchId} onChange={(event) => setForm({ ...form, branchId: event.target.value })} disabled={!form.hospitalId} required>
-                <option value="">Select branch</option>
-                {branches.map((branch) => <option value={getBranchId(branch)} key={getBranchId(branch)}>{getBranchName(branch)}</option>)}
-              </select>
-            </label>
-            <button className="modal-save" type="submit">Assign</button>
-          </form>
+        <div className="admins-modal-backdrop" onClick={() => setAssigningAdmin(null)}>
+          <div className="admins-modal-card small-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="admins-modal-header">
+              <div className="admins-modal-title-wrap">
+                <span className="admins-modal-icon">⎇</span>
+                <div>
+                  <h2>Assign Clinic</h2>
+                </div>
+              </div>
+              <button type="button" className="admins-modal-close" onClick={() => setAssigningAdmin(null)} aria-label="Close">×</button>
+            </div>
+            <form className="admins-form" onSubmit={handleAssign}>
+              <div className="admins-form-grid single-column">
+                <label className="admins-field">
+                  <span>Hospital</span>
+                  <select value={form.hospitalId} onChange={(event) => {
+                    setForm({ ...form, hospitalId: event.target.value, branchId: '' })
+                    loadBranches(event.target.value)
+                  }} required>
+                    <option value="">Select hospital</option>
+                    {hospitals.map((hospital) => <option value={getHospitalId(hospital)} key={getHospitalId(hospital)}>{getHospitalName(hospital)}</option>)}
+                  </select>
+                </label>
+                <label className="admins-field">
+                  <span>Branch</span>
+                  <select value={form.branchId} onChange={(event) => setForm({ ...form, branchId: event.target.value })} disabled={!form.hospitalId} required>
+                    <option value="">Select branch</option>
+                    {branches.map((branch) => <option value={getBranchId(branch)} key={getBranchId(branch)}>{getBranchName(branch)}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="admins-form-actions">
+                <button type="button" className="admins-cancel-button" onClick={() => setAssigningAdmin(null)}>Cancel</button>
+                <button type="submit" className="admins-submit-button">Assign</button>
+              </div>
+            </form>
+          </div>
         </div>
       ) : null}
 
       {resettingAdmin ? (
-        <div className="user-modal">
-          <form onSubmit={handleResetPassword}>
-            <button type="button" onClick={() => setResettingAdmin(null)}>×</button>
-            <h2>Reset Password</h2>
-            <label>Temporary Password<input type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} required /></label>
-            <button className="modal-save" type="submit">Set Password</button>
-          </form>
+        <div className="admins-modal-backdrop" onClick={() => setResettingAdmin(null)}>
+          <div className="admins-modal-card small-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="admins-modal-header">
+              <div className="admins-modal-title-wrap">
+                <span className="admins-modal-icon">✦</span>
+                <div>
+                  <h2>Reset Password</h2>
+                </div>
+              </div>
+              <button type="button" className="admins-modal-close" onClick={() => setResettingAdmin(null)} aria-label="Close">×</button>
+            </div>
+            <form className="admins-form" onSubmit={handleResetPassword}>
+              <div className="admins-form-grid single-column">
+                <label className="admins-field">
+                  <span>Temporary Password</span>
+                  <input type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} required />
+                </label>
+              </div>
+              <div className="admins-form-actions">
+                <button type="button" className="admins-cancel-button" onClick={() => setResettingAdmin(null)}>Cancel</button>
+                <button type="submit" className="admins-submit-button">Set Password</button>
+              </div>
+            </form>
+          </div>
         </div>
       ) : null}
     </div>
