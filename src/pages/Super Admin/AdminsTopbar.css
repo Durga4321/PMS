@@ -1,0 +1,161 @@
+.management-main {
+  background: #f8fbff;
+}
+
+.management-header {
+  height: 82px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 28px 0 20px;
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.management-menu {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: none;
+  color: #0f172a;
+}
+
+.management-title {
+  min-width: 250px;
+}
+
+.management-title h1 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.management-title p {
+  font-size: 12px;
+}
+
+.management-top-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #f4f7fb;
+  padding: 0 18px;
+  height: 54px;
+  border-radius: 16px;
+  width: min(560px, 100%);
+  gap: 10px;
+  border: 0;
+  color: #64748b;
+  flex: 1;
+}
+
+.management-top-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-size: 15px;
+  color: #334155;
+}
+
+.management-notification {
+  position: relative;
+  cursor: pointer;
+  color: #0f172a;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.management-notification b {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  background: #ef4444;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.management-profile-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  position: relative;
+  padding: 6px 10px 6px 8px;
+  border: 1px solid #dbe3ed;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #0f172a;
+  flex: 0 0 auto;
+}
+
+.management-profile-button span {
+  width: 40px;
+  height: 40px;
+  background: #dff3f3;
+  color: #0f766e;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.management-profile-button strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.management-profile-button small {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .management-header {
+    padding: 0 14px;
+  }
+
+  .management-menu {
+    display: block;
+  }
+
+  .management-title {
+    min-width: 0;
+  }
+
+  .management-title h1 {
+    font-size: 18px;
+  }
+
+  .management-top-search {
+    display: none;
+  }
+
+  .management-profile-button strong,
+  .management-profile-button small {
+    display: none;
+  }
+}

@@ -1,20 +1,24 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
+import { useToast } from '../components/ToastProvider'
 
 function ResetPassword() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   function handleSubmit(event) {
     event.preventDefault()
     if (password !== confirmPassword) {
       setError('Passwords must match')
+      showToast('Passwords must match', 'error')
       return
     }
     setError('')
+    showToast('Password reset successful.')
     navigate('/login')
   }
 

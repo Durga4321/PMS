@@ -346,12 +346,16 @@
 }
 
 .admin-action-link {
+  width: 100%;
   gap: 10px;
   min-height: 46px;
   padding: 0 12px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+  background: transparent;
   color: #334155;
+  cursor: pointer;
+  font: inherit;
   font-weight: 800;
 }
 
@@ -633,7 +637,510 @@
 .admin-nav-link>.nav-icon img,.users-sidebar nav button>span:first-child img,.med-sidebar nav button>span:first-child img,.settings-sidebar nav button>span:first-child img,.reports-sidebar nav button>i img,.activity-sidebar nav button>i img,.notification-sidebar nav button>i img{display:block;width:20px;height:20px}
 
 /* One consistent, full Super Admin navigation list. */
-.admin-sidebar .admin-nav,.users-sidebar nav,.med-sidebar nav,.settings-sidebar nav,.reports-sidebar nav,.activity-sidebar nav,.notification-sidebar nav,.management-sidebar nav{gap:6px;margin-top:16px}.admin-nav-link,.users-sidebar nav button,.med-sidebar nav button,.settings-sidebar nav button,.reports-sidebar nav button,.activity-sidebar nav button,.notification-sidebar nav button,.management-sidebar nav button{min-height:40px;padding:0 14px;gap:15px;font-size:12px;line-height:1.2}.admin-nav-link>.nav-icon,.users-sidebar nav button>span:first-child,.med-sidebar nav button>span:first-child,.settings-sidebar nav button>span:first-child,.reports-sidebar nav button>i,.activity-sidebar nav button>i,.notification-sidebar nav button>i,.management-sidebar nav button>i{display:grid;place-items:center;width:20px;height:20px;flex:0 0 20px;font-style:normal}.admin-nav-link .sidebar-icon,.users-sidebar .sidebar-icon,.med-sidebar .sidebar-icon,.settings-sidebar .sidebar-icon,.reports-sidebar .sidebar-icon,.activity-sidebar .sidebar-icon,.notification-sidebar .sidebar-icon,.management-sidebar .sidebar-icon{display:block;width:20px;height:20px}.admin-sidebar,.users-sidebar,.med-sidebar,.settings-sidebar,.reports-sidebar,.activity-sidebar,.notification-sidebar,.management-sidebar{background:linear-gradient(165deg,#06294a,#001c35)}.admin-nav-link.is-active,.users-sidebar nav button.active,.med-sidebar nav button.active,.settings-sidebar nav button.active,.reports-sidebar nav button.active,.activity-sidebar nav button.active,.notification-sidebar nav button.active,.management-sidebar nav button.active{background:#096bea}
+.admin-sidebar .admin-nav,.users-sidebar nav,.med-sidebar nav,.settings-sidebar nav,.reports-sidebar nav,.activity-sidebar nav,.notification-sidebar nav{gap:6px;margin-top:16px}.admin-nav-link,.users-sidebar nav button,.med-sidebar nav button,.settings-sidebar nav button,.reports-sidebar nav button,.activity-sidebar nav button,.notification-sidebar nav button{min-height:40px;padding:0 14px;gap:15px;font-size:12px;line-height:1.2}.admin-nav-link>.nav-icon,.users-sidebar nav button>span:first-child,.med-sidebar nav button>span:first-child,.settings-sidebar nav button>span:first-child,.reports-sidebar nav button>i,.activity-sidebar nav button>i,.notification-sidebar nav button>i{display:grid;place-items:center;width:20px;height:20px;flex:0 0 20px;font-style:normal}.admin-nav-link .sidebar-icon,.users-sidebar .sidebar-icon,.med-sidebar .sidebar-icon,.settings-sidebar .sidebar-icon,.reports-sidebar .sidebar-icon,.activity-sidebar .sidebar-icon,.notification-sidebar .sidebar-icon{display:block;width:20px;height:20px}.admin-sidebar,.users-sidebar,.med-sidebar,.settings-sidebar,.reports-sidebar,.activity-sidebar,.notification-sidebar{background:linear-gradient(165deg,#06294a,#001c35)}.admin-nav-link.is-active,.users-sidebar nav button.active,.med-sidebar nav button.active,.settings-sidebar nav button.active,.reports-sidebar nav button.active,.activity-sidebar nav button.active,.notification-sidebar nav button.active{background:#096bea}
 
 /* Shared admin/clinic/branch management pages */
-.management-page{min-height:100vh;display:grid;grid-template-columns:242px minmax(0,1fr);background:#f6f8fc;color:#102048;font-size:12px}.management-sidebar{position:sticky;top:0;height:100vh;padding:20px 11px;display:flex;flex-direction:column;background:linear-gradient(165deg,#06294a,#001c35);color:#fff}.management-brand{display:flex;align-items:center;gap:12px;padding:0 8px 20px;border-bottom:1px solid rgba(255,255,255,.12)}.management-brand>b{display:grid;width:43px;height:49px;place-items:center;border:3px solid #fff;border-radius:13px 13px 20px 20px;font-size:30px}.management-brand strong,.management-sidebar footer b{display:block;font-size:16px}.management-brand small,.management-sidebar footer small{display:block;color:#c4d3e4;font-size:12px}.management-sidebar nav{display:grid;gap:10px;margin-top:18px}.management-sidebar nav button{display:flex;align-items:center;gap:18px;min-height:46px;padding:0 14px;border:0;border-radius:7px;background:transparent;color:#fff;text-align:left;font-weight:700}.management-sidebar nav button:hover,.management-sidebar nav button.active{background:#096bea}.management-sidebar nav i{width:20px;font-size:18px;font-style:normal}.management-sidebar footer{display:flex;align-items:center;gap:10px;margin-top:auto;padding:11px;border:1px solid rgba(255,255,255,.18);border-radius:7px;font-size:19px}.management-main{min-width:0;padding:0 22px 24px}.management-header{min-height:89px;display:flex;align-items:center;gap:20px;border-bottom:1px solid #e3e8f0}.management-menu{border:0;background:transparent;color:#17395e;font-size:21px}.management-header h1{margin:0;font-size:25px}.management-header p{margin:5px 0 0;color:#61708d}.management-profile{position:relative;margin-left:auto}.management-profile>button{display:flex;align-items:center;gap:9px;border:0;background:transparent;color:#102048;text-align:left}.management-profile i{display:grid;width:43px;height:43px;place-items:center;border-radius:50%;background:linear-gradient(145deg,#efc19b,#315677);color:#fff;font-style:normal;font-weight:800}.management-profile b,.management-profile small{display:block}.management-profile small{color:#73809a;font-size:11px}.management-profile>div{position:absolute;z-index:4;right:0;top:51px;width:140px;padding:5px;border:1px solid #e1e7f0;border-radius:8px;background:#fff;box-shadow:0 14px 34px rgba(24,42,74,.15)}.management-profile>div button{display:block;width:100%;padding:9px;border:0;background:#fff;color:#243657;text-align:left}.management-card{margin-top:20px;padding:20px;border:1px solid #e1e7ef;border-radius:11px;background:#fff}.management-card-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}.management-card-header h2,.management-card-header p{margin:0}.management-card-header h2{font-size:17px}.management-card-header p{margin-top:5px;color:#64748b}.management-card-header button{padding:10px 14px;border:0;border-radius:7px;background:#096bea;color:#fff;font-weight:700}.management-search{display:flex;align-items:center;gap:8px;width:min(360px,100%);height:40px;margin-bottom:16px;padding:0 12px;border:1px solid #dce4ed;border-radius:6px;color:#516581;font-size:18px}.management-search input{width:100%;border:0;outline:0;background:transparent;font-size:12px}.management-table-wrap{overflow-x:auto}.management-table-wrap table{width:100%;border-collapse:collapse;white-space:nowrap}.management-table-wrap th{padding:13px;background:#f7f9fc;text-align:left;color:#53698b;font-size:11px}.management-table-wrap td{padding:13px;border-bottom:1px solid #e9edf3}.management-status{display:inline-block;padding:5px 8px;border-radius:4px;background:#e4f7eb;color:#159052;font-size:10px;font-weight:700}.management-status.inactive{background:#ffe5e7;color:#e23743}.management-empty{text-align:center;color:#64748b}@media(max-width:800px){.management-page{display:block}.management-sidebar{position:fixed;z-index:8;left:0;width:242px;transform:translateX(-100%);transition:transform .2s}.management-sidebar-open .management-sidebar{transform:translateX(0)}.management-main{padding:0 12px 18px}.management-header{padding:12px 0}.management-profile span{display:none}.management-card{padding:14px}.management-card-header{align-items:flex-start;flex-direction:column}.management-card-header button{width:100%}}
+
+/* Super admin light console theme */
+.admin-shell {
+  grid-template-columns: 292px minmax(0, 1fr);
+  background: linear-gradient(180deg, #fff7fb 0%, #f7fbff 100%);
+}
+
+.admin-sidebar {
+  padding: 26px 20px;
+  background: #fff8fc !important;
+  color: #122544;
+  border-right: 1px solid #f3d9e8;
+}
+
+.admin-brand {
+  border-bottom: 0;
+  padding: 0 6px 26px;
+}
+
+.admin-brand-mark {
+  width: 58px;
+  height: 58px;
+  border: 1px solid #d8f7ef;
+  border-radius: 15px;
+  background: #fff;
+  color: #10b981;
+  box-shadow: 0 12px 30px rgba(16, 185, 129, 0.12);
+}
+
+.admin-brand strong {
+  color: #001a3d;
+  font-size: 20px;
+}
+
+.admin-brand small {
+  color: #68758c;
+  font-size: 15px;
+}
+
+.admin-nav::before {
+  content: "SUPER ADMIN";
+  margin: 5px 0 8px 6px;
+  color: #98a7c1;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-nav {
+  gap: 10px;
+}
+
+.admin-nav-link {
+  min-height: 58px;
+  padding: 0 18px;
+  border-radius: 17px;
+  color: #173355;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.admin-nav-link:hover,
+.admin-nav-link.is-active {
+  background: #dff6f1;
+  color: #06948f;
+}
+
+.nav-icon {
+  color: var(--nav-icon-color, #0ea5e9);
+}
+
+.nav-icon-blue { --nav-icon-color: #0ea5e9; }
+.nav-icon-violet { --nav-icon-color: #7c3aed; }
+.nav-icon-teal { --nav-icon-color: #0d9488; }
+.nav-icon-pink { --nav-icon-color: #ec4899; }
+.nav-icon-amber { --nav-icon-color: #f59e0b; }
+.nav-icon-green { --nav-icon-color: #22c55e; }
+.nav-icon-sky { --nav-icon-color: #0284c7; }
+.nav-icon-purple { --nav-icon-color: #8b5cf6; }
+.nav-icon-orange { --nav-icon-color: #f97316; }
+.nav-icon-emerald { --nav-icon-color: #10b981; }
+
+.admin-nav-link .sidebar-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--nav-icon-color);
+}
+
+.admin-sidebar-footer {
+  margin-top: auto;
+  padding-top: 28px;
+  border: 0;
+  border-top: 1px solid #efd8e5;
+  background: transparent;
+  color: #001a3d;
+}
+
+.admin-sidebar-footer .footer-badge {
+  border-radius: 50%;
+  background: #dff6f1;
+  color: #06948f;
+}
+
+.admin-main {
+  background: #fff7fb;
+  padding: 0 28px 30px;
+}
+
+.admin-topbar {
+  min-height: 118px;
+  gap: 24px;
+  border-bottom: 1px solid #f0d9e6;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.topbar-title {
+  display: none;
+}
+
+.dashboard-search {
+  flex: 1;
+  width: auto;
+  max-width: 1080px;
+  height: 80px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 18px;
+  background: #f4f7fb;
+  color: #66758e;
+}
+
+.dashboard-search input {
+  font-size: 22px;
+}
+
+.notification-button {
+  width: 70px;
+  height: 70px;
+  border: 1px solid #e7eef8;
+  border-radius: 50%;
+  background: #f8fbff;
+  color: #102544;
+}
+
+.notification-button b {
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  background: #ef4444;
+  font-size: 13px;
+}
+
+.admin-profile {
+  min-height: 76px;
+  padding: 8px 14px;
+  border: 4px solid #b8dcff;
+  border-radius: 32px;
+  background: #eaf4ff;
+  box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.14);
+}
+
+.profile-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #6ea8ff, #2563eb);
+}
+
+.profile-avatar::after,
+.admin-sidebar-footer .profile-avatar::after {
+  content: "";
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.profile-avatar {
+  position: relative;
+}
+
+.profile-menu {
+  right: 0;
+  top: 88px;
+  width: 492px;
+  padding: 16px;
+  border: 1px solid #e3edf6;
+  border-radius: 18px;
+  box-shadow: 0 28px 70px rgba(18, 37, 68, 0.16);
+}
+
+.profile-menu::before {
+  content: "SA\A Super Admin\A Super Admin\A Online";
+  display: block;
+  white-space: pre-line;
+  margin-bottom: 16px;
+  padding: 22px 22px 22px 112px;
+  border: 1px solid #d8eef1;
+  border-radius: 14px;
+  background: radial-gradient(circle at 58px 50%, #13a394 0 44px, transparent 45px), #f2fdff;
+  color: #102544;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.profile-menu button {
+  display: block;
+  min-height: 76px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  color: #102544;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.profile-menu button small {
+  display: block;
+  margin-top: 6px;
+  color: #68758c;
+  font-size: 14px;
+}
+
+.profile-menu button:nth-child(1)::after {
+  content: "View and edit your profile";
+}
+
+.profile-menu button:nth-child(2)::after {
+  content: "Update your password";
+}
+
+.profile-menu button:nth-child(3)::after {
+  content: "Sign out from your account";
+}
+
+.dashboard-hero {
+  margin: 44px 0 30px;
+}
+
+.dashboard-hero h1 {
+  margin: 0;
+  color: #001a3d;
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.dashboard-hero p {
+  margin: 12px 0 0;
+  color: #344b69;
+  font-size: 18px;
+}
+
+/* PMS compact sidebar/topbar sizing */
+.admin-shell {
+  grid-template-columns: 372px minmax(0, 1fr);
+}
+
+.admin-sidebar {
+  padding: 32px 21px 28px;
+}
+
+.admin-brand {
+  gap: 17px;
+  padding-bottom: 31px;
+}
+
+.admin-brand-mark {
+  width: 66px;
+  height: 66px;
+  font-size: 34px;
+}
+
+.admin-brand-mark::after {
+  content: "PMS";
+  display: block;
+  margin-top: -7px;
+  color: #2563eb;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-brand strong {
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.admin-brand small {
+  margin-top: 8px;
+  font-size: 20px;
+}
+
+.admin-nav::before {
+  margin: 0 0 14px 4px;
+  font-size: 16px;
+}
+
+.admin-nav {
+  gap: 8px;
+}
+
+.admin-nav-link {
+  min-height: 58px;
+  padding: 0 17px;
+  border-radius: 17px;
+  font-size: 24px;
+  gap: 18px;
+}
+
+.admin-nav-link .sidebar-icon {
+  width: 25px;
+  height: 25px;
+}
+
+.admin-sidebar-footer {
+  gap: 15px;
+  padding-top: 30px;
+}
+
+.admin-sidebar-footer .profile-avatar {
+  width: 60px;
+  height: 60px;
+  background: #dff6f1;
+  color: #0d9488;
+  font-size: 20px;
+}
+
+.admin-sidebar-footer strong {
+  color: #001a3d;
+  font-size: 20px;
+}
+
+.admin-sidebar-footer small,
+.admin-sidebar-footer em {
+  display: block;
+  color: #64748b;
+  font-size: 16px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.admin-sidebar-footer em {
+  color: #0d9488;
+}
+
+.admin-main {
+  padding: 0 48px 32px;
+}
+
+.admin-topbar {
+  min-height: 124px;
+}
+
+.dashboard-search {
+  height: 82px;
+  max-width: 1080px;
+  border-radius: 18px;
+}
+
+.dashboard-search input {
+  font-size: 24px;
+}
+
+.notification-button,
+.admin-profile {
+  transform: scale(0.92);
+}
+
+.dashboard-hero {
+  margin: 48px 0 50px;
+}
+
+.dashboard-hero h1 {
+  font-size: 38px;
+}
+
+.summary-grid {
+  gap: 24px;
+}
+
+.summary-card {
+  min-height: 144px;
+  padding: 34px 20px;
+  border-radius: 10px;
+}
+
+.summary-card p {
+  font-size: 20px;
+}
+
+.summary-card strong {
+  font-size: 38px;
+}
+
+.summary-icon {
+  width: 72px;
+  height: 72px;
+  font-size: 32px;
+}
+
+@media (max-width: 900px) {
+  .admin-shell {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+}
+
+/* Match compact PMS sidebar reference */
+.admin-shell {
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+.admin-sidebar {
+  padding: 18px 14px;
+}
+
+.admin-brand {
+  gap: 12px;
+  padding: 10px 8px 24px;
+}
+
+.admin-brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 24px;
+}
+
+.admin-brand-mark::after {
+  font-size: 6px;
+}
+
+.admin-brand strong {
+  font-size: 16px;
+}
+
+.admin-brand small {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.admin-nav::before {
+  margin: 8px 8px 10px;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+
+.admin-nav {
+  gap: 2px;
+}
+
+.admin-nav-link {
+  min-height: 44px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.admin-nav-link.is-active {
+  font-weight: 700;
+}
+
+.admin-nav-link .sidebar-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.admin-sidebar-footer {
+  gap: 10px;
+  padding: 16px 4px 4px;
+}
+
+.admin-sidebar-footer .profile-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 13px;
+}
+
+.admin-sidebar-footer strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.admin-sidebar-footer small,
+.admin-sidebar-footer em {
+  font-size: 11px;
+}
+
+.profile-menu button:last-child {
+  background: #fff0f1;
+  color: #dc2626;
+}
+
+.dashboard-hero,
+.admin-main > .summary-grid:first-of-type {
+  margin-top: 36px;
+}
+

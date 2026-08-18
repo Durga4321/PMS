@@ -1,28 +1,77 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
+import { useToast } from '../components/ToastProvider'
+import { getPharmacyAdminAssignmentStatus, loginPharmacyAdmin, loginSuperAdmin } from '../config/api'
 
 function Login() {
+  const [loginRole, setLoginRole] = useState('super-admin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    navigate('/super-admin/dashboard')
+    setError('')
+    setIsSubmitting(true)
+
+    try {
+      const isPharmacyAdmin = loginRole === 'pharmacy-admin'
+      const data = await (isPharmacyAdmin ? loginPharmacyAdmin({ email, password }) : loginSuperAdmin({ email, password }))
+      const token = data?.token || data?.accessToken || data?.data?.token || data?.data?.accessToken
+      const user = data?.user || data?.data?.user || { email }
+      const storage = remember ? localStorage : sessionStorage
+      const tokenKey = isPharmacyAdmin ? 'pharmacyAdminToken' : 'superAdminToken'
+      const userKey = isPharmacyAdmin ? 'pharmacyAdminUser' : 'superAdminUser'
+
+      if (token) {
+        storage.setItem(tokenKey, token)
+      }
+
+      storage.setItem(userKey, JSON.stringify(user))
+
+      if (isPharmacyAdmin) {
+        try {
+          const assignment = await getPharmacyAdminAssignmentStatus()
+          storage.setItem('pharmacyAdminAssignment', JSON.stringify(assignment?.data || assignment))
+        } catch {
+          storage.removeItem('pharmacyAdminAssignment')
+        }
+      }
+
+      showToast(data?.message || 'Login successful.')
+      navigate(isPharmacyAdmin ? '/admin/dashboard' : '/super-admin/dashboard')
+    } catch (loginError) {
+      setError(loginError.message)
+      showToast(loginError.message, 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
     <AuthLayout title="PMS Login" subtitle="Welcome back to your Pharmacy Management System">
-      <form className="auth-form" onSubmit={handleSubmit}>
+      <form className="auth-form" onSubmit={handleSubmit} autoComplete="off">
+        <label>
+          Login Role
+          <select value={loginRole} onChange={(event) => setLoginRole(event.target.value)}>
+            <option value="super-admin">Super Admin</option>
+            <option value="pharmacy-admin">Pharmacy Admin</option>
+          </select>
+        </label>
         <label>
           Email Address
           <input
             type="email"
+            name={`${loginRole}-login-email`}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="admin@gmail.com"
+            placeholder="Enter email"
+            autoComplete="off"
             required
           />
         </label>
@@ -30,12 +79,15 @@ function Login() {
           Password
           <input
             type="password"
+            name={`${loginRole}-login-password`}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Enter your password"
+            placeholder="Enter password"
+            autoComplete="new-password"
             required
           />
         </label>
+        {error ? <div className="form-error" role="alert">{error}</div> : null}
         <div className="auth-row">
           <label className="checkbox-row">
             <input
@@ -49,16 +101,10 @@ function Login() {
             Forgot Password?
           </Link>
         </div>
-        <button type="submit" className="button-primary">
-          Login -&gt;
+        <button type="submit" className="button-primary" disabled={isSubmitting}>
+          {isSubmitting ? 'Signing in...' : 'Login ->'}
         </button>
       </form>
-      <div className="auth-register-row">
-        <p className="auth-register">New pharmacy staff?</p>
-        <Link to="/forgot-password" className="create-account-btn create-account-btn--outline">
-          Create Account
-        </Link>
-      </div>
       <div className="auth-meta">
         Your data is secure with us | Terms & Conditions | Privacy Policy | Version 1.0.0
       </div>

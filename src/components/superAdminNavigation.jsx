@@ -1,17 +1,22 @@
-import { FiBell, FiClipboard, FiGrid, FiMapPin, FiPackage, FiSettings, FiTrendingUp, FiUserCheck, FiUsers } from 'react-icons/fi'
-import { HiOutlineBuildingOffice2 } from 'react-icons/hi2'
+import SidebarIcon from './SidebarIcon'
 
-const item = (label, path, Icon, iconName) => ({ label, path, icon: <Icon aria-hidden="true" />, Icon, iconName })
+const item = (label, path, iconName, color) => ({
+  label,
+  path,
+  icon: <SidebarIcon name={iconName} />,
+  iconName,
+  color,
+})
 
 export const superAdminNavigation = [
-  item('Dashboard', '/super-admin/dashboard', FiGrid, 'dashboard'),
-  item('Admins', '/super-admin/admins', FiUserCheck, 'admins'),
-  item('Clinics', '/super-admin/clinics', HiOutlineBuildingOffice2, 'clinics'),
-  item('Branches', '/super-admin/branches', FiMapPin, 'branches'),
-  item('Users & Permissions', '/super-admin/users-permissions', FiUsers, 'roles'),
-  item('Medicines', '/super-admin/medicines', FiPackage, 'medicines'),
-  item('System Settings', '/super-admin/system-settings', FiSettings, 'settings'),
-  item('Reports', '/super-admin/reports', FiTrendingUp, 'reports'),
-  item('Audit Logs', '/super-admin/audit-logs', FiClipboard, 'audit'),
-  item('Notifications', '/super-admin/notifications', FiBell, 'notifications'),
+  item('Dashboard', '/super-admin/dashboard', 'dashboard', 'blue'),
+  item('Clinics', '/super-admin/clinics', 'clinics', 'violet'),
+  item('Admins', '/super-admin/admins', 'admins', 'teal'),
+  item('Users & Permissions', '/super-admin/users-permissions', 'roles', 'pink'),
+  item('System Settings', '/super-admin/system-settings', 'settings', 'amber'),
+  item('Reports', '/super-admin/reports', 'reports', 'green'),
+  item('Audit Logs', '/super-admin/audit-logs', 'audit', 'sky'),
+  item('Notifications', '/super-admin/notifications', 'notifications', 'purple'),
+  item('Branches', '/super-admin/branches', 'branches', 'orange'),
+  item('Medicines', '/super-admin/medicines', 'medicines', 'emerald'),
 ]

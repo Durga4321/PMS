@@ -1,0 +1,593 @@
+.branch-admin-main {
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  background: #f8fbff;
+  padding: 0 20px 28px;
+}
+
+.branch-admin-header {
+  height: 82px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.branch-admin-menu {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: none;
+  color: #0f172a;
+}
+
+.branch-admin-title {
+  min-width: 240px;
+}
+
+.branch-admin-title h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.branch-admin-title p {
+  margin: 5px 0 0;
+  color: #61708d;
+  font-size: 12px;
+}
+
+.branch-admin-top-search {
+  display: flex;
+  align-items: center;
+  background: #f4f7fb;
+  padding: 0 18px;
+  height: 54px;
+  border-radius: 16px;
+  width: min(560px, 100%);
+  gap: 10px;
+  color: #64748b;
+  flex: 1;
+}
+
+.branch-admin-top-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #334155;
+  font-size: 15px;
+}
+
+.branch-admin-notification {
+  position: relative;
+  cursor: pointer;
+  color: #0f172a;
+  width: 68px;
+  height: 68px;
+  border: 1px solid #dfeaf6;
+  border-radius: 50%;
+  background: #fbfdff;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.branch-admin-notification b {
+  display: none;
+}
+
+.branch-admin-profile-wrap {
+  position: relative;
+}
+
+.branch-admin-profile-button {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  min-width: 145px;
+  height: 72px;
+  padding: 0 22px 0 9px;
+  border: 4px solid #93c5fd;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #0f172a;
+  box-shadow: 0 0 0 4px #bfdbfe;
+}
+
+.branch-admin-profile-button span {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #7da8ff, #2563eb);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.branch-admin-profile-button i {
+  position: absolute;
+  left: 59px;
+  bottom: 14px;
+  width: 17px;
+  height: 17px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.branch-admin-profile-button b {
+  margin-left: auto;
+  color: #0f2b46;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.branch-admin-profile-button strong,
+.branch-admin-profile-button small {
+  display: none;
+}
+
+.branch-admin-profile-menu {
+  position: absolute;
+  top: 87px;
+  right: 0;
+  width: 493px;
+  padding: 16px;
+  border: 1px solid #dbe8f6;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.18);
+  z-index: 10;
+}
+
+.branch-profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 142px;
+  padding: 22px;
+  border: 1px solid #d5edf2;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ecfeff 0%, #f7fbff 100%);
+}
+
+.branch-profile-summary > b {
+  display: grid;
+  width: 86px;
+  height: 86px;
+  flex: 0 0 86px;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #19b8a7, #0f8f82);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.branch-profile-summary span,
+.branch-profile-summary strong,
+.branch-profile-summary small,
+.branch-profile-summary em,
+.branch-profile-action span,
+.branch-profile-action strong,
+.branch-profile-action small {
+  display: block;
+}
+
+.branch-profile-summary strong {
+  color: #102338;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.branch-profile-summary small {
+  margin-top: 8px;
+  color: #667795;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.branch-profile-summary em {
+  width: fit-content;
+  margin-top: 14px;
+  padding: 6px 14px;
+  border: 1px solid #86efac;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #16803d;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.branch-profile-action {
+  width: 100%;
+  min-height: 80px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  color: #102338;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 24px;
+  text-align: left;
+}
+
+.branch-profile-action > i {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border: 1px solid #bdeef5;
+  border-radius: 14px;
+  background: #effeff;
+  color: #0f3d58;
+  font-style: normal;
+}
+
+.branch-profile-action > i::before {
+  font-size: 31px;
+  line-height: 1;
+}
+
+.profile-user-icon::before {
+  content: "♙";
+}
+
+.profile-key-icon::before {
+  content: "⚿";
+}
+
+.profile-logout-icon::before {
+  content: "↪";
+}
+
+.branch-profile-action strong {
+  color: #102338;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.branch-profile-action small {
+  margin-top: 7px;
+  color: #667795;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.branch-profile-action > b {
+  color: #63758f;
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.branch-profile-action:hover {
+  background: #f8fafc;
+}
+
+.branch-profile-logout {
+  background: #fff1f2;
+}
+
+.branch-profile-logout > i {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #dc2626;
+}
+
+.branch-profile-logout strong {
+  color: #dc2626;
+}
+
+.user-profile-wrap {
+  position: relative;
+}
+
+.user-profile-chip {
+  width: 92px;
+  height: 50px;
+  border: 3px solid #93c5fd;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #082033;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 3px 9px 3px 5px;
+  cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.24);
+  font-family: inherit;
+}
+
+.user-profile-chip.open .user-profile-chevron {
+  transform: rotate(180deg);
+}
+
+.user-profile-avatar-shell {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+}
+
+.user-profile-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #5b8df7, #2f5fdf);
+  border: 3px solid rgba(255, 255, 255, 0.72);
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.28);
+  box-sizing: border-box;
+}
+
+.user-profile-online-dot {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  background: #18c77a;
+}
+
+.user-profile-copy {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  text-align: left;
+}
+
+.user-profile-chevron {
+  color: #0f2f4f;
+  transition: transform 0.16s ease;
+  flex: 0 0 auto;
+}
+
+.user-profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 330px;
+  max-width: calc(100vw - 28px);
+  background: #fff;
+  border: 1px solid #e1e8f2;
+  border-radius: 14px;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+  padding: 10px;
+  z-index: 2000;
+}
+
+.user-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5f3f3;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ecfeff 0%, #f8fafc 100%);
+  margin-bottom: 10px;
+}
+
+.user-profile-head-avatar {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #14b8a6, #0f766e);
+  color: #ffffff;
+  font-size: 21px;
+  font-weight: 900;
+  box-shadow: 0 10px 22px rgba(20, 184, 166, 0.24);
+}
+
+.user-profile-head-copy {
+  min-width: 0;
+  display: block;
+}
+
+.user-profile-head strong {
+  display: block;
+  color: #082033;
+  font-size: 15px;
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-profile-head-copy > span {
+  display: block;
+  color: #687895;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-profile-head em {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 7px;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  background: #f0fdf4;
+  color: #15803d;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 4px 9px;
+}
+
+.user-profile-branch-switch {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid #d9eef0;
+  border-radius: 12px;
+  background: #f8feff;
+}
+
+.user-profile-branch-switch span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.user-profile-branch-switch strong {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #b7dde2;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #082033;
+  box-sizing: border-box;
+  font-size: 14px;
+  font-weight: 850;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.user-profile-dropdown button {
+  width: 100%;
+  min-height: 64px;
+  border: 0;
+  background: #fff;
+  color: #082033;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.user-profile-dropdown button:hover {
+  background: #f8fafc;
+}
+
+.user-profile-dropdown button.danger {
+  color: #c72520;
+  grid-template-columns: 42px minmax(0, 1fr);
+  margin-top: 4px;
+  background: #fff1f2;
+}
+
+.user-profile-dropdown button.danger:hover {
+  background: #ffe4e6;
+}
+
+.user-profile-menu-icon {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #cdeef0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #f1feff;
+  color: #07354d;
+  flex: 0 0 auto;
+}
+
+.user-profile-menu-icon.danger {
+  border-color: #ffd6d6;
+  background: #fff2f2;
+  color: #e0342f;
+}
+
+.user-profile-menu-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.user-profile-menu-copy b {
+  color: #082033;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.user-profile-dropdown button.danger .user-profile-menu-copy b {
+  color: #dc2626;
+}
+
+.user-profile-menu-copy small {
+  overflow: hidden;
+  color: #687895;
+  font-size: 11.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-profile-menu-arrow {
+  justify-self: end;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .branch-admin-header {
+    padding: 0 14px;
+  }
+
+  .branch-admin-menu {
+    display: block;
+  }
+
+  .branch-admin-title {
+    min-width: 0;
+  }
+
+  .branch-admin-top-search {
+    display: none;
+  }
+
+  .branch-admin-profile-button strong,
+  .branch-admin-profile-button small {
+    display: none;
+  }
+
+  .branch-admin-profile-menu {
+    right: -6px;
+    width: min(493px, calc(100vw - 28px));
+  }
+}

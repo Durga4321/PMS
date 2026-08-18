@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
+import { useToast } from '../components/ToastProvider'
 
 function VerifyOTP() {
   const [otp, setOtp] = useState('')
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   function handleSubmit(event) {
     event.preventDefault()
+    showToast('OTP verified successfully.')
     navigate('/reset-password')
   }
 

@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
+import { useToast } from '../components/ToastProvider'
 
 function ForgotPassword() {
   const [email, setEmail] = useState('')
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   function handleSubmit(event) {
     event.preventDefault()
+    showToast('OTP sent successfully.')
     navigate('/verify-otp')
   }
 

@@ -13,8 +13,21 @@ import Notifications from './pages/Super Admin/Notifications'
 import Admins from './pages/Super Admin/Admins'
 import Clinics from './pages/Super Admin/Clinics'
 import Branches from './pages/Super Admin/Branches'
+import SuperAdminProfile from './pages/Super Admin/SuperAdminProfile'
+import AdminDashboard from './pages/Admin/AdminDashboard'
+import AdminUsers from './pages/Admin/Users'
+import AdminMedicines from './pages/Admin/Medicines'
+import AdminStock from './pages/Admin/Stock'
+import AdminPrescriptions from './pages/Admin/Prescriptions'
+import AdminDispensing from './pages/Admin/Dispensing'
+import AdminExpiryAlerts from './pages/Admin/ExpiryAlerts'
+import AdminReports from './pages/Admin/Reports'
+import AdminSettings from './pages/Admin/Settings'
 import VerifyOTP from './pages/VerifyOTP'
 import { superAdminNavigation } from './components/superAdminNavigation'
+import ToastProvider from './components/ToastProvider'
+import { useToast } from './components/ToastProvider'
+import { logoutPharmacyAdmin, logoutSuperAdmin } from './config/api'
 import './App.css'
 import './Topbar.css'
 import './ProfileMenu.css'
@@ -75,17 +88,63 @@ function CompleteSuperAdminSidebars() {
 
 function SharedProfileMenu() {
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [position, setPosition] = useState(null)
+  const storedUser =
+    sessionStorage.getItem('superAdminUser') ||
+    localStorage.getItem('superAdminUser') ||
+    sessionStorage.getItem('pharmacyAdminUser') ||
+    localStorage.getItem('pharmacyAdminUser')
+  let user = null
+
+  if (storedUser) {
+    try {
+      user = JSON.parse(storedUser)
+    } catch {
+      user = null
+    }
+  }
+
+  const profileName = user?.name || user?.fullName || user?.email || 'Super Admin'
+  const profileEmail = user?.email || ''
+
+  async function handleLogout() {
+    const pharmacyToken = sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken')
+    const superToken = sessionStorage.getItem('superAdminToken') || localStorage.getItem('superAdminToken')
+
+    try {
+      if (pharmacyToken) {
+        await logoutPharmacyAdmin(pharmacyToken)
+      } else if (superToken) {
+        await logoutSuperAdmin(superToken)
+      }
+      showToast('Logout successful.')
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      sessionStorage.removeItem('superAdminToken')
+      sessionStorage.removeItem('superAdminUser')
+      sessionStorage.removeItem('pharmacyAdminToken')
+      sessionStorage.removeItem('pharmacyAdminUser')
+      sessionStorage.removeItem('pharmacyAdminAssignment')
+      localStorage.removeItem('superAdminToken')
+      localStorage.removeItem('superAdminUser')
+      localStorage.removeItem('pharmacyAdminToken')
+      localStorage.removeItem('pharmacyAdminUser')
+      localStorage.removeItem('pharmacyAdminAssignment')
+      navigate('/login')
+    }
+  }
 
   useEffect(() => {
     const showProfileMenu = (event) => {
-      const profile = event.target.closest('.med-head-right>strong, .users-header-right>span:last-child, .settings-header>div:last-child>strong')
+      const profile = event.target.closest('.management-profile-button, .med-head-right>strong, .users-header-right>span:last-child, .settings-header>div:last-child>strong')
       if (!profile) return
       const rect = profile.getBoundingClientRect()
       setPosition({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
     }
     const closeProfileMenu = (event) => {
-      if (event.target.closest('.med-head-right>strong, .users-header-right>span:last-child, .settings-header>div:last-child>strong')) return
+      if (event.target.closest('.management-profile-button, .med-head-right>strong, .users-header-right>span:last-child, .settings-header>div:last-child>strong')) return
       if (!event.target.closest('.shared-profile-menu')) setPosition(null)
     }
     document.addEventListener('click', showProfileMenu)
@@ -98,41 +157,56 @@ function SharedProfileMenu() {
 
   if (!position) return null
   return <div className="shared-profile-menu" style={position} role="menu">
-    <div className="profile-menu-summary"><div className="profile-menu-avatar">SA</div><div><strong>Super Admin</strong><small>superadmin@gmail.com</small><em>Super Admin</em></div></div>
+    <div className="profile-menu-summary"><div className="profile-menu-avatar">SA</div><div><strong>{profileName}</strong><small>{profileEmail}</small><em>Super Admin</em></div></div>
     <div className="profile-menu-actions">
-      <button type="button" role="menuitem"><i className="profile-menu-icon user-icon" aria-hidden="true" /><span><b>My Profile</b><small>View and edit your profile</small></span><b className="profile-menu-arrow">›</b></button>
-      <button type="button" role="menuitem"><i className="profile-menu-icon password-icon" aria-hidden="true" /><span><b>Change Password</b><small>Update your password</small></span><b className="profile-menu-arrow">›</b></button>
-      <button className="profile-menu-logout" type="button" role="menuitem" onClick={() => navigate('/login')}><i className="profile-menu-icon logout-icon" aria-hidden="true" /><span><b>Logout</b><small>Sign out from your account</small></span></button>
+      <button type="button" role="menuitem" onClick={() => { setPosition(null); navigate('/profile') }}><i className="profile-menu-icon user-icon" aria-hidden="true" /><span><b>My Profile</b><small>View and edit your profile</small></span><b className="profile-menu-arrow">›</b></button>
+      <button type="button" role="menuitem" onClick={() => { setPosition(null); navigate('/change-password') }}><i className="profile-menu-icon password-icon" aria-hidden="true" /><span><b>Change Password</b><small>Update your password</small></span><b className="profile-menu-arrow">›</b></button>
+      <button className="profile-menu-logout" type="button" role="menuitem" onClick={handleLogout}><i className="profile-menu-icon logout-icon" aria-hidden="true" /><span><b>Logout</b><small>Sign out from your account</small></span></button>
     </div>
   </div>
 }
 
 function App() {
   return (
-    <BrowserRouter>
-      <SuperAdminNavigationHandler />
-      <CompleteSuperAdminSidebars />
-      <SharedProfileMenu />
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
-        <Route path="/super-admin/admins" element={<Admins />} />
-        <Route path="/super-admin/clinics" element={<Clinics />} />
-        <Route path="/super-admin/branches" element={<Branches />} />
-        <Route path="/super-admin/users-permissions" element={<UsersPermissions />} />
-        <Route path="/super-admin/medicines" element={<Medicines />} />
-        <Route path="/super-admin/system-settings" element={<SystemSettings />} />
-        <Route path="/super-admin/reports" element={<Reports />} />
-        <Route path="/super-admin/audit-logs" element={<ActivityLogs />} />
-        <Route path="/super-admin/activity-logs" element={<Navigate to="/super-admin/audit-logs" replace />} />
-        <Route path="/super-admin/notifications" element={<Notifications />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/verify-otp" element={<VerifyOTP />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <ToastProvider>
+      <BrowserRouter>
+        <SuperAdminNavigationHandler />
+        <CompleteSuperAdminSidebars />
+        <SharedProfileMenu />
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
+          <Route path="/super-admin/admins" element={<Admins />} />
+          <Route path="/super-admin/clinics" element={<Clinics />} />
+          <Route path="/super-admin/branches" element={<Branches />} />
+          <Route path="/super-admin/users-permissions" element={<UsersPermissions />} />
+          <Route path="/super-admin/medicines" element={<Medicines />} />
+          <Route path="/super-admin/system-settings" element={<SystemSettings />} />
+          <Route path="/super-admin/reports" element={<Reports />} />
+          <Route path="/super-admin/audit-logs" element={<ActivityLogs />} />
+          <Route path="/super-admin/activity-logs" element={<Navigate to="/super-admin/audit-logs" replace />} />
+          <Route path="/super-admin/notifications" element={<Notifications />} />
+          <Route path="/profile" element={<SuperAdminProfile initialTab="profile" />} />
+          <Route path="/change-password" element={<SuperAdminProfile initialTab="password" />} />
+          <Route path="/super-admin/profile" element={<SuperAdminProfile initialTab="profile" />} />
+          <Route path="/super-admin/change-password" element={<SuperAdminProfile initialTab="password" />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/medicines" element={<AdminMedicines />} />
+          <Route path="/admin/stock" element={<AdminStock />} />
+          <Route path="/admin/prescriptions" element={<AdminPrescriptions />} />
+          <Route path="/admin/dispensing" element={<AdminDispensing />} />
+          <Route path="/admin/expiry-alerts" element={<AdminExpiryAlerts />} />
+          <Route path="/admin/reports" element={<AdminReports />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-otp" element={<VerifyOTP />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </ToastProvider>
   )
 }
 

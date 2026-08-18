@@ -1,0 +1,222 @@
+.admin-shell {
+  grid-template-columns: 248px minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.admin-sidebar {
+  width: 248px;
+  height: 100vh;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, #f8fafc 0%, #f7fafe 100%);
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  color: #0f172a;
+}
+
+.admin-main {
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px 24px;
+}
+
+.admin-brand-mark {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: 1px solid #e4ecf7;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  color: #10b981;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.07);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-brand strong {
+  margin: 0;
+  color: #020617;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.admin-brand small {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.admin-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.admin-nav::before {
+  content: "SUPER ADMIN";
+  margin: 0 8px 10px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.admin-nav-link {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.admin-nav-link:hover,
+.admin-nav-link.is-active {
+  background: #dff3f3;
+  color: #0f9d9d;
+  font-weight: 700;
+}
+
+.admin-nav-link > .nav-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+}
+
+.admin-nav-link .sidebar-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.admin-sidebar-footer {
+  margin-top: auto;
+  padding: 16px 4px 4px;
+  border-top: 1px solid #e5e7eb;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #111827;
+}
+
+.admin-sidebar-footer .profile-avatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 50%;
+  background: #dff3f3;
+  color: #0f9d9d;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-sidebar-footer strong,
+.admin-sidebar-footer small,
+.admin-sidebar-footer em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-sidebar-footer strong {
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.admin-sidebar-footer small {
+  margin-top: 2px;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.admin-sidebar-footer em {
+  margin-top: 4px;
+  color: #0f9d9d;
+  font-size: 11px;
+  font-style: normal;
+}
+
+@media (max-width: 900px) {
+  .admin-shell {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .admin-sidebar {
+    width: 72px;
+    padding-inline: 8px;
+  }
+
+  .admin-brand div,
+  .admin-nav::before,
+  .admin-nav-link > span:last-child,
+  .admin-sidebar-footer div {
+    display: none;
+  }
+
+  .admin-brand,
+  .admin-nav-link,
+  .admin-sidebar-footer {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-shell {
+    display: block;
+  }
+
+  .admin-sidebar {
+    position: fixed;
+    z-index: 1100;
+    left: 0;
+    top: 0;
+    width: 248px;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar-open .admin-sidebar {
+    transform: translateX(0);
+  }
+
+  .admin-sidebar .admin-brand,
+  .admin-sidebar .admin-nav-link,
+  .admin-sidebar .admin-sidebar-footer {
+    justify-content: flex-start;
+  }
+
+  .admin-sidebar .admin-brand div,
+  .admin-sidebar .admin-nav::before,
+  .admin-sidebar .admin-nav-link > span:last-child,
+  .admin-sidebar .admin-sidebar-footer div {
+    display: block;
+  }
+}
