@@ -2,11 +2,16 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
-import { forgotPharmacistPassword } from '../config/api'
+import { forgotPharmacistPassword, forgotPharmacyAdminPassword, forgotSuperAdminPassword } from '../config/api'
+
+const forgotPasswordFlows = [
+  { role: 'super-admin', request: forgotSuperAdminPassword },
+  { role: 'pharmacy-admin', request: forgotPharmacyAdminPassword },
+  { role: 'pharmacist', request: forgotPharmacistPassword },
+]
 
 function ForgotPassword() {
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState('pharmacist')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
   const { showToast } = useToast()
@@ -16,15 +21,26 @@ function ForgotPassword() {
     setIsSubmitting(true)
 
     try {
-      if (role === 'pharmacist') {
-        const response = await forgotPharmacistPassword({ email })
-        showToast(response?.message || 'OTP sent successfully.')
-      } else {
-        showToast('OTP sent successfully.')
+      let resetFlow = null
+      let lastError = null
+
+      for (const flow of forgotPasswordFlows) {
+        try {
+          const response = await flow.request({ email })
+          resetFlow = { ...flow, response }
+          break
+        } catch (flowError) {
+          lastError = flowError
+        }
       }
 
+      if (!resetFlow) {
+        throw new Error(lastError?.message || 'No account found for this email.')
+      }
+
+      showToast(resetFlow.response?.message || 'OTP sent successfully.')
       sessionStorage.setItem('passwordResetEmail', email)
-      sessionStorage.setItem('passwordResetRole', role)
+      sessionStorage.setItem('passwordResetRole', resetFlow.role)
       navigate('/verify-otp')
     } catch (error) {
       showToast(error.message, 'error')
@@ -36,13 +52,6 @@ function ForgotPassword() {
   return (
     <AuthLayout title="Forgot Password" subtitle="Enter your email to receive a secure OTP">
       <form className="auth-form" onSubmit={handleSubmit}>
-        <label>
-          Reset Role
-          <select value={role} onChange={(event) => setRole(event.target.value)}>
-            <option value="pharmacist">Pharmacist</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
         <label>
           Email ID
           <input

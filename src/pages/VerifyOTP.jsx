@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
-import { verifyPharmacistResetOtp } from '../config/api'
+import { verifyPharmacistResetOtp, verifyPharmacyAdminResetOtp, verifySuperAdminResetOtp } from '../config/api'
+
+const verifyResetOtpByRole = {
+  'super-admin': verifySuperAdminResetOtp,
+  'pharmacy-admin': verifyPharmacyAdminResetOtp,
+  pharmacist: verifyPharmacistResetOtp,
+}
 
 function VerifyOTP() {
   const [otp, setOtp] = useState('')
@@ -17,14 +23,11 @@ function VerifyOTP() {
     const role = sessionStorage.getItem('passwordResetRole') || 'pharmacist'
 
     try {
-      if (role === 'pharmacist') {
-        const response = await verifyPharmacistResetOtp({ email, otp })
-        const resetToken = response?.resetToken || response?.token || response?.data?.resetToken || response?.data?.token
-        if (resetToken) sessionStorage.setItem('passwordResetToken', resetToken)
-        showToast(response?.message || 'OTP verified successfully.')
-      } else {
-        showToast('OTP verified successfully.')
-      }
+      const verifyResetOtp = verifyResetOtpByRole[role] || verifyPharmacistResetOtp
+      const response = await verifyResetOtp({ email, otp })
+      const resetToken = response?.resetToken || response?.token || response?.data?.resetToken || response?.data?.token
+      if (resetToken) sessionStorage.setItem('passwordResetToken', resetToken)
+      showToast(response?.message || 'OTP verified successfully.')
 
       navigate('/reset-password')
     } catch (error) {

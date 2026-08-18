@@ -59,8 +59,8 @@ function getProfile(roleType) {
       email: user?.email || '',
       roleLabel: 'Admin',
       branchName: assignment?.branchName || assignment?.branch?.name || assignment?.pharmacyName || 'Branch A',
-      profilePath: '/profile',
-      passwordPath: '/change-password',
+      profilePath: '/admin/profile',
+      passwordPath: '/admin/change-password',
     }
   }
 

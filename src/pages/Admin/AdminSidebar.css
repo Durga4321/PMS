@@ -1,7 +1,9 @@
 .branch-admin-page {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  width: 100%;
+  display: block;
+  padding-left: 248px;
+  overflow: hidden;
   background: #f8fbff;
   color: #102048;
 }
@@ -14,18 +16,28 @@
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  padding: 18px 14px;
-  position: sticky;
+  padding: 14px 14px;
+  position: fixed;
+  left: 0;
   top: 0;
+  bottom: 0;
   overflow-y: auto;
-  color: #0f172a;
+  z-index: 10;
+  scrollbar-width: none;
+}
+
+.branch-admin-sidebar::-webkit-scrollbar,
+.branch-admin-sidebar nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .branch-admin-brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 8px 24px;
+  padding: 8px 8px 8px;
 }
 
 .branch-admin-brand b {
@@ -34,40 +46,50 @@
   flex: 0 0 44px;
   border: 1px solid #e4ecf7;
   border-radius: 10px;
-  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   color: #10b981;
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.07);
   display: grid;
   place-items: center;
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 800;
   line-height: 1;
 }
 
-.branch-admin-brand strong {
+.branch-admin-brand strong,
+.branch-admin-brand small {
   display: block;
-  color: #020617;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-admin-brand strong {
+  color: #111827;
   font-size: 16px;
   line-height: 1.2;
 }
 
 .branch-admin-brand small {
-  display: block;
   margin-top: 3px;
   color: #6b7280;
   font-size: 12px;
 }
 
 .branch-admin-sidebar nav {
-  display: flex;
   flex: 1;
+  display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  margin-top: 4px;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .branch-admin-sidebar nav::before {
-  content: "ADMIN";
-  margin: 0 8px 10px;
+  content: "MAIN MENU";
+  display: block;
+  margin: 4px 8px 8px;
   color: #94a3b8;
   font-size: 11px;
   font-weight: 700;
@@ -75,33 +97,49 @@
 }
 
 .branch-admin-sidebar nav button {
-  min-height: 40px;
-  padding: 0 12px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 8px 12px;
+  margin: 0;
   border: 0;
   border-radius: 12px;
   background: transparent;
   color: #334155;
-  display: flex;
-  align-items: center;
-  gap: 10px;
   font-size: 14px;
   font-weight: 500;
   line-height: 1.2;
   text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
-.branch-admin-sidebar nav button:hover,
+.branch-admin-sidebar nav button svg {
+  flex: 0 0 auto;
+  transition: color 0.18s ease, stroke-width 0.18s ease;
+}
+
+.branch-admin-sidebar nav button:nth-of-type(6n + 1) svg { color: #0ea5e9; }
+.branch-admin-sidebar nav button:nth-of-type(6n + 2) svg { color: #7c3aed; }
+.branch-admin-sidebar nav button:nth-of-type(6n + 3) svg { color: #0f9d9d; }
+.branch-admin-sidebar nav button:nth-of-type(6n + 4) svg { color: #db2777; }
+.branch-admin-sidebar nav button:nth-of-type(6n + 5) svg { color: #f59e0b; }
+.branch-admin-sidebar nav button:nth-of-type(6n + 6) svg { color: #16a34a; }
+
+.branch-admin-sidebar nav button:hover {
+  background: #eef8f8;
+}
+
 .branch-admin-sidebar nav button.active {
   background: #dff3f3;
   color: #0f9d9d;
   font-weight: 700;
 }
 
-.branch-admin-sidebar nav button > span:first-child,
-.branch-admin-sidebar .sidebar-icon {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
+.branch-admin-sidebar nav button.active svg {
+  stroke-width: 2.6;
 }
 
 .branch-admin-sidebar-footer {
@@ -130,26 +168,44 @@
 .branch-admin-sidebar-footer small,
 .branch-admin-sidebar-footer em {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .branch-admin-sidebar-footer strong {
+  color: #111827;
   font-size: 13px;
+  line-height: 1.2;
 }
 
 .branch-admin-sidebar-footer small {
-  color: #64748b;
+  margin-top: 2px;
+  color: #6b7280;
   font-size: 11px;
 }
 
 .branch-admin-sidebar-footer em {
+  margin-top: 4px;
   color: #0f9d9d;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-style: normal;
 }
 
+.branch-admin-sidebar-footer em i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #0f9d9d;
+}
+
 @media (max-width: 900px) {
   .branch-admin-page {
-    grid-template-columns: 72px minmax(0, 1fr);
+    padding-left: 72px;
   }
 
   .branch-admin-sidebar {
@@ -159,8 +215,38 @@
 
   .branch-admin-brand div,
   .branch-admin-sidebar nav::before,
-  .branch-admin-sidebar nav button span:last-child,
+  .branch-admin-sidebar nav button span,
   .branch-admin-sidebar-footer div {
     display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .branch-admin-page {
+    display: block;
+    padding-left: 0;
+  }
+
+  .branch-admin-sidebar {
+    width: 260px;
+    transform: translateX(-260px);
+    transition: transform 0.28s ease;
+    z-index: 1100;
+  }
+
+  .branch-admin-sidebar-open .branch-admin-sidebar {
+    transform: translateX(0);
+  }
+
+  .branch-admin-sidebar-open .branch-admin-brand,
+  .branch-admin-sidebar-open .branch-admin-sidebar nav button {
+    justify-content: flex-start;
+  }
+
+  .branch-admin-sidebar-open .branch-admin-brand div,
+  .branch-admin-sidebar-open .branch-admin-sidebar nav::before,
+  .branch-admin-sidebar-open .branch-admin-sidebar nav button span,
+  .branch-admin-sidebar-open .branch-admin-sidebar-footer div {
+    display: block;
   }
 }

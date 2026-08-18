@@ -1,0 +1,156 @@
+.super-admin-shell {
+  min-height: 100vh;
+  width: 100%;
+  display: block;
+  padding-left: 248px;
+  overflow: hidden;
+  background: #f6faff;
+  color: #001f4d;
+}
+
+.super-admin-main {
+  width: 100%;
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 20px 28px;
+  scrollbar-width: none;
+}
+
+.super-admin-main::-webkit-scrollbar,
+.super-admin-module-table::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.super-admin-module-heading {
+  padding: 26px 0 10px;
+}
+
+.super-admin-eyebrow {
+  margin: 0 0 4px;
+  color: #97a4bd;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.super-admin-module-heading h1 {
+  margin: 0;
+  color: #001f4d;
+  font-size: 24px;
+}
+
+.super-admin-module-panel {
+  min-height: 360px;
+  margin-top: 20px;
+  padding: 24px;
+  border: 1px solid #e3eaf1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.super-admin-module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.super-admin-module-header h2,
+.super-admin-module-header p {
+  margin: 0;
+}
+
+.super-admin-module-header h2 {
+  font-size: 18px;
+}
+
+.super-admin-module-header p {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.super-admin-module-filter {
+  width: min(280px, 100%);
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #dbe3ed;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.super-admin-module-filter span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.super-admin-module-filter input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #334155;
+  font-size: 12px;
+}
+
+.super-admin-module-table {
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.super-admin-module-table table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.super-admin-module-table th,
+.super-admin-module-table td {
+  padding: 13px;
+  text-align: left;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.super-admin-module-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.super-admin-module-table td {
+  color: #243657;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .super-admin-shell {
+    padding-left: 72px;
+  }
+}
+
+@media (max-width: 640px) {
+  .super-admin-shell {
+    display: block;
+    padding-left: 0;
+  }
+
+  .super-admin-main {
+    padding: 0 14px 20px;
+  }
+
+  .super-admin-module-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+

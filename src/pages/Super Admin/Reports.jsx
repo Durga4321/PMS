@@ -1,47 +1,10 @@
-/* eslint-disable no-irregular-whitespace */
-import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import SuperAdminModulePage from './SuperAdminModulePage'
 import './Reports.css'
-import { superAdminNavigation } from '../../components/superAdminNavigation'
 
-const reportTypes = ['Sales Report', 'Purchase Report', 'Inventory Report', 'Medicine Sales Report', 'Prescription Report', 'Profit & Loss Report', 'Branch Report', 'Expiry Report', 'Low Stock Report']
-const reportNotes = { 'Sales Report': 'Daily sales, payments, and revenue performance.', 'Purchase Report': 'Purchase orders, supplier bills, and receiving history.', 'Inventory Report': 'Current inventory movement and stock valuation.', 'Medicine Sales Report': 'Medicine-level sales and quantity performance.', 'Prescription Report': 'Prescription volume and dispensing activity.', 'Profit & Loss Report': 'Profit, expenses, and overall business performance.', 'Branch Report': 'Sales and operations grouped by branch.', 'Expiry Report': 'Medicines nearing expiry and expired inventory.', 'Low Stock Report': 'Items that need replenishment.' }
-const branches = [['Head Office', '₹4,25,680', '₹1,45,230', '425'], ['Kukatpally', '₹3,25,450', '₹1,02,450', '320'], ['Ameerpet', '₹2,15,380', '₹68,750', '210'], ['Banjara Hills', '₹1,65,250', '₹54,680', '185'], ['Dilsukhnagar', '₹1,22,630', '₹37,240', '108']]
-const medicines = [['Paracetamol 650mg', '1,250', '₹18,750', '₹6,250'], ['Amoxicillin 500mg', '950', '₹17,100', '₹5,320'], ['Ibuprofen 400mg', '820', '₹12,300', '₹4,100'], ['Omeprazole 20mg', '780', '₹11,700', '₹3,900'], ['Azithromycin 500mg', '650', '₹10,400', '₹3,450']]
+const headers = ['Report', 'Type', 'Created By', 'Status']
 
 function Reports() {
-  const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [period, setPeriod] = useState('Daily')
-  const [notice, setNotice] = useState('')
-  const [filters, setFilters] = useState({ date: '01 May 2025 - 16 May 2025', branch: 'All Branches', type: 'All Reports', payment: 'All Payment Modes', status: 'All Status' })
-  const activeReport = params.get('type') || 'Sales Report'
-  const selectReport = (type) => setParams(type === 'Sales Report' ? {} : { type })
-  const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }))
-  const action = (name) => { setNotice(`${name} ready for ${activeReport}.`); window.setTimeout(() => setNotice(''), 2600) }
-  const resetFilters = () => setFilters({ date: '01 May 2025 - 16 May 2025', branch: 'All Branches', type: 'All Reports', payment: 'All Payment Modes', status: 'All Status' })
-
-  return <div className={`reports-page${sidebarOpen ? ' reports-sidebar-open' : ''}`}>
-    <aside className="reports-sidebar">
-      <div className="reports-brand"><b>✚</b><span><strong>Pharmacy System</strong><small>Super Admin</small></span></div>
-      <nav>{superAdminNavigation.map(({ label, path, icon }) => <button type="button" className={label === 'Reports' ? 'active' : ''} onClick={() => navigate(path)} key={label}><i>{icon}</i>{label}</button>)}</nav>
-      <footer>⚙ <span><b>Pharmacy Management</b><small>System v1.0.0</small></span></footer>
-    </aside>
-    <main className="reports-main">
-      <header className="reports-header"><button className="reports-menu" type="button" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button><div><h1>Reports</h1><p>Dashboard　›　Reports</p></div><div className="reports-head-actions"><label>⌕<input placeholder="Search reports, sales, medicines..." /></label><button className="reports-bell" type="button">♧<b>12</b></button><div className="reports-profile"><button type="button" onClick={() => setProfileOpen(!profileOpen)}><i>SA</i><span><strong>Super Admin</strong><small>Super Admin</small></span>⌄</button>{profileOpen && <div><button type="button">My Profile</button><button type="button">Change Password</button><button type="button" onClick={() => navigate('/login')}>Logout</button></div>}</div></div></header>
-      <section className="reports-stats">{[['🛒', 'Total Sales', '₹12,54,390', '18.5%'], ['🛍', 'Total Purchases', '₹8,45,250', '14.2%'], ['⌁', 'Total Profit', '₹4,09,140', '20.8%'], ['▣', 'Total Prescriptions', '1,248', '12.6%']].map(([icon, label, amount, growth], index) => <article key={label}><i className={`report-stat-${index}`}>{icon}</i><span><b>{label}</b><strong>{amount}</strong><small>↗ {growth} <em>vs Last Month</em></small></span></article>)}</section>
-      <section className="reports-filters"><label>Date Range<input value={filters.date} onChange={(event) => updateFilter('date', event.target.value)} /></label><label>Branch<select value={filters.branch} onChange={(event) => updateFilter('branch', event.target.value)}><option>All Branches</option><option>Head Office</option><option>Kukatpally</option></select></label><label>Report Type<select value={filters.type} onChange={(event) => updateFilter('type', event.target.value)}><option>All Reports</option>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label>Payment Mode<select value={filters.payment} onChange={(event) => updateFilter('payment', event.target.value)}><option>All Payment Modes</option><option>Cash</option><option>Card</option><option>UPI</option></select></label><label>Status<select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}><option>All Status</option><option>Completed</option><option>Pending</option></select></label><button className="apply" type="button" onClick={() => action('Filters applied')}>⚱　Apply Filters</button><button className="reset" type="button" onClick={resetFilters}>⟳　Reset</button></section>
-      {notice && <p className="reports-notice">{notice}</p>}
-      <section className="reports-content">
-        <section className="report-types"><h2>Report Types</h2>{reportTypes.map((type, index) => <button type="button" onClick={() => selectReport(type)} className={activeReport === type ? 'active' : ''} key={type}><i>{['▤', '▣', '▥', '⚕', '▤', '⌁', '⌂', '◫', '⚠'][index]}</i>{type}<b>›</b></button>)}</section>
-        <div className="reports-center"><section className="report-card sales-card"><header><h2>{activeReport}</h2><div>{['Daily', 'Weekly', 'Monthly'].map((item) => <button type="button" onClick={() => setPeriod(item)} className={period === item ? 'active' : ''} key={item}>{item}</button>)}</div></header><div className="sales-graph"><span>₹2.5L</span><span>₹2L</span><span>₹1.5L</span><span>₹1L</span><span>₹50K</span><span>₹0</span><svg viewBox="0 0 650 180" preserveAspectRatio="none" aria-label={`${period} ${activeReport} chart`}><defs><linearGradient id="sales-area" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#1769ee" stopOpacity=".25"/><stop offset="1" stopColor="#1769ee" stopOpacity="0"/></linearGradient></defs><path d="M10 120 L50 102 L90 94 L130 89 L170 48 L210 62 L250 100 L290 150 L330 152 L370 80 L410 92 L450 35 L490 50 L530 122 L570 150 L610 130 L650 48 L650 180 L10 180Z" fill="url(#sales-area)"/><path d="M10 120 L50 102 L90 94 L130 89 L170 48 L210 62 L250 100 L290 150 L330 152 L370 80 L410 92 L450 35 L490 50 L530 122 L570 150 L610 130 L650 48" fill="none" stroke="#126cf0" strokeWidth="3"/>{[[10,120],[50,102],[90,94],[130,89],[170,48],[210,62],[250,100],[290,150],[330,152],[370,80],[410,92],[450,35],[490,50],[530,122],[570,150],[610,130],[650,48]].map(([cx, cy]) => <circle cx={cx} cy={cy} r="4" fill="#126cf0" stroke="white" strokeWidth="2" key={cx}/>)}</svg></div><footer><span>01 May</span><span>03 May</span><span>05 May</span><span>07 May</span><span>09 May</span><span>11 May</span><span>13 May</span><span>15 May</span></footer></section><div className="report-tables"><section className="report-card"><h2>Branch Performance</h2><table><thead><tr><th>Branch</th><th>Sales (₹)</th><th>Profit (₹)</th><th>Transactions</th></tr></thead><tbody>{branches.map((row) => <tr key={row[0]}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>)}</tbody></table><button className="view-link" type="button">View All Branches</button></section><section className="report-card"><h2>Top Medicine Sales</h2><table><thead><tr><th>Medicine Name</th><th>Qty Sold</th><th>Sales (₹)</th><th>Profit (₹)</th></tr></thead><tbody>{medicines.map((row) => <tr key={row[0]}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>)}</tbody></table><button className="view-link" type="button">View All Medicines</button></section></div></div>
-        <aside className="reports-right"><section className="report-card"><h2>Quick Actions</h2>{[['▣', 'Generate Report', 'Create a new report'], ['⌑', 'Export PDF', 'Download as PDF'], ['▤', 'Export Excel', 'Download as Excel'], ['▧', 'Print Report', 'Print current report']].map(([icon, title, copy]) => <button className="quick-report" type="button" onClick={() => action(title)} key={title}><i>{icon}</i><span><b>{title}</b><small>{copy}</small></span>›</button>)}</section><section className="report-card report-summary"><h2>Report Summary</h2><div className="summary-donut"><span><small>Total Sales</small><b>₹12,54,390</b></span></div><ul>{[['Medicines', '65.2%'], ['Prescriptions', '18.5%'], ['Health Products', '10.3%'], ['Others', '6.0%']].map(([label, value]) => <li key={label}><i />{label}<b>{value}</b></li>)}</ul><p>▣　Data is updated as on<br/><b>　　16 May 2025, 10:30 AM</b></p></section></aside>
-      </section>
-      <section className="reports-info"><i>i</i><span><b>Reports</b><small>{reportNotes[activeReport]}</small></span></section>
-    </main>
-  </div>
+  return <SuperAdminModulePage title="Reports" headers={headers} rows={[]} />
 }
 
 export default Reports

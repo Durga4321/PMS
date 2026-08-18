@@ -1,1 +1,252 @@
-.pharmacist-page{min-height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr);background:#f8fbff;color:#102048}.pharmacist-sidebar{width:248px;height:100vh;box-sizing:border-box;background:linear-gradient(180deg,#f8fafc 0%,#f7fafe 100%);border-right:1px solid #e2e8f0;display:flex;flex-direction:column;padding:18px 14px;position:sticky;top:0;overflow-y:auto;color:#0f172a}.pharmacist-brand{display:flex;align-items:center;gap:12px;padding:10px 8px 24px}.pharmacist-brand b{width:44px;height:44px;display:grid;place-items:center;border:1px solid #e4ecf7;border-radius:10px;background:#fff;color:#10b981;font-size:26px}.pharmacist-brand strong,.pharmacist-brand small{display:block}.pharmacist-brand strong{font-size:16px}.pharmacist-brand small{color:#6b7280;font-size:12px}.pharmacist-sidebar nav{display:flex;flex:1;flex-direction:column;gap:6px}.pharmacist-sidebar nav:before{content:"PHARMACIST";margin:0 8px 10px;color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:.08em}.pharmacist-sidebar nav button{min-height:40px;padding:0 12px;border:0;border-radius:12px;background:transparent;color:#334155;display:flex;align-items:center;gap:10px;font-size:14px;text-align:left}.pharmacist-sidebar nav button:hover,.pharmacist-sidebar nav button.active{background:#dff3f3;color:#0f9d9d;font-weight:700}.pharmacist-sidebar .sidebar-icon{width:20px;height:20px}.pharmacist-footer{margin-top:auto;padding:16px 4px 4px;border-top:1px solid #e5e7eb;display:flex;gap:10px;align-items:center}.pharmacist-footer>span{width:40px;height:40px;border-radius:50%;background:#dff3f3;color:#0f9d9d;display:grid;place-items:center;font-weight:800}.pharmacist-footer strong,.pharmacist-footer small,.pharmacist-footer em{display:block}.pharmacist-footer small{color:#64748b;font-size:11px}.pharmacist-footer em{color:#0f9d9d;font-size:11px;font-style:normal}
+.pharmacist-page {
+  min-height: 100vh;
+  width: 100%;
+  display: block;
+  padding-left: 248px;
+  overflow: hidden;
+  background: #f8fbff;
+  color: #102048;
+}
+
+.pharmacist-sidebar {
+  width: 248px;
+  height: 100vh;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, #f8fafc 0%, #f7fafe 100%);
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 14px;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  overflow-y: auto;
+  z-index: 10;
+  scrollbar-width: none;
+}
+
+.pharmacist-sidebar::-webkit-scrollbar,
+.pharmacist-sidebar nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.pharmacist-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px;
+}
+
+.pharmacist-brand b {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: 1px solid #e4ecf7;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  color: #10b981;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.07);
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pharmacist-brand strong,
+.pharmacist-brand small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pharmacist-brand strong {
+  color: #111827;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.pharmacist-brand small {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.pharmacist-sidebar nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.pharmacist-sidebar nav::before {
+  content: "PHARMACIST";
+  display: block;
+  margin: 4px 8px 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.pharmacist-sidebar nav button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 8px 12px;
+  margin: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.pharmacist-sidebar nav button svg {
+  flex: 0 0 auto;
+  transition: color 0.18s ease, stroke-width 0.18s ease;
+}
+
+.pharmacist-sidebar nav button:nth-of-type(6n + 1) svg { color: #0ea5e9; }
+.pharmacist-sidebar nav button:nth-of-type(6n + 2) svg { color: #7c3aed; }
+.pharmacist-sidebar nav button:nth-of-type(6n + 3) svg { color: #0f9d9d; }
+.pharmacist-sidebar nav button:nth-of-type(6n + 4) svg { color: #db2777; }
+.pharmacist-sidebar nav button:nth-of-type(6n + 5) svg { color: #f59e0b; }
+.pharmacist-sidebar nav button:nth-of-type(6n + 6) svg { color: #16a34a; }
+
+.pharmacist-sidebar nav button:hover {
+  background: #eef8f8;
+}
+
+.pharmacist-sidebar nav button.active {
+  background: #dff3f3;
+  color: #0f9d9d;
+  font-weight: 700;
+}
+
+.pharmacist-sidebar nav button.active svg {
+  stroke-width: 2.6;
+}
+
+.pharmacist-footer {
+  margin-top: auto;
+  padding: 16px 4px 4px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pharmacist-footer > span {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 50%;
+  background: #dff3f3;
+  color: #0f9d9d;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pharmacist-footer strong,
+.pharmacist-footer small,
+.pharmacist-footer em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pharmacist-footer strong {
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.pharmacist-footer small {
+  margin-top: 2px;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.pharmacist-footer em {
+  margin-top: 4px;
+  color: #0f9d9d;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.pharmacist-footer em i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #0f9d9d;
+}
+
+@media (max-width: 900px) {
+  .pharmacist-page {
+    padding-left: 72px;
+  }
+
+  .pharmacist-sidebar {
+    width: 72px;
+    padding-inline: 8px;
+  }
+
+  .pharmacist-brand div,
+  .pharmacist-sidebar nav::before,
+  .pharmacist-sidebar nav button span,
+  .pharmacist-footer div {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .pharmacist-page {
+    display: block;
+    padding-left: 0;
+  }
+
+  .pharmacist-sidebar {
+    width: 260px;
+    transform: translateX(-260px);
+    transition: transform 0.28s ease;
+    z-index: 1100;
+  }
+
+  .sidebar-open .pharmacist-sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-open .pharmacist-brand,
+  .sidebar-open .pharmacist-sidebar nav button {
+    justify-content: flex-start;
+  }
+
+  .sidebar-open .pharmacist-brand div,
+  .sidebar-open .pharmacist-sidebar nav::before,
+  .sidebar-open .pharmacist-sidebar nav button span,
+  .sidebar-open .pharmacist-footer div {
+    display: block;
+  }
+}

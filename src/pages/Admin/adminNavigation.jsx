@@ -18,7 +18,6 @@ export const adminNavigation = [
   item('Prescriptions', '/admin/prescriptions', 'reports', 'green'),
   item('Dispensing', '/admin/dispensing', 'clinics', 'violet'),
   item('Expiry Alerts', '/admin/expiry-alerts', 'notifications', 'orange'),
-  item('CMS Integration', '/admin/cms-integration', 'settings', 'amber'),
   item('Reports', '/admin/reports', 'reports', 'teal'),
   item('Settings', '/admin/settings', 'settings', 'amber'),
 ]

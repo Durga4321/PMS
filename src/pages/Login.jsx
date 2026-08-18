@@ -4,8 +4,48 @@ import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
 import { getPharmacistAssignmentStatus, getPharmacyAdminAssignmentStatus, loginPharmacist, loginPharmacyAdmin, loginSuperAdmin } from '../config/api'
 
+const loginFlows = [
+  {
+    role: 'super-admin',
+    login: loginSuperAdmin,
+    tokenKey: 'superAdminToken',
+    userKey: 'superAdminUser',
+    dashboardPath: '/super-admin/dashboard',
+  },
+  {
+    role: 'pharmacy-admin',
+    login: loginPharmacyAdmin,
+    tokenKey: 'pharmacyAdminToken',
+    userKey: 'pharmacyAdminUser',
+    assignmentKey: 'pharmacyAdminAssignment',
+    assignment: getPharmacyAdminAssignmentStatus,
+    dashboardPath: '/admin/dashboard',
+  },
+  {
+    role: 'pharmacist',
+    login: loginPharmacist,
+    tokenKey: 'pharmacistToken',
+    userKey: 'pharmacistUser',
+    assignmentKey: 'pharmacistAssignment',
+    assignment: getPharmacistAssignmentStatus,
+    dashboardPath: '/pharmacist/dashboard',
+  },
+]
+
+function clearAuthSession() {
+  loginFlows.forEach(({ tokenKey, userKey, assignmentKey }) => {
+    sessionStorage.removeItem(tokenKey)
+    sessionStorage.removeItem(userKey)
+    localStorage.removeItem(tokenKey)
+    localStorage.removeItem(userKey)
+    if (assignmentKey) {
+      sessionStorage.removeItem(assignmentKey)
+      localStorage.removeItem(assignmentKey)
+    }
+  })
+}
+
 function Login() {
-  const [loginRole, setLoginRole] = useState('super-admin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
@@ -20,41 +60,43 @@ function Login() {
     setIsSubmitting(true)
 
     try {
-      const isPharmacyAdmin = loginRole === 'pharmacy-admin'
-      const isPharmacist = loginRole === 'pharmacist'
-      const data = await (isPharmacist ? loginPharmacist({ email, password }) : isPharmacyAdmin ? loginPharmacyAdmin({ email, password }) : loginSuperAdmin({ email, password }))
-      const token = data?.token || data?.accessToken || data?.data?.token || data?.data?.accessToken
-      const user = data?.user || data?.data?.user || { email }
+      clearAuthSession()
       const storage = remember ? localStorage : sessionStorage
-      const tokenKey = isPharmacist ? 'pharmacistToken' : isPharmacyAdmin ? 'pharmacyAdminToken' : 'superAdminToken'
-      const userKey = isPharmacist ? 'pharmacistUser' : isPharmacyAdmin ? 'pharmacyAdminUser' : 'superAdminUser'
+      let authenticated = null
+      let lastError = null
 
-      if (token) {
-        storage.setItem(tokenKey, token)
-      }
-
-      storage.setItem(userKey, JSON.stringify(user))
-
-      if (isPharmacyAdmin) {
+      for (const flow of loginFlows) {
         try {
-          const assignment = await getPharmacyAdminAssignmentStatus()
-          storage.setItem('pharmacyAdminAssignment', JSON.stringify(assignment?.data || assignment))
-        } catch {
-          storage.removeItem('pharmacyAdminAssignment')
+          const data = await flow.login({ email, password })
+          authenticated = { flow, data }
+          break
+        } catch (flowError) {
+          lastError = flowError
         }
       }
 
-      if (isPharmacist) {
+      if (!authenticated) {
+        throw new Error(lastError?.message || 'Invalid email or password.')
+      }
+
+      const { flow, data } = authenticated
+      const token = data?.token || data?.accessToken || data?.data?.token || data?.data?.accessToken
+      const user = data?.user || data?.data?.user || { email, role: flow.role }
+
+      if (token) storage.setItem(flow.tokenKey, token)
+      storage.setItem(flow.userKey, JSON.stringify(user))
+
+      if (flow.assignment) {
         try {
-          const assignment = await getPharmacistAssignmentStatus()
-          storage.setItem('pharmacistAssignment', JSON.stringify(assignment?.data || assignment))
+          const assignment = await flow.assignment()
+          storage.setItem(flow.assignmentKey, JSON.stringify(assignment?.data || assignment))
         } catch {
-          storage.removeItem('pharmacistAssignment')
+          storage.removeItem(flow.assignmentKey)
         }
       }
 
       showToast(data?.message || 'Login successful.')
-      navigate(isPharmacist ? '/pharmacist/dashboard' : isPharmacyAdmin ? '/admin/dashboard' : '/super-admin/dashboard')
+      navigate(flow.dashboardPath)
     } catch (loginError) {
       setError(loginError.message)
       showToast(loginError.message, 'error')
@@ -67,18 +109,10 @@ function Login() {
     <AuthLayout title="PMS Login" subtitle="Welcome back to your Pharmacy Management System">
       <form className="auth-form" onSubmit={handleSubmit} autoComplete="off">
         <label>
-          Login Role
-          <select value={loginRole} onChange={(event) => setLoginRole(event.target.value)}>
-            <option value="super-admin">Super Admin</option>
-            <option value="pharmacy-admin">Pharmacy Admin</option>
-            <option value="pharmacist">Pharmacist</option>
-          </select>
-        </label>
-        <label>
           Email Address
           <input
             type="email"
-            name={`${loginRole}-login-email`}
+            name="login-email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="Enter email"
@@ -90,7 +124,7 @@ function Login() {
           Password
           <input
             type="password"
-            name={`${loginRole}-login-password`}
+            name="login-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Enter password"

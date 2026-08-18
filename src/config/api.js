@@ -34,7 +34,9 @@ async function request(path, options = {}) {
     sessionStorage.getItem('superAdminToken') ||
     localStorage.getItem('superAdminToken') ||
     sessionStorage.getItem('pharmacyAdminToken') ||
-    localStorage.getItem('pharmacyAdminToken')
+    localStorage.getItem('pharmacyAdminToken') ||
+    sessionStorage.getItem('pharmacistToken') ||
+    localStorage.getItem('pharmacistToken')
 
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
   const response = await fetch(apiUrl(path), {
@@ -71,6 +73,27 @@ export function logoutSuperAdmin(token) {
   })
 }
 
+export function forgotSuperAdminPassword(payload) {
+  return request('pharmacy-super-admin-auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function verifySuperAdminResetOtp(payload) {
+  return request('pharmacy-super-admin-auth/verify-reset-otp', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function resetForgottenSuperAdminPassword(payload) {
+  return request('pharmacy-super-admin-auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function loginPharmacyAdmin(credentials) {
   return request('pharmacy-admin-auth/login', {
     method: 'POST',
@@ -82,6 +105,27 @@ export function logoutPharmacyAdmin(token) {
   return request('pharmacy-admin-auth/logout', {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
+}
+
+export function forgotPharmacyAdminPassword(payload) {
+  return request('pharmacy-admin-auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function verifyPharmacyAdminResetOtp(payload) {
+  return request('pharmacy-admin-auth/verify-reset-otp', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function resetForgottenPharmacyAdminPassword(payload) {
+  return request('pharmacy-admin-auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 
@@ -396,8 +440,10 @@ export function getPharmacyAdminAssignmentStatus() {
 }
 
 export function changePharmacyAdminPassword(payload) {
+  const token = sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken')
   return request('pharmacy-admin-auth/change-password', {
     method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: JSON.stringify(payload),
   })
 }

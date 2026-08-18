@@ -13,11 +13,11 @@ function AdminTable({ title, action, headers, rows }) {
         <table className="branch-table">
           <thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
           <tbody>
-            {rows.map((row) => (
+            {rows.length ? rows.map((row) => (
               <tr key={row.join('-')}>
                 {row.map((cell, index) => <td key={`${cell}-${index}`}>{index === row.length - 1 ? <Status value={cell} /> : cell}</td>)}
               </tr>
-            ))}
+            )) : <tr><td colSpan={headers.length}>No data available.</td></tr>}
           </tbody>
         </table>
       </div>

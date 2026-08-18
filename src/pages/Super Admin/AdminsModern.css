@@ -27,6 +27,8 @@
   background: var(--admins-bg);
   color: var(--admins-text);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  padding-left: 248px;
+  overflow: hidden;
 }
 
 .admins-sidebar {
@@ -155,7 +157,17 @@
 .admins-main {
   flex: 1;
   min-width: 0;
-  padding: 24px 28px 30px;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 20px 30px;
+  scrollbar-width: none;
+}
+
+.admins-main::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .admins-topbar {
@@ -749,25 +761,20 @@
 
 @media (max-width: 980px) {
   .admins-page-shell {
-    flex-direction: column;
-  }
-
-  .admins-sidebar {
-    width: 100%;
-    padding-bottom: 12px;
-  }
-
-  .admins-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
+    padding-left: 72px;
   }
 
   .admins-main {
-    padding: 18px 16px 28px;
+    padding: 0 16px 28px;
   }
 }
 
 @media (max-width: 720px) {
+  .admins-page-shell {
+    display: block;
+    padding-left: 0;
+  }
+
   .admins-section-header,
   .admins-toolbar,
   .admins-pagination-row,

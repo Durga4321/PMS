@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
-import { resetForgottenPharmacistPassword } from '../config/api'
+import { resetForgottenPharmacistPassword, resetForgottenPharmacyAdminPassword, resetForgottenSuperAdminPassword } from '../config/api'
+
+const resetPasswordByRole = {
+  'super-admin': resetForgottenSuperAdminPassword,
+  'pharmacy-admin': resetForgottenPharmacyAdminPassword,
+  pharmacist: resetForgottenPharmacistPassword,
+}
 
 function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -26,19 +32,16 @@ function ResetPassword() {
     const resetToken = sessionStorage.getItem('passwordResetToken')
 
     try {
-      if (role === 'pharmacist') {
-        const response = await resetForgottenPharmacistPassword({
-          email,
-          resetToken,
-          token: resetToken,
-          password,
-          newPassword: password,
-          confirmPassword,
-        })
-        showToast(response?.message || 'Password reset successful.')
-      } else {
-        showToast('Password reset successful.')
-      }
+      const resetPassword = resetPasswordByRole[role] || resetForgottenPharmacistPassword
+      const response = await resetPassword({
+        email,
+        resetToken,
+        token: resetToken,
+        password,
+        newPassword: password,
+        confirmPassword,
+      })
+      showToast(response?.message || 'Password reset successful.')
 
       sessionStorage.removeItem('passwordResetEmail')
       sessionStorage.removeItem('passwordResetRole')

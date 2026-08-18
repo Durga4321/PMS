@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
-import UserProfileMenu from '../../components/UserProfileMenu'
-import { superAdminNavigation } from '../../components/superAdminNavigation'
+import SuperAdminSidebar from './SuperAdminSidebar'
+import SuperAdminTopbar from './SuperAdminTopbar'
 import {
   assignPharmacyAdmin,
   changePharmacyAdminStatus,
@@ -14,10 +13,7 @@ import {
   resetPharmacyAdminPassword,
   updatePharmacyAdmin,
 } from '../../config/api'
-import './superadmin.css'
 import './AdminsModern.css'
-import './AdminsSidebar.css'
-import './AdminsTopbar.css'
 
 const emptyForm = {
   name: '',
@@ -72,7 +68,6 @@ function getStatus(item) {
 }
 
 function Admins() {
-  const navigate = useNavigate()
   const { showToast } = useToast()
   const [admins, setAdmins] = useState([])
   const [hospitals, setHospitals] = useState([])
@@ -86,6 +81,7 @@ function Admins() {
   const [assigningAdmin, setAssigningAdmin] = useState(null)
   const [resettingAdmin, setResettingAdmin] = useState(null)
   const [temporaryPassword, setTemporaryPassword] = useState('')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const didLoadInitialData = useRef(false)
 
   const filteredAdmins = useMemo(() => {
@@ -265,55 +261,11 @@ function Admins() {
   }
 
   return (
-    <div className="admins-page-shell">
-      <aside className="admins-sidebar" aria-label="Super admin navigation">
-        <div className="admins-brand">
-          <div className="admins-brand-mark">PMS</div>
-          <div className="admins-brand-copy">
-            <strong>PMS</strong>
-            <small>Super Admin Console</small>
-          </div>
-        </div>
-
-        <nav className="admins-nav">
-          {superAdminNavigation.map(({ label, path, icon, color }) => (
-            <button
-              key={label}
-              type="button"
-              className={`admins-nav-link${label === 'Admins' ? ' is-active' : ''}`}
-              onClick={() => navigate(path)}
-            >
-              <span className={`admins-icon accent-${color}`} aria-hidden="true">{icon}</span>
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="admins-sidebar-footer">
-          <span className="admins-sidebar-avatar">SA</span>
-          <div>
-            <strong>Super Admin</strong>
-            <small>Super Admin</small>
-            <em>● Online</em>
-          </div>
-        </div>
-      </aside>
+    <div className={`admins-page-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
+      <SuperAdminSidebar activeLabel="Admins" />
 
       <main className="admins-main">
-        <header className="admins-topbar">
-          <label className="admins-global-search" aria-label="Global search">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="M16 16L21 21" /></svg>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search dashboard, clinics, admins, reports..." />
-          </label>
-
-          <div className="admins-topbar-right">
-            <button type="button" className="admins-notification" aria-label="Notifications">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
-              <span>15</span>
-            </button>
-            <UserProfileMenu roleType="super-admin" />
-          </div>
-        </header>
+        <SuperAdminTopbar onMenu={() => setSidebarOpen((value) => !value)} />
 
         <section className="admins-content">
           <div className="admins-section-header">
