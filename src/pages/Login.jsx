@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
-import { getPharmacyAdminAssignmentStatus, loginPharmacyAdmin, loginSuperAdmin } from '../config/api'
+import { getPharmacistAssignmentStatus, getPharmacyAdminAssignmentStatus, loginPharmacist, loginPharmacyAdmin, loginSuperAdmin } from '../config/api'
 
 function Login() {
   const [loginRole, setLoginRole] = useState('super-admin')
@@ -21,12 +21,13 @@ function Login() {
 
     try {
       const isPharmacyAdmin = loginRole === 'pharmacy-admin'
-      const data = await (isPharmacyAdmin ? loginPharmacyAdmin({ email, password }) : loginSuperAdmin({ email, password }))
+      const isPharmacist = loginRole === 'pharmacist'
+      const data = await (isPharmacist ? loginPharmacist({ email, password }) : isPharmacyAdmin ? loginPharmacyAdmin({ email, password }) : loginSuperAdmin({ email, password }))
       const token = data?.token || data?.accessToken || data?.data?.token || data?.data?.accessToken
       const user = data?.user || data?.data?.user || { email }
       const storage = remember ? localStorage : sessionStorage
-      const tokenKey = isPharmacyAdmin ? 'pharmacyAdminToken' : 'superAdminToken'
-      const userKey = isPharmacyAdmin ? 'pharmacyAdminUser' : 'superAdminUser'
+      const tokenKey = isPharmacist ? 'pharmacistToken' : isPharmacyAdmin ? 'pharmacyAdminToken' : 'superAdminToken'
+      const userKey = isPharmacist ? 'pharmacistUser' : isPharmacyAdmin ? 'pharmacyAdminUser' : 'superAdminUser'
 
       if (token) {
         storage.setItem(tokenKey, token)
@@ -43,8 +44,17 @@ function Login() {
         }
       }
 
+      if (isPharmacist) {
+        try {
+          const assignment = await getPharmacistAssignmentStatus()
+          storage.setItem('pharmacistAssignment', JSON.stringify(assignment?.data || assignment))
+        } catch {
+          storage.removeItem('pharmacistAssignment')
+        }
+      }
+
       showToast(data?.message || 'Login successful.')
-      navigate(isPharmacyAdmin ? '/admin/dashboard' : '/super-admin/dashboard')
+      navigate(isPharmacist ? '/pharmacist/dashboard' : isPharmacyAdmin ? '/admin/dashboard' : '/super-admin/dashboard')
     } catch (loginError) {
       setError(loginError.message)
       showToast(loginError.message, 'error')
@@ -61,6 +71,7 @@ function Login() {
           <select value={loginRole} onChange={(event) => setLoginRole(event.target.value)}>
             <option value="super-admin">Super Admin</option>
             <option value="pharmacy-admin">Pharmacy Admin</option>
+            <option value="pharmacist">Pharmacist</option>
           </select>
         </label>
         <label>

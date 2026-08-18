@@ -2,15 +2,17 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
+import { resetForgottenPharmacistPassword } from '../config/api'
 
 function ResetPassword() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
     if (password !== confirmPassword) {
       setError('Passwords must match')
@@ -18,8 +20,36 @@ function ResetPassword() {
       return
     }
     setError('')
-    showToast('Password reset successful.')
-    navigate('/login')
+    setIsSubmitting(true)
+    const email = sessionStorage.getItem('passwordResetEmail')
+    const role = sessionStorage.getItem('passwordResetRole') || 'pharmacist'
+    const resetToken = sessionStorage.getItem('passwordResetToken')
+
+    try {
+      if (role === 'pharmacist') {
+        const response = await resetForgottenPharmacistPassword({
+          email,
+          resetToken,
+          token: resetToken,
+          password,
+          newPassword: password,
+          confirmPassword,
+        })
+        showToast(response?.message || 'Password reset successful.')
+      } else {
+        showToast('Password reset successful.')
+      }
+
+      sessionStorage.removeItem('passwordResetEmail')
+      sessionStorage.removeItem('passwordResetRole')
+      sessionStorage.removeItem('passwordResetToken')
+      navigate('/login')
+    } catch (resetError) {
+      setError(resetError.message)
+      showToast(resetError.message, 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -46,8 +76,8 @@ function ResetPassword() {
           />
         </label>
         {error && <div className="form-error">{error}</div>}
-        <button type="submit" className="button-primary">
-          Reset Password
+        <button type="submit" className="button-primary" disabled={isSubmitting}>
+          {isSubmitting ? 'Resetting...' : 'Reset Password'}
         </button>
       </form>
       <div className="auth-footer">

@@ -23,6 +23,16 @@ import AdminDispensing from './pages/Admin/Dispensing'
 import AdminExpiryAlerts from './pages/Admin/ExpiryAlerts'
 import AdminReports from './pages/Admin/Reports'
 import AdminSettings from './pages/Admin/Settings'
+import AdminSuppliers from './pages/Admin/Suppliers'
+import AdminPurchaseOrders from './pages/Admin/PurchaseOrders'
+import AdminCmsIntegration from './pages/Admin/CmsIntegration'
+import AdminStockTransfers from './pages/Admin/StockTransfers'
+import PharmacistDashboard from './pages/Pharmacist/Dashboard'
+import PharmacistPending from './pages/Pharmacist/Pending'
+import PharmacistDispensing from './pages/Pharmacist/Dispensing'
+import PharmacistBills from './pages/Pharmacist/Bills'
+import PharmacistReturns from './pages/Pharmacist/Returns'
+import PharmacistReports from './pages/Pharmacist/Reports'
 import VerifyOTP from './pages/VerifyOTP'
 import { superAdminNavigation } from './components/superAdminNavigation'
 import ToastProvider from './components/ToastProvider'
@@ -195,11 +205,21 @@ function App() {
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/medicines" element={<AdminMedicines />} />
           <Route path="/admin/stock" element={<AdminStock />} />
+          <Route path="/admin/suppliers" element={<AdminSuppliers />} />
+          <Route path="/admin/purchase-orders" element={<AdminPurchaseOrders />} />
+          <Route path="/admin/stock-transfers" element={<AdminStockTransfers />} />
           <Route path="/admin/prescriptions" element={<AdminPrescriptions />} />
           <Route path="/admin/dispensing" element={<AdminDispensing />} />
           <Route path="/admin/expiry-alerts" element={<AdminExpiryAlerts />} />
+          <Route path="/admin/cms-integration" element={<AdminCmsIntegration />} />
           <Route path="/admin/reports" element={<AdminReports />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
+          <Route path="/pharmacist/pending" element={<PharmacistPending />} />
+          <Route path="/pharmacist/dispensing" element={<PharmacistDispensing />} />
+          <Route path="/pharmacist/bills" element={<PharmacistBills />} />
+          <Route path="/pharmacist/returns" element={<PharmacistReturns />} />
+          <Route path="/pharmacist/reports" element={<PharmacistReports />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verify-otp" element={<VerifyOTP />} />
           <Route path="/reset-password" element={<ResetPassword />} />

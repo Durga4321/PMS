@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { logoutPharmacyAdmin, logoutSuperAdmin } from '../config/api'
+import { logoutPharmacist, logoutPharmacyAdmin, logoutSuperAdmin } from '../config/api'
 import { useToast } from './ToastProvider'
 import './UserProfileMenu.css'
 
@@ -38,6 +38,19 @@ function readUser(keys) {
 }
 
 function getProfile(roleType) {
+  if (roleType === 'pharmacist') {
+    const user = readUser(['pharmacistUser'])
+    const assignment = readUser(['pharmacistAssignment'])
+    return {
+      name: user?.name || user?.fullName || user?.email || 'Pharmacist',
+      email: user?.email || '',
+      roleLabel: 'Pharmacist',
+      branchName: assignment?.branchName || assignment?.branch?.name || assignment?.pharmacyName || 'Branch',
+      profilePath: '/profile',
+      passwordPath: '/change-password',
+    }
+  }
+
   if (roleType === 'pharmacy-admin') {
     const user = readUser(['pharmacyAdminUser'])
     const assignment = readUser(['pharmacyAdminAssignment'])
@@ -63,7 +76,9 @@ function getProfile(roleType) {
 }
 
 function clearRoleSession(roleType) {
-  const keys = roleType === 'pharmacy-admin'
+  const keys = roleType === 'pharmacist'
+    ? ['pharmacistToken', 'pharmacistUser', 'pharmacistAssignment']
+    : roleType === 'pharmacy-admin'
     ? ['pharmacyAdminToken', 'pharmacyAdminUser', 'pharmacyAdminAssignment']
     : ['superAdminToken', 'superAdminUser']
 
@@ -90,11 +105,12 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
   }, [])
 
   async function logout() {
-    const tokenKey = roleType === 'pharmacy-admin' ? 'pharmacyAdminToken' : 'superAdminToken'
+    const tokenKey = roleType === 'pharmacist' ? 'pharmacistToken' : roleType === 'pharmacy-admin' ? 'pharmacyAdminToken' : 'superAdminToken'
     const token = sessionStorage.getItem(tokenKey) || localStorage.getItem(tokenKey)
 
     try {
-      if (roleType === 'pharmacy-admin') await logoutPharmacyAdmin(token)
+      if (roleType === 'pharmacist') await logoutPharmacist(token)
+      else if (roleType === 'pharmacy-admin') await logoutPharmacyAdmin(token)
       else await logoutSuperAdmin(token)
       showToast('Logout successful.')
     } catch (error) {

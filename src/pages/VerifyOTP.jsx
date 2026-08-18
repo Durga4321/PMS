@@ -2,16 +2,36 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
+import { verifyPharmacistResetOtp } from '../config/api'
 
 function VerifyOTP() {
   const [otp, setOtp] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    showToast('OTP verified successfully.')
-    navigate('/reset-password')
+    setIsSubmitting(true)
+    const email = sessionStorage.getItem('passwordResetEmail')
+    const role = sessionStorage.getItem('passwordResetRole') || 'pharmacist'
+
+    try {
+      if (role === 'pharmacist') {
+        const response = await verifyPharmacistResetOtp({ email, otp })
+        const resetToken = response?.resetToken || response?.token || response?.data?.resetToken || response?.data?.token
+        if (resetToken) sessionStorage.setItem('passwordResetToken', resetToken)
+        showToast(response?.message || 'OTP verified successfully.')
+      } else {
+        showToast('OTP verified successfully.')
+      }
+
+      navigate('/reset-password')
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -29,8 +49,8 @@ function VerifyOTP() {
             required
           />
         </label>
-        <button type="submit" className="button-primary">
-          Verify -&gt;
+        <button type="submit" className="button-primary" disabled={isSubmitting}>
+          {isSubmitting ? 'Verifying...' : 'Verify ->'}
         </button>
       </form>
       <div className="auth-footer">

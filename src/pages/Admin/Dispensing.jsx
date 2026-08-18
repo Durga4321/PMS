@@ -1,9 +1,6 @@
-import AdminLayout from './AdminLayout'
-import AdminTable from './AdminTable'
-import { adminTables } from './adminData'
+import { dispensePrescription, generateBill, getInvoice, getPendingPharmacyPrescriptions, getPharmacyPrescription, recordPayment } from '../../config/api'
+import AdminApiScreen from './AdminApiScreen'
 
-function Dispensing() {
-  return <AdminLayout activeLabel="Dispensing" title="Dispense Medicine" subtitle="Admin / Dispensing"><AdminTable {...adminTables.dispensing} /></AdminLayout>
+export default function Dispensing() {
+  return <AdminApiScreen activeLabel="Dispensing" title="Dispensing and Billing" subtitle="Admin / Dispensing" load={getPendingPharmacyPrescriptions} actions={[{ label: 'Get Prescription', fn: (id) => getPharmacyPrescription(id) }, { label: 'Dispense', fn: (_, body) => dispensePrescription(body) }, { label: 'Generate Bill', fn: (_, body) => generateBill(body) }, { label: 'Get Invoice', fn: (id) => getInvoice(id) }, { label: 'Payment', fn: (_, body) => recordPayment(body) }]} />
 }
-
-export default Dispensing
