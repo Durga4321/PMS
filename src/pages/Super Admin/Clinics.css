@@ -1,3 +1,252 @@
 .super-admin-module-panel {
   min-height: 360px;
 }
+
+.clinics-page .super-admin-main {
+  background: #f8fbff;
+}
+
+.clinics-heading {
+  padding: 18px 0 14px;
+}
+
+.clinics-heading h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.clinics-heading p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.clinics-panel {
+  overflow: hidden;
+  border: 1px solid #e3eaf1;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.clinics-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.clinics-search {
+  min-width: 0;
+  height: 40px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  color: #64748b;
+}
+
+.clinics-search svg {
+  flex: 0 0 16px;
+}
+
+.clinics-search input,
+.clinics-toolbar select {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+}
+
+.clinics-search input {
+  width: 100%;
+}
+
+.clinics-toolbar select {
+  width: 110px;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.clinics-table-wrap {
+  overflow-x: auto;
+}
+
+.clinics-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.clinics-table th,
+.clinics-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #edf1f5;
+  color: #243657;
+  font-size: 11px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.clinics-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.clinics-table th:nth-child(1) { width: 52px; }
+.clinics-table th:nth-child(2) { width: 18%; }
+.clinics-table th:nth-child(3) { width: 27%; }
+.clinics-table th:nth-child(4) { width: 15%; }
+.clinics-table th:nth-child(5) { width: 18%; }
+.clinics-table th:nth-child(6) { width: 10%; }
+.clinics-table th:nth-child(7) { width: 72px; }
+
+.clinic-name,
+.clinic-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.clinic-name {
+  font-weight: 800;
+}
+
+.clinic-avatar {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  flex: 0 0 24px;
+  place-items: center;
+  border: 1px solid #bde8e5;
+  border-radius: 7px;
+  background: #edfffb;
+  color: #0f9d9d;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.clinic-with-icon {
+  color: #475569;
+}
+
+.clinic-with-icon svg {
+  flex: 0 0 14px;
+  color: #0f9d9d;
+}
+
+.clinic-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.clinic-status::before {
+  width: 5px;
+  height: 5px;
+  display: block;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+
+.clinic-status.inactive {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.clinic-view-button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.clinic-view-button:hover {
+  background: #eff6ff;
+}
+
+.clinics-error {
+  color: #dc2626 !important;
+}
+
+.clinics-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.clinics-footer div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.clinics-footer button {
+  min-width: 42px;
+  height: 30px;
+  border: 1px solid #dbe3ed;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.clinics-footer button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.clinics-footer strong {
+  padding: 0 7px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .clinics-toolbar,
+  .clinics-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .clinics-toolbar select {
+    width: 100%;
+  }
+
+  .clinics-footer div {
+    justify-content: space-between;
+  }
+}

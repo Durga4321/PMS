@@ -52,6 +52,7 @@ function App() {
           <Route path="/super-admin/users-permissions" element={<UsersPermissions />} />
           <Route path="/super-admin/medicines" element={<Medicines />} />
           <Route path="/super-admin/system-settings" element={<SystemSettings />} />
+          <Route path="/superadmin/settings" element={<SystemSettings />} />
           <Route path="/super-admin/reports" element={<Reports />} />
           <Route path="/super-admin/audit-logs" element={<ActivityLogs />} />
           <Route path="/super-admin/activity-logs" element={<Navigate to="/super-admin/audit-logs" replace />} />

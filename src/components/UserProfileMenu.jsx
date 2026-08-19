@@ -70,8 +70,8 @@ function getProfile(roleType) {
     email: user?.email || '',
     roleLabel: 'Super Admin',
     branchName: '',
-    profilePath: '/super-admin/profile',
-    passwordPath: '/super-admin/change-password',
+    profilePath: '/profile',
+    passwordPath: '/profile?tab=password',
   }
 }
 
