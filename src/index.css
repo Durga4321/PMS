@@ -8,7 +8,9 @@ html {
 
 body {
   margin: 0;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #fdf0f7;
   color: #3b1526;
@@ -37,9 +39,345 @@ img {
 }
 
 #root {
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 ::selection {
   background: rgba(214, 51, 132, 0.18);
+}
+
+/* Layout fixed-outer and scrolling-inner styling */
+
+/* 1. Super Admin Layouts */
+.super-admin-shell {
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+.super-admin-main {
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+.super-admin-topbar {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  top: auto !important;
+}
+.super-admin-content {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 20px 20px !important;
+  box-sizing: border-box !important;
+}
+.super-admin-module-heading {
+  flex: 0 0 auto !important;
+}
+.super-admin-module-panel {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  min-height: 0 !important;
+  margin-top: 20px !important;
+}
+.super-admin-module-header {
+  flex: 0 0 auto !important;
+}
+.super-admin-module-table {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+}
+.super-admin-module-table::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Super Admin Dashboard scrollable middle elements */
+.dashboard-scroll-area {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+}
+.dashboard-scroll-area::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* 2. Admin Management (Admins.jsx) Layout */
+.admins-page-shell {
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+.admins-main {
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+.admins-topbar {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  top: auto !important;
+  margin-bottom: 0 !important;
+  padding: 0 20px !important;
+}
+.admins-content {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 20px 20px 20px !important;
+  box-sizing: border-box !important;
+}
+.admins-section-header,
+.admins-toolbar,
+.admins-create-panel {
+  flex: 0 0 auto !important;
+}
+.admins-table-card {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+}
+.admins-table-card::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* 3. Pharmacy Admin Layouts */
+.branch-admin-page {
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+.branch-admin-main {
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+.branch-admin-header {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  top: auto !important;
+}
+.branch-admin-content {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 20px 20px !important;
+  box-sizing: border-box !important;
+}
+.branch-admin-content.is-dashboard {
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 20px 28px !important;
+}
+.branch-admin-content.is-dashboard .branch-panel {
+  flex: none !important;
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+
+/* 4. Pharmacist Layouts */
+.pharmacist-page {
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+.pharmacist-main {
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+.pharmacist-header {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  top: auto !important;
+}
+.pharmacist-content {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 20px 20px !important;
+  box-sizing: border-box !important;
+}
+.pharmacist-content.is-dashboard {
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 20px 28px !important;
+}
+.pharmacist-content.is-dashboard .pharmacist-panel {
+  flex: none !important;
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+
+/* 5. Shared Admin/Pharmacist Panel list scrolling components */
+.branch-panel,
+.pharmacist-panel {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  min-height: 0 !important;
+  margin-top: 20px !important;
+  margin-bottom: 20px !important;
+}
+.branch-panel-heading,
+.medicine-filters,
+.import-tools,
+.pharmacist-search,
+.pharmacist-actions,
+.inventory-tools,
+.inventory-batch-tools,
+.inventory-mini-form,
+.pharmacist-form {
+  flex: 0 0 auto !important;
+}
+.branch-table-wrap {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+}
+.branch-table-wrap::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* 6. Profile Pages Layout */
+.profile-page {
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+.profile-main {
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+.profile-topbar {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  top: auto !important;
+}
+.profile-content {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 20px 32px !important;
+  box-sizing: border-box !important;
+  scrollbar-width: none !important;
+}
+.profile-content::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* 7. Stock Page multi-panel scroll area styling */
+.stock-scroll-area {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+}
+.stock-scroll-area::-webkit-scrollbar {
+  display: none !important;
+}
+.stock-scroll-area .branch-panel {
+  flex: none !important;
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+
+/* 8. Global Action Buttons styling matching the reference image */
+.admin-action-group,
+.pharmacist-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  width: auto !important;
+}
+
+.admin-action-button {
+  width: 32px !important;
+  height: 32px !important;
+  border: 1px solid #dbeafe !important;
+  border-radius: 9px !important;
+  background: #f0f7ff !important;
+  color: #2563eb !important;
+  cursor: pointer !important;
+  display: grid !important;
+  place-items: center !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  padding: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.admin-action-button svg {
+  width: 14px !important;
+  height: 14px !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  stroke-width: 2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+.admin-action-button:hover {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0369a1 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.08) !important;
+}
+
+/* Danger / Delete specific style */
+.admin-action-button.danger {
+  color: #ef4444 !important;
+  background: #fef2f2 !important;
+  border-color: #fee2e2 !important;
+}
+
+.admin-action-button.danger:hover {
+  background: #fee2e2 !important;
+  border-color: #fecaca !important;
+  color: #dc2626 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.08) !important;
+}
+
+/* 9. Expiry alert status badges */
+.branch-status.near-expiry {
+  background: #fff7ed !important;
+  color: #c2410c !important;
+  border: 1px solid #ffedd5 !important;
+}
+.branch-status.expired {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fee2e2 !important;
 }

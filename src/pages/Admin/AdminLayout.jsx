@@ -83,7 +83,9 @@ function AdminLayout({ activeLabel, title, subtitle, children }) {
           <UserProfileMenu roleType="pharmacy-admin" />
         </header>
 
-        {children}
+        <div className={`branch-admin-content${activeLabel === 'Dashboard' ? ' is-dashboard' : ''}`}>
+          {children}
+        </div>
       </main>
     </div>
   )

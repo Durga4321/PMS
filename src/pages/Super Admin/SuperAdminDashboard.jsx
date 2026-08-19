@@ -86,30 +86,34 @@ function SuperAdminDashboard() {
       <main className="super-admin-main">
         <SuperAdminTopbar onMenu={() => setOpen((value) => !value)} />
 
-        <section className="reference-heading"><h1>Super Admin Dashboard</h1><p>Platform-wide clinics, revenue, and operational activity.</p></section>
-        {loading ? <p className="reference-message">Loading dashboard...</p> : error ? <p className="reference-message error">{error}</p> : (
-          <>
-            <section className="reference-stats">
-              <article><i>+</i><div><strong>{view.clinics}</strong><span>Total Clinics</span></div></article>
-              <article><i>+</i><div><strong>{view.admins}</strong><span>Total Admins</span></div></article>
-              <article><i>Rs</i><div><strong>{view.revenue}</strong><span>Revenue Summary</span></div></article>
-            </section>
-            <section className="reference-insights">
-              <article className="reference-card chart-card">
-                <header><div><h2>Charts &amp; Statistics</h2><p>Revenue growth across all clinics.</p></div><button type="button">This Month</button></header>
-                <div className="bar-chart">{view.branches.length ? view.branches.slice(0, 6).map((branch, index) => <div key={pick(branch, ['_id', 'id', 'branchId', 'name'], index)}><span style={{ height: `${Math.max(6, (heights[index] / highest) * 100)}%` }} /><small>{pick(branch, ['branchName', 'name'], '-')}</small></div>) : <p>No revenue data available.</p>}</div>
-              </article>
-              <article className="reference-card activities-card">
-                <header><div><h2>Recent Activities</h2><p>Latest platform events.</p></div><button onClick={() => navigate('/super-admin/audit-logs')} type="button">View All</button></header>
-                <div className="reference-activities">{view.activities.length ? view.activities.slice(0, 5).map((activity, index) => <div key={pick(activity, ['_id', 'id'], index)}><p><b>{pick(activity, ['title', 'action', 'event', 'type'], 'Activity')}</b><span>{pick(activity, ['message', 'text', 'description'], '')}</span></p><time>{pick(activity, ['timeAgo', 'time', 'createdAt'], '')}</time></div>) : <p>No recent activities.</p>}</div>
-              </article>
-            </section>
-            <section className="reference-directory">
-              <article className="reference-card"><header><div><h2>Branches</h2><p>All registered branches.</p></div><button onClick={() => navigate('/super-admin/branches')} type="button">View All</button></header><SmallTable type="Branches" rows={view.branches} /></article>
-              <article className="reference-card"><header><div><h2>Medicines</h2><p>All medicines in inventory.</p></div><button onClick={() => navigate('/super-admin/medicines')} type="button">View All</button></header><SmallTable type="Medicines" rows={view.medicines} /></article>
-            </section>
-          </>
-        )}
+        <div className="super-admin-content">
+          <section className="reference-heading"><h1>Super Admin Dashboard</h1><p>Platform-wide clinics, revenue, and operational activity.</p></section>
+          {loading ? <p className="reference-message">Loading dashboard...</p> : error ? <p className="reference-message error">{error}</p> : (
+            <>
+              <section className="reference-stats">
+                <article><i>+</i><div><strong>{view.clinics}</strong><span>Total Clinics</span></div></article>
+                <article><i>+</i><div><strong>{view.admins}</strong><span>Total Admins</span></div></article>
+                <article><i>Rs</i><div><strong>{view.revenue}</strong><span>Revenue Summary</span></div></article>
+              </section>
+              <div className="dashboard-scroll-area">
+                <section className="reference-insights">
+                  <article className="reference-card chart-card">
+                    <header><div><h2>Charts &amp; Statistics</h2><p>Revenue growth across all clinics.</p></div><button type="button">This Month</button></header>
+                    <div className="bar-chart">{view.branches.length ? view.branches.slice(0, 6).map((branch, index) => <div key={pick(branch, ['_id', 'id', 'branchId', 'name'], index)}><span style={{ height: `${Math.max(6, (heights[index] / highest) * 100)}%` }} /><small>{pick(branch, ['branchName', 'name'], '-')}</small></div>) : <p>No revenue data available.</p>}</div>
+                  </article>
+                  <article className="reference-card activities-card">
+                    <header><div><h2>Recent Activities</h2><p>Latest platform events.</p></div><button onClick={() => navigate('/super-admin/audit-logs')} type="button">View All</button></header>
+                    <div className="reference-activities">{view.activities.length ? view.activities.slice(0, 5).map((activity, index) => <div key={pick(activity, ['_id', 'id'], index)}><p><b>{pick(activity, ['title', 'action', 'event', 'type'], 'Activity')}</b><span>{pick(activity, ['message', 'text', 'description'], '')}</span></p><time>{pick(activity, ['timeAgo', 'time', 'createdAt'], '')}</time></div>) : <p>No recent activities.</p>}</div>
+                  </article>
+                </section>
+                <section className="reference-directory">
+                  <article className="reference-card"><header><div><h2>Branches</h2><p>All registered branches.</p></div><button onClick={() => navigate('/super-admin/branches')} type="button">View All</button></header><SmallTable type="Branches" rows={view.branches} /></article>
+                  <article className="reference-card"><header><div><h2>Medicines</h2><p>All medicines in inventory.</p></div><button onClick={() => navigate('/super-admin/medicines')} type="button">View All</button></header><SmallTable type="Medicines" rows={view.medicines} /></article>
+                </section>
+              </div>
+            </>
+          )}
+        </div>
       </main>
     </div>
   )

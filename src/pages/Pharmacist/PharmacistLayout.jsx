@@ -64,7 +64,9 @@ function PharmacistLayout({ activeLabel, title, subtitle, children }) {
           </button>
           <UserProfileMenu roleType="pharmacist" />
         </header>
-        {children}
+        <div className={`pharmacist-content${activeLabel === 'Dashboard' ? ' is-dashboard' : ''}`}>
+          {children}
+        </div>
       </main>
     </div>
   )
