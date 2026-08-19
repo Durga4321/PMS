@@ -614,3 +614,14 @@ export async function listHospitalBranches(hospitalId) {
     return request(replacePathParams('pharmacy-super-admin/hospitals/{hospitalId}/branches', { hospitalId }))
   }
 }
+
+export function getPharmacySettings() {
+  return request('pharmacy-admin/settings')
+}
+
+export function updatePharmacySettings(payload) {
+  return request('pharmacy-admin/settings', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}

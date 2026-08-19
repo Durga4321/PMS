@@ -206,12 +206,29 @@ function Users() {
                   <td>{pharmacist?.pharmacy?.name || pharmacist?.pharmacyName || pharmacist?.branchName || '-'}</td>
                   <td><span className={`branch-status ${String(getStatus(pharmacist)).toLowerCase()}`}>{getStatus(pharmacist)}</span></td>
                   <td className="pharmacist-actions">
-                    <button type="button" onClick={() => openEdit(pharmacist)}>Edit</button>
-                    <button type="button" onClick={() => openPermissions(pharmacist)}>Permissions</button>
-                    <button type="button" onClick={() => handleAssign(pharmacist)}>Assign</button>
-                    <button type="button" onClick={() => handleStatus(pharmacist)}>Status</button>
-                    <button type="button" onClick={() => setResetting(pharmacist)}>Reset</button>
-                    <button type="button" onClick={() => handleDelete(pharmacist)}>Delete</button>
+                    <div className="admin-action-group">
+                      <button type="button" className="admin-action-button view" aria-label="View Details" title="View Details" onClick={() => openEdit(pharmacist)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+                      </button>
+                      <button type="button" className="admin-action-button edit" aria-label="Edit Pharmacist" title="Edit Pharmacist" onClick={() => openEdit(pharmacist)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
+                      </button>
+                      <button type="button" className="admin-action-button permissions" aria-label="Permissions" title="Permissions" onClick={() => openPermissions(pharmacist)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4" /><path d="m11 12 8-8M15 4h4v4" /></svg>
+                      </button>
+                      <button type="button" className="admin-action-button assign" aria-label="Assign Pharmacy" title="Assign Pharmacy" onClick={() => handleAssign(pharmacist)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+                      </button>
+                      <button type="button" className="admin-action-button status" aria-label="Change Status" title="Change Status" onClick={() => handleStatus(pharmacist)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="6" /><circle cx="15" cy="12" r="3" /></svg>
+                      </button>
+                      <button type="button" className="admin-action-button reset" aria-label="Reset Password" title="Reset Password" onClick={() => setResetting(pharmacist)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                      </button>
+                      <button type="button" className="admin-action-button danger" aria-label="Delete Pharmacist" title="Delete Pharmacist" onClick={() => handleDelete(pharmacist)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )) : null}
