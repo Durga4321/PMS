@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FiEye, FiMapPin, FiPhone, FiSearch } from 'react-icons/fi'
 import { listAssignmentHospitals } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './Clinics.css'
+
+function Icon({ name }) {
+  const paths = {
+    eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
+    map: <><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>,
+    phone: <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.7 2.6a2 2 0 0 1-.5 2.1L8.1 9.6a16 16 0 0 0 6.3 6.3l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.6 2.6.7A2 2 0 0 1 22 16.9Z" />,
+    search: <><circle cx="11" cy="11" r="7" /><path d="m16 16 4 4" /></>,
+  }
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
+}
 
 function normalizeList(response) {
   if (Array.isArray(response)) return response
@@ -87,14 +96,14 @@ function Clinics() {
         <section className="clinics-heading"><h1>Clinic Management</h1><p>{filteredClinics.length} clinics found</p></section>
         <section className="clinics-panel">
           <div className="clinics-toolbar">
-            <label className="clinics-search"><FiSearch aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clinics by name, address, or email..." /></label>
+            <label className="clinics-search"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clinics by name, address, or email..." /></label>
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter clinics by status"><option>All</option><option>Active</option><option>Inactive</option></select>
           </div>
           <div className="clinics-table-wrap">
             <table className="clinics-table">
               <thead><tr><th>S.No</th><th>Clinic Name</th><th>Address</th><th>Contact Number</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan="7">Loading clinics...</td></tr> : error ? <tr><td colSpan="7" className="clinics-error">{error}</td></tr> : visibleClinics.length ? visibleClinics.map((clinic, index) => { const status = clinicStatus(clinic); return <tr key={clinic?._id || clinic?.id || `${clinicName(clinic)}-${index}`}><td>{(page - 1) * pageSize + index + 1}</td><td><span className="clinic-name"><span className="clinic-avatar">{clinicName(clinic).slice(0, 1).toUpperCase()}</span>{clinicName(clinic)}</span></td><td><span className="clinic-with-icon"><FiMapPin aria-hidden="true" />{clinicAddress(clinic)}</span></td><td><span className="clinic-with-icon"><FiPhone aria-hidden="true" />{clinicPhone(clinic)}</span></td><td>{clinic?.email || '-'}</td><td><span className={`clinic-status ${status.toLowerCase()}`}>{status}</span></td><td><button className="clinic-view-button" type="button" aria-label={`View ${clinicName(clinic)}`} title={`View ${clinicName(clinic)}`}><FiEye aria-hidden="true" /></button></td></tr> }) : <tr><td colSpan="7">No clinics found.</td></tr>}
+                {loading ? <tr><td colSpan="7">Loading clinics...</td></tr> : error ? <tr><td colSpan="7" className="clinics-error">{error}</td></tr> : visibleClinics.length ? visibleClinics.map((clinic, index) => { const status = clinicStatus(clinic); return <tr key={clinic?._id || clinic?.id || `${clinicName(clinic)}-${index}`}><td>{(page - 1) * pageSize + index + 1}</td><td><span className="clinic-name"><span className="clinic-avatar">{clinicName(clinic).slice(0, 1).toUpperCase()}</span>{clinicName(clinic)}</span></td><td><span className="clinic-with-icon"><Icon name="map" />{clinicAddress(clinic)}</span></td><td><span className="clinic-with-icon"><Icon name="phone" />{clinicPhone(clinic)}</span></td><td>{clinic?.email || '-'}</td><td><span className={`clinic-status ${status.toLowerCase()}`}>{status}</span></td><td><button className="clinic-view-button" type="button" aria-label={`View ${clinicName(clinic)}`} title={`View ${clinicName(clinic)}`}><Icon name="eye" /></button></td></tr> }) : <tr><td colSpan="7">No clinics found.</td></tr>}
               </tbody>
             </table>
           </div>
