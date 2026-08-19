@@ -2,10 +2,42 @@
   background: #f8fbff;
 }
 
+body.dashboard-scroll-page {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+body.dashboard-scroll-page #root {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+}
+
 .reference-dashboard.super-admin-shell {
   width: 100%;
   display: block;
+  min-height: 100vh;
+  height: auto !important;
+  overflow: visible !important;
   padding-left: 248px;
+}
+
+.dashboard-scroll-page {
+  height: auto;
+  min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.reference-dashboard .super-admin-main {
+  height: auto !important;
+  min-height: 100vh;
+  display: block !important;
+  overflow: visible !important;
+  overflow-x: hidden;
+  padding: 0 20px 28px !important;
 }
 
 .reference-heading {
@@ -38,7 +70,7 @@
 
 .reference-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -54,6 +86,20 @@
   box-shadow: 0 5px 18px rgba(15, 23, 42, 0.035);
 }
 
+.reference-stat-link {
+  cursor: pointer;
+}
+
+.reference-stat-link:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 7px 20px rgba(15, 23, 42, 0.08);
+}
+
+.reference-stat-link:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
 .reference-stats article:nth-child(1) {
   background: linear-gradient(110deg, #fff, #edfffb);
 }
@@ -62,7 +108,8 @@
   background: linear-gradient(110deg, #fff, #eef5ff);
 }
 
-.reference-stats article:nth-child(3) {
+.reference-stats article:nth-child(3),
+.reference-stats article:nth-child(7) {
   background: linear-gradient(110deg, #fff, #fff9e9);
 }
 
@@ -88,6 +135,15 @@
   color: #d97706;
 }
 
+.reference-stats article:nth-child(4) {
+  background: linear-gradient(110deg, #fff, #fff4e9);
+}
+
+.reference-stats article:nth-child(4) i {
+  background: #ffecd5;
+  color: #ea580c;
+}
+
 .reference-stats strong,
 .reference-stats span {
   display: block;
@@ -104,7 +160,8 @@
 }
 
 .reference-insights,
-.reference-directory {
+.reference-directory,
+.reference-secondary {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 14px;
@@ -113,6 +170,10 @@
 
 .reference-directory {
   grid-template-columns: 1fr 1.18fr;
+}
+
+.reference-secondary {
+  grid-template-columns: 1fr;
 }
 
 .reference-card {
@@ -186,6 +247,82 @@
   margin: auto;
   color: #64748b;
   font-size: 12px;
+}
+
+.branch-performance {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 230px;
+}
+
+.donut-chart {
+  width: 142px;
+  height: 142px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.donut-chart > div {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-content: center;
+  border-radius: 50%;
+  background: #fff;
+  text-align: center;
+}
+
+.donut-chart span,
+.donut-chart strong {
+  display: block;
+}
+
+.donut-chart span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.donut-chart strong {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.branch-legend {
+  display: grid;
+  gap: 10px;
+}
+
+.branch-legend > div {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+}
+
+.branch-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.branch-legend span {
+  overflow: hidden;
+  color: #475569;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-legend b {
+  font-size: 10px;
+}
+
+.branch-legend small {
+  color: #64748b;
+  font-weight: 400;
 }
 
 .reference-activities {
@@ -273,20 +410,48 @@
   color: #dc2626;
 }
 
+.reference-status.low {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.reference-status.critical {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.expiry-card {
+  margin-top: 16px;
+}
+
+.reference-bottom-stats {
+  margin-top: 16px;
+}
+
 @media (max-width: 1050px) {
   .reference-insights,
-  .reference-directory {
+  .reference-directory,
+  .reference-secondary {
     grid-template-columns: 1fr;
   }
 
   .reference-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 640px) {
   .reference-stats {
     grid-template-columns: 1fr;
+  }
+
+  .branch-performance {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .branch-legend {
+    width: 100%;
   }
 
   .reference-heading {
