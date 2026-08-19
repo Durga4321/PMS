@@ -1,6 +1,49 @@
-import { createIntegrationPrescription, getIntegrationMedicines, upsertIntegrationAppointment, upsertIntegrationBranch, upsertIntegrationDoctor, upsertIntegrationHospital, upsertIntegrationPatient } from '../../config/api'
+import {
+  cancelIntegrationAppointment,
+  cancelIntegrationPrescription,
+  createIntegrationPrescription,
+  deleteIntegrationDoctor,
+  deleteIntegrationHospital,
+  deleteIntegrationHospitalBranch,
+  deleteIntegrationPatient,
+  getIntegrationAppointment,
+  getIntegrationDoctor,
+  getIntegrationHospital,
+  getIntegrationHospitalBranch,
+  getIntegrationMedicines,
+  getIntegrationPatient,
+  getIntegrationPrescription,
+  getIntegrationPrescriptionStatus,
+  upsertIntegrationAppointment,
+  upsertIntegrationBranch,
+  upsertIntegrationDoctor,
+  upsertIntegrationHospital,
+  upsertIntegrationPatient,
+  updateIntegrationPrescription,
+} from '../../config/api'
 import AdminApiScreen from './AdminApiScreen'
 
 export default function CmsIntegration() {
-  return <AdminApiScreen activeLabel="CMS Integration" title="CMS Integration" subtitle="Admin / CMS Integration" load={getIntegrationMedicines} actions={[{ label: 'Upsert Appointment', fn: (id, body) => upsertIntegrationAppointment(id, body) }, { label: 'Upsert Doctor', fn: (id, body) => upsertIntegrationDoctor(id, body) }, { label: 'Upsert Hospital', fn: (id, body) => upsertIntegrationHospital(id, body) }, { label: 'Upsert Branch', fn: (_, body) => upsertIntegrationBranch(body.externalHospitalId, body.externalBranchId, body) }, { label: 'Upsert Patient', fn: (id, body) => upsertIntegrationPatient(id, body) }, { label: 'Create Prescription', fn: (_, body) => createIntegrationPrescription(body) }]} />
+  return <AdminApiScreen activeLabel="CMS Integration" title="CMS Integration" subtitle="Admin / CMS Integration" load={getIntegrationMedicines} actions={[
+    { label: 'Upsert Appointment', fn: (id, body) => upsertIntegrationAppointment(id, body) },
+    { label: 'Get Appointment', fn: (id) => getIntegrationAppointment(id) },
+    { label: 'Cancel Appointment', fn: (id, body) => cancelIntegrationAppointment(id, body) },
+    { label: 'Upsert Doctor', fn: (id, body) => upsertIntegrationDoctor(id, body) },
+    { label: 'Get Doctor', fn: (id) => getIntegrationDoctor(id) },
+    { label: 'Delete Doctor', fn: (id) => deleteIntegrationDoctor(id) },
+    { label: 'Upsert Hospital', fn: (id, body) => upsertIntegrationHospital(id, body) },
+    { label: 'Get Hospital', fn: (id) => getIntegrationHospital(id) },
+    { label: 'Delete Hospital', fn: (id) => deleteIntegrationHospital(id) },
+    { label: 'Upsert Branch', fn: (_, body) => upsertIntegrationBranch(body.externalHospitalId, body.externalBranchId, body) },
+    { label: 'Get Branch', fn: (_, body) => getIntegrationHospitalBranch(body.externalHospitalId, body.externalBranchId) },
+    { label: 'Delete Branch', fn: (_, body) => deleteIntegrationHospitalBranch(body.externalHospitalId, body.externalBranchId) },
+    { label: 'Upsert Patient', fn: (id, body) => upsertIntegrationPatient(id, body) },
+    { label: 'Get Patient', fn: (id) => getIntegrationPatient(id) },
+    { label: 'Delete Patient', fn: (id) => deleteIntegrationPatient(id) },
+    { label: 'Create Prescription', fn: (_, body) => createIntegrationPrescription(body) },
+    { label: 'Get Prescription', fn: (_, body) => getIntegrationPrescription(body.sourceSystem, body.externalPrescriptionId) },
+    { label: 'Update Prescription', fn: (_, body) => updateIntegrationPrescription(body.sourceSystem, body.externalPrescriptionId, body) },
+    { label: 'Cancel Prescription', fn: (_, body) => cancelIntegrationPrescription(body.sourceSystem, body.externalPrescriptionId, body) },
+    { label: 'Prescription Status', fn: (_, body) => getIntegrationPrescriptionStatus(body.sourceSystem, body.externalPrescriptionId) },
+  ]} />
 }

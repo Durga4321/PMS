@@ -81,6 +81,8 @@ function App() {
           <Route path="/pharmacist/bills" element={<PharmacistBills />} />
           <Route path="/pharmacist/returns" element={<PharmacistReturns />} />
           <Route path="/pharmacist/reports" element={<PharmacistReports />} />
+          <Route path="/pharmacist/profile" element={<SuperAdminProfile initialTab="profile" roleType="pharmacist" />} />
+          <Route path="/pharmacist/change-password" element={<SuperAdminProfile initialTab="password" roleType="pharmacist" />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verify-otp" element={<VerifyOTP />} />
           <Route path="/reset-password" element={<ResetPassword />} />

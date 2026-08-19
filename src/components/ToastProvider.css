@@ -2,43 +2,71 @@
   position: fixed;
   top: 18px;
   right: 18px;
-  z-index: 50;
+  z-index: 1100;
   display: grid;
   gap: 10px;
-  width: min(calc(100vw - 28px), 360px);
+  width: min(calc(100vw - 28px), 390px);
   pointer-events: none;
 }
 
 .toast {
   position: relative;
-  display: grid;
-  gap: 3px;
-  padding: 13px 42px 13px 14px;
-  border: 1px solid #dbe5ee;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 14px 42px 14px 16px;
+  border: 1px solid #e3e9f2;
   border-left-width: 5px;
   border-radius: 8px;
   background: #fff;
-  color: #17202e;
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+  color: #111827;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.16);
   pointer-events: auto;
 }
 
 .toast-success {
-  border-left-color: #0f766e;
+  border-left-color: #22c55e;
 }
 
 .toast-error {
-  border-left-color: #b91c1c;
+  border-left-color: #ef4444;
 }
 
-.toast span {
-  font-size: 12px;
+.toast-icon {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #ffffff;
+  font-size: 22px;
   font-weight: 850;
+  line-height: 1;
+}
+
+.toast-error .toast-icon {
+  background: #ef4444;
+}
+
+.toast-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.toast-copy span {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.2;
 }
 
 .toast p {
   margin: 0;
-  color: #475569;
+  color: #64748b;
   font-size: 13px;
   font-weight: 650;
   line-height: 1.45;
@@ -53,11 +81,12 @@
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 6px;
-  background: #f1f5f9;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 900;
+  border-radius: 50%;
+  background: transparent;
+  color: #64748b;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 @media (max-width: 560px) {
@@ -66,5 +95,26 @@
     right: 10px;
     left: 10px;
     width: auto;
+  }
+
+  .toast {
+    min-height: 72px;
+    gap: 10px;
+    padding: 13px 40px 13px 14px;
+  }
+
+  .toast-icon {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+
+  .toast-copy span {
+    font-size: 14px;
+  }
+
+  .toast p {
+    font-size: 12px;
   }
 }

@@ -10,6 +10,7 @@ import {
   getMedicineImportStatus,
   listMedicineCategories,
   listMedicineDosageForms,
+  listMedicineStrengths,
   listMedicines,
   searchMedicines,
   updateMedicine,
@@ -81,6 +82,7 @@ export default function Medicines() {
   const [medicines, setMedicines] = useState([])
   const [categories, setCategories] = useState([])
   const [dosageForms, setDosageForms] = useState([])
+  const [strengths, setStrengths] = useState([])
   
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
@@ -131,12 +133,14 @@ export default function Medicines() {
 
   async function loadLookups() {
     try {
-      const [categoryResponse, dosageResponse] = await Promise.all([
+      const [categoryResponse, dosageResponse, strengthResponse] = await Promise.all([
         listMedicineCategories(),
         listMedicineDosageForms(),
+        listMedicineStrengths(),
       ])
       setCategories(normalizeList(categoryResponse))
       setDosageForms(normalizeList(dosageResponse))
+      setStrengths(normalizeList(strengthResponse))
     } catch (error) {
       showToast(error.message, 'error')
     }
@@ -631,10 +635,13 @@ export default function Medicines() {
                     <div className="med-form-group">
                       <label>Strength (e.g. 500mg)</label>
                       <input 
-                        type="text" 
+                        list="med-strengths-list" 
                         value={form.strength} 
                         onChange={(e) => setForm({...form, strength: e.target.value})} 
                       />
+                      <datalist id="med-strengths-list">
+                        {strengths.map((item) => <option value={optionValue(item)} key={optionValue(item)} />)}
+                      </datalist>
                     </div>
                   </div>
                   <div className="med-detail-row">

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPharmacySuperAdminDashboard } from '../../config/api'
+import {
+  getPharmacySuperAdminDashboard,
+  getPharmacySuperAdminDashboardAnalytics,
+  getPharmacySuperAdminDashboardExpiryAlerts,
+  getPharmacySuperAdminDashboardLowStock,
+} from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './DashboardReference.css'
@@ -8,6 +13,7 @@ import './DashboardReference.css'
 const unwrap = (response) => response?.data?.dashboard || response?.data || response?.dashboard || response || {}
 const pick = (item, keys, fallback = '-') => keys.map((key) => item?.[key]).find((value) => value !== undefined && value !== null && value !== '') ?? fallback
 const items = (source, keys) => keys.map((key) => source?.[key]).find(Array.isArray) || []
+const listFrom = (source, keys) => Array.isArray(source) ? source : items(source, keys)
 const money = (amount) => typeof amount === 'number' ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount) : amount || '0'
 
 function rowStatus(item) {
@@ -58,8 +64,22 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     let active = true
-    getPharmacySuperAdminDashboard()
-      .then((response) => active && setData(unwrap(response)))
+    Promise.allSettled([
+      getPharmacySuperAdminDashboard(),
+      getPharmacySuperAdminDashboardAnalytics(),
+      getPharmacySuperAdminDashboardExpiryAlerts(),
+      getPharmacySuperAdminDashboardLowStock(),
+    ])
+      .then((results) => {
+        if (!active) return
+        const [dashboard, analytics, expiryAlerts, lowStock] = results.map((result) => result.status === 'fulfilled' ? unwrap(result.value) : null)
+        setData({
+          ...(dashboard || {}),
+          analytics: analytics || dashboard?.analytics,
+          expiryAlerts: listFrom(expiryAlerts, ['expiryAlerts', 'items', 'results', 'data']),
+          lowStock: listFrom(lowStock, ['lowStock', 'items', 'results', 'data']),
+        })
+      })
       .catch((err) => active && setError(err.message))
       .finally(() => active && setLoading(false))
     return () => { active = false }
@@ -72,7 +92,9 @@ function SuperAdminDashboard() {
       admins: pick(summary, ['totalAdmins', 'adminsCount', 'admins', 'totalUsers'], 0),
       revenue: money(pick(summary, ['revenue', 'totalRevenue', 'monthlySales', 'totalSales'], 0)),
       branches: items(data, ['branches', 'branchPerformance', 'branchesPerformance']),
-      medicines: items(data, ['medicines', 'medicineInventory', 'inventory', 'medicineList']),
+      medicines: items(data, ['medicines', 'medicineInventory', 'inventory', 'medicineList', 'lowStock']),
+      expiryAlerts: items(data, ['expiryAlerts']),
+      lowStock: items(data, ['lowStock']),
       activities: items(data, ['recentActivities', 'activities', 'activityLogs']),
     }
   }, [data])

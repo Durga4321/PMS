@@ -8,7 +8,8 @@ import {
   listPendingPurchaseOrders, 
   listPurchaseOrders, 
   receivePurchaseOrder,
-  getPharmacyDashboard
+  getPharmacyDashboard,
+  updatePurchaseOrder
 } from '../../config/api'
 import './PurchaseOrders.css'
 
@@ -204,7 +205,7 @@ export default function PurchaseOrders() {
         paymentStatus: editForm.paymentStatus,
         status: editForm.status
       }
-      await changePurchaseOrderStatus(editForm.id, body)
+      await updatePurchaseOrder(editForm.id, body)
       showToast('Purchase order updated successfully!')
       setEditItem(null)
       await refresh()

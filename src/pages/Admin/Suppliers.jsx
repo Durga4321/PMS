@@ -223,6 +223,24 @@ export default function Suppliers() {
     }
   }
 
+  async function handleStatusChange(item) {
+    const id = item?._id || item?.id
+    const currentStatus = String(item?.status || 'Active').toLowerCase()
+    const status = currentStatus === 'active' ? 'Inactive' : 'Active'
+
+    setLoading(true)
+    try {
+      await changeSupplierStatus(id, { status })
+      showToast(`Supplier marked as ${status}.`)
+      await refresh()
+      loadSummaryMetrics()
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   function openEdit(item) {
     setEditForm({
       id: item?._id || item?.id,
@@ -430,6 +448,16 @@ export default function Suppliers() {
                               onClick={() => openHistory(item)}
                             >
                               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            </button>
+                            <button 
+                              type="button" 
+                              className="admin-action-button assign" 
+                              style={{ color: '#0f766e', borderColor: '#99f6e4', background: '#f0fdfa' }}
+                              aria-label="Change Status" 
+                              title="Change Status"
+                              onClick={() => handleStatusChange(item)}
+                            >
+                              <svg viewBox="0 0 24 24"><path d="M8 12l3 3 5-6"/><path d="M21 12a9 9 0 1 1-9-9"/></svg>
                             </button>
                             <button 
                               type="button" 

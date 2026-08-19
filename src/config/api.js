@@ -73,6 +73,13 @@ export function logoutSuperAdmin(token) {
   })
 }
 
+export function changeSuperAdminPassword(payload) {
+  return request('pharmacy-super-admin-auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function forgotSuperAdminPassword(payload) {
   return request('pharmacy-super-admin-auth/forgot-password', {
     method: 'POST',
@@ -237,6 +244,10 @@ export function searchMedicines(params = {}) {
   return request(`medicine/search${query.toString() ? `?${query}` : ''}`)
 }
 
+export function listMedicineStrengths() {
+  return request('medicine/strengths')
+}
+
 export function validateMedicineImport(file) {
   const formData = new FormData()
   formData.append('file', file)
@@ -382,15 +393,26 @@ export const changeSupplierStatus = (id, payload) => request(replacePathParams('
 export const listPurchaseOrders = (params = {}) => request(`purchase-orders${queryString(params)}`)
 export const createPurchaseOrder = (payload) => request('purchase-orders', { method: 'POST', body: JSON.stringify(payload) })
 export const getPurchaseOrder = (id) => request(replacePathParams('purchase-orders/{id}', { id }))
+export const updatePurchaseOrder = (id, payload) => request(replacePathParams('purchase-orders/{id}', { id }), { method: 'PUT', body: JSON.stringify(payload) })
 export const receivePurchaseOrder = (id, payload) => request(replacePathParams('purchase-orders/{id}/receive', { id }), { method: 'POST', body: JSON.stringify(payload) })
 export const changePurchaseOrderStatus = (id, payload) => request(replacePathParams('purchase-orders/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(payload) })
 export const listPendingPurchaseOrders = () => request('purchase-orders/pending')
 
 export const upsertIntegrationAppointment = (externalAppointmentId, payload) => request(replacePathParams('integration/appointments/{externalAppointmentId}', { externalAppointmentId }), { method: 'PUT', body: JSON.stringify(payload) })
+export const getIntegrationAppointment = (externalAppointmentId) => request(replacePathParams('integration/appointments/{externalAppointmentId}', { externalAppointmentId }))
+export const cancelIntegrationAppointment = (externalAppointmentId, payload = {}) => request(replacePathParams('integration/appointments/{externalAppointmentId}', { externalAppointmentId }), { method: 'DELETE', body: JSON.stringify(payload) })
 export const upsertIntegrationDoctor = (externalDoctorId, payload) => request(replacePathParams('integration/doctors/{externalDoctorId}', { externalDoctorId }), { method: 'PUT', body: JSON.stringify(payload) })
+export const getIntegrationDoctor = (externalDoctorId) => request(replacePathParams('integration/doctors/{externalDoctorId}', { externalDoctorId }))
+export const deleteIntegrationDoctor = (externalDoctorId) => request(replacePathParams('integration/doctors/{externalDoctorId}', { externalDoctorId }), { method: 'DELETE' })
 export const getIntegrationMedicines = (params = {}) => request(`integration/medicines${queryString(params)}`)
 export const upsertIntegrationPatient = (externalPatientId, payload) => request(replacePathParams('integration/patients/{externalPatientId}', { externalPatientId }), { method: 'PUT', body: JSON.stringify(payload) })
+export const getIntegrationPatient = (externalPatientId) => request(replacePathParams('integration/patients/{externalPatientId}', { externalPatientId }))
+export const deleteIntegrationPatient = (externalPatientId) => request(replacePathParams('integration/patients/{externalPatientId}', { externalPatientId }), { method: 'DELETE' })
 export const createIntegrationPrescription = (payload) => request('integration/prescriptions', { method: 'POST', body: JSON.stringify(payload) })
+export const getIntegrationPrescription = (sourceSystem, externalPrescriptionId) => request(replacePathParams('integration/prescriptions/{sourceSystem}/{externalPrescriptionId}', { sourceSystem, externalPrescriptionId }))
+export const updateIntegrationPrescription = (sourceSystem, externalPrescriptionId, payload) => request(replacePathParams('integration/prescriptions/{sourceSystem}/{externalPrescriptionId}', { sourceSystem, externalPrescriptionId }), { method: 'PUT', body: JSON.stringify(payload) })
+export const cancelIntegrationPrescription = (sourceSystem, externalPrescriptionId, payload = {}) => request(replacePathParams('integration/prescriptions/{sourceSystem}/{externalPrescriptionId}', { sourceSystem, externalPrescriptionId }), { method: 'DELETE', body: JSON.stringify(payload) })
+export const getIntegrationPrescriptionStatus = (sourceSystem, externalPrescriptionId) => request(replacePathParams('integration/prescriptions/{sourceSystem}/{externalPrescriptionId}/status', { sourceSystem, externalPrescriptionId }))
 
 export const createDoctorPrescription = (payload) => request('doctor/prescriptions', { method: 'POST', body: JSON.stringify(payload) })
 export const getDoctorPrescription = (id) => request(replacePathParams('doctor/prescriptions/{id}', { id }))
@@ -434,6 +456,11 @@ export const getPharmacySalesReport = () => request('pharmacy/reports/sales')
 export const getPharmacyStockMovementReport = () => request('pharmacy/reports/stock-movement')
 export const getPharmacyStockSummaryReport = () => request('pharmacy/reports/stock-summary')
 export const getPharmacyTopSellingReport = () => request('pharmacy/reports/top-selling')
+export const getPharmacyAdminDashboard = () => request('pharmacy-admin/dashboard')
+export const getPharmacistDashboard = () => request('pharmacist/dashboard')
+export const getPharmacistInventory = (params = {}) => request(`pharmacist/inventory${queryString(params)}`)
+export const getPharmacistInventoryBatches = (medicineId) => request(replacePathParams('pharmacist/inventory/{medicineId}/batches', { medicineId }))
+export const getPharmacistInventoryAlerts = () => request('pharmacist/inventory/alerts')
 
 export function getPharmacyAdminAssignmentStatus() {
   return request('pharmacy-admin-auth/assignment-status')
@@ -517,6 +544,14 @@ export function upsertIntegrationHospital(externalHospitalId, payload) {
   })
 }
 
+export function getIntegrationHospital(externalHospitalId) {
+  return request(replacePathParams('integration/hospitals/{externalHospitalId}', { externalHospitalId }))
+}
+
+export function deleteIntegrationHospital(externalHospitalId) {
+  return request(replacePathParams('integration/hospitals/{externalHospitalId}', { externalHospitalId }), { method: 'DELETE' })
+}
+
 export function upsertIntegrationBranch(externalHospitalId, externalBranchId, payload) {
   return request(
     replacePathParams('integration/hospitals/{externalHospitalId}/branches/{externalBranchId}', {
@@ -536,6 +571,20 @@ export function listIntegrationHospitals() {
 
 export function listIntegrationHospitalBranches(externalHospitalId) {
   return request(replacePathParams('integration/hospitals/{externalHospitalId}/branches', { externalHospitalId }))
+}
+
+export function getIntegrationHospitalBranch(externalHospitalId, externalBranchId) {
+  return request(replacePathParams('integration/hospitals/{externalHospitalId}/branches/{externalBranchId}', {
+    externalHospitalId,
+    externalBranchId,
+  }))
+}
+
+export function deleteIntegrationHospitalBranch(externalHospitalId, externalBranchId) {
+  return request(replacePathParams('integration/hospitals/{externalHospitalId}/branches/{externalBranchId}', {
+    externalHospitalId,
+    externalBranchId,
+  }), { method: 'DELETE' })
 }
 
 export function listPharmacyAdmins(params = {}) {
@@ -597,6 +646,18 @@ export function changePharmacyAdminStatus(id, payload) {
 
 export function getPharmacySuperAdminDashboard() {
   return request('pharmacy-super-admin/dashboard')
+}
+
+export function getPharmacySuperAdminDashboardAnalytics() {
+  return request('pharmacy-super-admin/dashboard/analytics')
+}
+
+export function getPharmacySuperAdminDashboardExpiryAlerts() {
+  return request('pharmacy-super-admin/dashboard/expiry-alerts')
+}
+
+export function getPharmacySuperAdminDashboardLowStock() {
+  return request('pharmacy-super-admin/dashboard/low-stock')
 }
 
 export async function listAssignmentHospitals() {

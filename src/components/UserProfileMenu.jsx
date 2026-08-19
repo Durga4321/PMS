@@ -46,8 +46,8 @@ function getProfile(roleType) {
       email: user?.email || '',
       roleLabel: 'Pharmacist',
       branchName: assignment?.branchName || assignment?.branch?.name || assignment?.pharmacyName || 'Branch',
-      profilePath: '/profile',
-      passwordPath: '/change-password',
+      profilePath: '/pharmacist/profile',
+      passwordPath: '/pharmacist/change-password',
     }
   }
 
@@ -112,7 +112,6 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
       if (roleType === 'pharmacist') await logoutPharmacist(token)
       else if (roleType === 'pharmacy-admin') await logoutPharmacyAdmin(token)
       else await logoutSuperAdmin(token)
-      showToast('Logout successful.')
     } catch (error) {
       showToast(error.message, 'error')
     } finally {

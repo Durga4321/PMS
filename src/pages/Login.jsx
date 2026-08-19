@@ -95,7 +95,7 @@ function Login() {
         }
       }
 
-      showToast(data?.message || 'Login successful.')
+      showToast('Welcome back to your dashboard.', 'success', data?.message || 'Login successful')
       navigate(flow.dashboardPath)
     } catch (loginError) {
       setError(loginError.message)

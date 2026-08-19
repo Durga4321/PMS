@@ -10,11 +10,11 @@ function ToastProvider({ children }) {
     setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== id))
   }, [])
 
-  const showToast = useCallback((message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success', title) => {
     const id = crypto.randomUUID()
 
-    setToasts((currentToasts) => [...currentToasts, { id, message, type }])
-    window.setTimeout(() => removeToast(id), 3500)
+    setToasts((currentToasts) => [...currentToasts, { id, message, type, title }])
+    window.setTimeout(() => removeToast(id), 2500)
   }, [removeToast])
 
   const value = useMemo(() => ({ showToast }), [showToast])
@@ -25,8 +25,13 @@ function ToastProvider({ children }) {
       <div className="toast-stack" role="status" aria-live="polite">
         {toasts.map((toast) => (
           <div className={`toast toast-${toast.type}`} key={toast.id}>
-            <span>{toast.type === 'error' ? 'Error' : 'Success'}</span>
-            <p>{toast.message}</p>
+            <span className="toast-icon" aria-hidden="true">
+              {toast.type === 'error' ? '!' : '✓'}
+            </span>
+            <div className="toast-copy">
+              <span>{toast.title || (toast.type === 'error' ? 'Error' : 'Success')}</span>
+              <p>{toast.message}</p>
+            </div>
             <button type="button" onClick={() => removeToast(toast.id)} aria-label="Close message">
               x
             </button>

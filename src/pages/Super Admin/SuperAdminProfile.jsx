@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
-import { changePharmacyAdminPassword } from '../../config/api'
+import { changePharmacyAdminPassword, changeSignedInPharmacistPassword, changeSuperAdminPassword } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import './SuperAdminTopbar.css'
 import './SuperAdminProfile.css'
@@ -28,6 +28,7 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
   const [errors, setErrors] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [submitted, setSubmitted] = useState(false)
   const isPharmacyAdmin = roleType === 'pharmacy-admin'
+  const isPharmacist = roleType === 'pharmacist'
 
   useEffect(() => {
     setTab(initialTab)
@@ -36,13 +37,13 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
     setSubmitted(false)
   }, [initialTab])
 
-  const user = readStoredUser(isPharmacyAdmin ? 'pharmacyAdminUser' : 'superAdminUser')
-  const name = user?.name || user?.fullName || (isPharmacyAdmin ? 'Pilla Durga Prasad' : 'Super Admin')
-  const email = user?.email || (isPharmacyAdmin ? 'pilla.durgaprasad666@gmail.com' : 'superadmin@gmail.com')
-  const roleLabel = isPharmacyAdmin ? 'Admin' : 'Super Admin'
-  const initials = isPharmacyAdmin ? 'AD' : 'SA'
-  const profilePath = isPharmacyAdmin ? '/admin/profile' : '/super-admin/profile'
-  const passwordPath = isPharmacyAdmin ? '/admin/change-password' : '/super-admin/change-password'
+  const user = readStoredUser(isPharmacist ? 'pharmacistUser' : isPharmacyAdmin ? 'pharmacyAdminUser' : 'superAdminUser')
+  const name = user?.name || user?.fullName || (isPharmacist ? 'Pharmacist' : isPharmacyAdmin ? 'Pilla Durga Prasad' : 'Super Admin')
+  const email = user?.email || (isPharmacist ? 'pharmacist@gmail.com' : isPharmacyAdmin ? 'pilla.durgaprasad666@gmail.com' : 'superadmin@gmail.com')
+  const roleLabel = isPharmacist ? 'Pharmacist' : isPharmacyAdmin ? 'Admin' : 'Super Admin'
+  const initials = isPharmacist ? 'PH' : isPharmacyAdmin ? 'AD' : 'SA'
+  const profilePath = isPharmacist ? '/pharmacist/profile' : isPharmacyAdmin ? '/admin/profile' : '/super-admin/profile'
+  const passwordPath = isPharmacist ? '/pharmacist/change-password' : isPharmacyAdmin ? '/admin/change-password' : '/super-admin/change-password'
 
   function validateField(fieldName, val, otherVal) {
     if (!val) {
@@ -104,7 +105,8 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
     }
 
     try {
-      await changePharmacyAdminPassword({
+      const changePassword = isPharmacist ? changeSignedInPharmacistPassword : isPharmacyAdmin ? changePharmacyAdminPassword : changeSuperAdminPassword
+      await changePassword({
         currentPassword: form.currentPassword,
         newPassword: form.newPassword,
       })
@@ -120,13 +122,14 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
   function logout() {
     const keys = isPharmacyAdmin
       ? ['pharmacyAdminToken', 'pharmacyAdminUser', 'pharmacyAdminAssignment']
+      : isPharmacist
+      ? ['pharmacistToken', 'pharmacistUser', 'pharmacistAssignment']
       : ['superAdminToken', 'superAdminUser']
 
     keys.forEach((key) => {
       sessionStorage.removeItem(key)
       localStorage.removeItem(key)
     })
-    showToast('Logout successful.')
     navigate('/login')
   }
 
