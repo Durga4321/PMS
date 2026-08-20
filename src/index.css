@@ -58,41 +58,37 @@ img {
 }
 .super-admin-main {
   height: 100vh !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  padding: 0 !important;
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 20px 28px !important;
 }
 .super-admin-topbar {
-  flex: 0 0 auto !important;
-  position: relative !important;
-  top: auto !important;
+  position: sticky !important;
+  top: 0 !important;
 }
 .super-admin-content {
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  padding: 0 20px 20px !important;
+  display: block !important;
+  overflow: visible !important;
+  padding: 0 0 20px !important;
   box-sizing: border-box !important;
 }
 .super-admin-module-heading {
-  flex: 0 0 auto !important;
+  flex: none !important;
 }
 .super-admin-module-panel {
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
+  flex: none !important;
+  display: block !important;
+  overflow: visible !important;
   min-height: 0 !important;
   margin-top: 20px !important;
 }
 .super-admin-module-header {
-  flex: 0 0 auto !important;
+  flex: none !important;
 }
 .super-admin-module-table {
-  flex: 1 !important;
-  overflow-y: auto !important;
+  flex: none !important;
+  overflow-y: visible !important;
   overflow-x: auto !important;
   scrollbar-width: none !important;
 }
