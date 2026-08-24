@@ -8,7 +8,7 @@ import {
   getPendingPharmacyPrescriptions, 
   getPharmacyPrescription, 
   recordPayment,
-  getPharmacyDashboard,
+  getPharmacyAdminDashboard,
   listBills,
   getPharmacyPayments
 } from '../../config/api'
@@ -54,7 +54,7 @@ export default function Dispensing() {
   // Load summary metrics from Dashboard data
   async function loadSummary() {
     try {
-      const response = await getPharmacyDashboard()
+      const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
       setSummary({
         pendingPrescriptions: String(data?.pendingPrescriptions || data?.pendingPrescriptionsCount || '0'),

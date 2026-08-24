@@ -114,7 +114,7 @@ function SuperAdminDashboard() {
     const medicineRows = items(data, ['medicines', 'medicineInventory', 'inventory', 'medicineList'])
     const expiryRows = items(data, ['expiryAlerts', 'nearExpiryMedicines', 'nearExpiryInventory', 'expiringMedicines'])
     return {
-      branches: pick(summary, ['totalBranches', 'branchesCount', 'branches'], branchRows.length),
+      branchCount: pick(summary, ['totalBranches', 'branchesCount', 'branches'], branchRows.length),
       activeBranches: pick(summary, ['activeBranches', 'activeBranchCount'], branchRows.filter((item) => rowStatus(item).toLowerCase() === 'active').length),
       admins: adminTotal ?? pick(summary, ['totalAdmins', 'adminsCount', 'adminCount', 'admins', 'totalUsers'], 0),
       revenue: money(pick(summary, ['monthlySales', 'monthlyRevenue', 'revenue', 'totalRevenue', 'totalSales'], 0)),
@@ -122,8 +122,8 @@ function SuperAdminDashboard() {
       lowStock: pick(summary, ['lowStockAlerts', 'lowStockCount', 'lowStockMedicines'], medicineRows.filter((item) => ['critical', 'low'].includes(stockStatus(item).toLowerCase())).length),
       criticalStock: pick(summary, ['criticalItems', 'criticalStockCount'], medicineRows.filter((item) => stockStatus(item).toLowerCase() === 'critical').length),
       salesSeries: series(data),
-      branches: branchRows,
-      medicines: medicineRows,
+      branchRows,
+      medicineRows,
       expiry: expiryRows,
       activities: items(data, ['recentActivities', 'activities', 'activityLogs']),
       purchases: money(pick(summary, ['monthlyPurchases', 'totalPurchases', 'purchases'], 0)),
@@ -136,7 +136,7 @@ function SuperAdminDashboard() {
   const salesPoints = view.salesSeries.map((point) => ({ label: pick(point, ['label', 'month', 'name', 'period'], '-'), value: numeric(pick(point, ['value', 'sales', 'amount', 'revenue', 'totalSales'], 0)) }))
   const heights = salesPoints.map((point) => point.value)
   const highest = Math.max(...heights, 1)
-  const branchSales = view.branches.map((branch) => ({ name: pick(branch, ['branchName', 'name', 'title'], '-'), value: numeric(pick(branch, ['sales', 'amount', 'totalSales', 'revenue'], 0)) })).filter((branch) => branch.value > 0)
+  const branchSales = view.branchRows.map((branch) => ({ name: pick(branch, ['branchName', 'name', 'title'], '-'), value: numeric(pick(branch, ['sales', 'amount', 'totalSales', 'revenue'], 0)) })).filter((branch) => branch.value > 0)
   const totalBranchSales = branchSales.reduce((total, branch) => total + branch.value, 0) || 1
   let branchOffset = 0
   const donutStops = branchSales.map((branch, index) => {
@@ -155,7 +155,7 @@ function SuperAdminDashboard() {
         {loading ? <p className="reference-message">Loading dashboard...</p> : error ? <p className="reference-message error">{error}</p> : (
           <>
             <section className="reference-stats">
-              <article className="reference-stat-link" onClick={() => navigate('/super-admin/branches')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate('/super-admin/branches') }} role="button" tabIndex="0"><i>+</i><div><strong>{view.branches}</strong><span>Active Branches: {view.activeBranches}</span></div></article>
+              <article className="reference-stat-link" onClick={() => navigate('/super-admin/branches')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate('/super-admin/branches') }} role="button" tabIndex="0"><i>+</i><div><strong>{view.branchCount}</strong><span>Active Branches: {view.activeBranches}</span></div></article>
               <article className="reference-stat-link" onClick={() => navigate('/super-admin/admins')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate('/super-admin/admins') }} role="button" tabIndex="0"><i>+</i><div><strong>{view.admins}</strong><span>Total Admins</span></div></article>
               <article><i>Rs</i><div><strong>{view.revenue}</strong><span>vs Last Month {view.salesChange}</span></div></article>
               <article className="reference-stat-link" onClick={() => navigate('/super-admin/medicines')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate('/super-admin/medicines') }} role="button" tabIndex="0"><i>!</i><div><strong>{view.lowStock}</strong><span>Critical Items: {view.criticalStock}</span></div></article>
@@ -175,8 +175,8 @@ function SuperAdminDashboard() {
               </article>
             </section>
             <section className="reference-directory">
-              <article className="reference-card"><header><div><h2>Branches</h2><p>All registered branches.</p></div><button onClick={() => navigate('/super-admin/branches')} type="button">View All</button></header><SmallTable type="Branches" rows={view.branches} /></article>
-              <article className="reference-card"><header><div><h2>Medicines</h2><p>All medicines in inventory.</p></div><button onClick={() => navigate('/super-admin/medicines')} type="button">View All</button></header><SmallTable type="Medicines" rows={view.medicines} /></article>
+              <article className="reference-card"><header><div><h2>Branches</h2><p>All registered branches.</p></div><button onClick={() => navigate('/super-admin/branches')} type="button">View All</button></header><SmallTable type="Branches" rows={view.branchRows} /></article>
+              <article className="reference-card"><header><div><h2>Medicines</h2><p>All medicines in inventory.</p></div><button onClick={() => navigate('/super-admin/medicines')} type="button">View All</button></header><SmallTable type="Medicines" rows={view.medicineRows} /></article>
             </section>
             <section className="reference-card expiry-card"><header><div><h2>Expiry Alerts</h2><p>Medicines nearing expiry.</p></div><button onClick={() => navigate('/super-admin/reports')} type="button">View All</button></header><div className="reference-table-wrap"><table className="reference-table"><thead><tr>{['Medicine Name', 'Batch No.', 'Expiry Date', 'Status'].map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{view.expiry.length ? view.expiry.slice(0, 5).map((row, index) => { const status = expiryStatus(row); return <tr key={pick(row, ['_id', 'id', 'batchNo'], index)}><td>{pick(row, ['medicineName', 'name', 'medicine'])}</td><td>{pick(row, ['batchNo', 'batchNumber', 'batch'])}</td><td>{pick(row, ['expiryDate', 'expiresAt', 'expiry'])}</td><td><span className={`reference-status ${status.days <= 7 ? 'critical' : 'low'}`}>{status.label}</span></td></tr> }) : <tr><td colSpan="4">No expiry alerts available.</td></tr>}</tbody></table></div></section>
             <section className="reference-stats reference-bottom-stats">

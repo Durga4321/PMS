@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getPharmacyAdminDashboard, getPharmacyDashboard } from '../../config/api'
+import { getPharmacyAdminDashboard } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
 
@@ -28,6 +28,11 @@ const unwrap = (response) => response?.data?.dashboard || response?.data || resp
 const pick = (source, keys, fallback = 0) => keys.map((key) => source?.[key]).find((value) => value !== undefined && value !== null && value !== '') ?? fallback
 const list = (source, keys) => keys.map((key) => source?.[key]).find(Array.isArray) || []
 const text = (source, keys, fallback = '-') => pick(source, keys, fallback)
+const display = (value) => {
+  if (Array.isArray(value)) return value.length
+  if (value && typeof value === 'object') return value.total ?? value.count ?? value.value ?? value.amount ?? Object.keys(value).length
+  return value
+}
 
 function AdminDashboard() {
   const [dashboard, setDashboard] = useState(null)
@@ -36,8 +41,8 @@ function AdminDashboard() {
   useEffect(() => {
     let active = true
     getPharmacyAdminDashboard()
-      .catch(() => getPharmacyDashboard())
       .then((response) => active && setDashboard(unwrap(response)))
+      .catch(() => active && setDashboard({}))
       .finally(() => active && setLoading(false))
     return () => { active = false }
   }, [])
@@ -64,7 +69,7 @@ function AdminDashboard() {
         <p>Branch-wise operations management for sales, prescriptions, stock, and alerts.</p>
       </section>
       <section className="branch-summary">
-        {view.stats.map(([label, value, note]) => <article key={label}><p>{label}</p><strong>{value}</strong><small>{note}</small></article>)}
+        {view.stats.map(([label, value, note]) => <article key={label}><p>{label}</p><strong>{display(value)}</strong><small>{note}</small></article>)}
       </section>
       <section className="branch-grid">
         <section className="branch-panel branch-chart-panel">

@@ -509,6 +509,10 @@ export function deletePharmacist(id) {
   })
 }
 
+export function getPharmacistPermissions(id) {
+  return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }))
+}
+
 export function updatePharmacistPermissions(id, payload) {
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }), {
     method: 'PUT',
@@ -677,12 +681,34 @@ export async function listHospitalBranches(hospitalId) {
 }
 
 export function getPharmacySettings() {
-  return request('pharmacy-admin/settings')
+  return request('pharmacy/settings')
 }
 
 export function updatePharmacySettings(payload) {
-  return request('pharmacy-admin/settings', {
+  return request('pharmacy/settings', {
     method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getPharmacyCmsOptions(params = {}) {
+  const query = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, value)
+  })
+  return request(`pharmacy/settings/cms-options${query.toString() ? `?${query}` : ''}`)
+}
+
+export function updatePharmacyCmsIntegration(payload) {
+  return request('pharmacy/settings/cms-integration', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createManualPharmacyPrescription(payload) {
+  return request('pharmacy/prescriptions/manual', {
+    method: 'POST',
     body: JSON.stringify(payload),
   })
 }

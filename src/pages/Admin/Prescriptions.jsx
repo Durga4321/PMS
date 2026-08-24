@@ -4,12 +4,11 @@ import AdminLayout from './AdminLayout'
 import { 
   cancelDoctorPrescription, 
   completeDoctorPrescription, 
-  createDoctorPrescription, 
+  createManualPharmacyPrescription, 
   getDoctorPrescription, 
   updateDoctorPrescription,
   getPendingPharmacyPrescriptions,
-  getPharmacyDashboard
-} from '../../config/api'
+  getPharmacyAdminDashboard} from '../../config/api'
 import './Prescriptions.css'
 
 const normalizeList = (response) => {
@@ -73,7 +72,7 @@ export default function Prescriptions() {
 
   async function loadSummaryMetrics() {
     try {
-      const response = await getPharmacyDashboard()
+      const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
       setSummary({
         total: Number(data?.totalPrescriptions || data?.prescriptionsCount || 0),
@@ -145,7 +144,7 @@ export default function Prescriptions() {
           instructions: createForm.instructions
         }]
       }
-      await createDoctorPrescription(body)
+      await createManualPharmacyPrescription(body)
       showToast('Prescription created successfully!')
       setCreateOpen(false)
       setCreateForm({

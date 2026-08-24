@@ -5,6 +5,7 @@ import {
   changePharmacistStatus,
   createPharmacist,
   deletePharmacist,
+  getPharmacistPermissions,
   listPharmacists,
   resetPharmacistPassword,
   updatePharmacist,
@@ -147,9 +148,16 @@ function Users() {
     }
   }
 
-  function openPermissions(pharmacist) {
+  async function openPermissions(pharmacist) {
     setPermissionsFor(pharmacist)
     setPermissions(pharmacist?.permissions || {})
+    try {
+      const response = await getPharmacistPermissions(getId(pharmacist))
+      const permissionData = response?.data?.permissions || response?.permissions || response?.data || response || {}
+      setPermissions(permissionData)
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
   async function handlePermissions(event) {

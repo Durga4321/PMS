@@ -17,7 +17,7 @@ import {
   getOutOfStockInventory,
   quarantineInventoryBatch,
   updateInventoryLevels,
-  getPharmacyDashboard
+  getPharmacyAdminDashboard
 } from '../../config/api'
 import './Stock.css'
 
@@ -95,7 +95,7 @@ export default function Stock() {
 
   async function loadSummaryMetrics() {
     try {
-      const response = await getPharmacyDashboard()
+      const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
       setMetrics({
         totalMedicines: Number(data?.totalMedicines || data?.medicinesCount || 0),
