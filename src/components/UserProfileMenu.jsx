@@ -134,7 +134,14 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
         </span>
         <span className="user-profile-copy">
           <strong>{profile.name}</strong>
-          <em>{profile.email}</em>
+          {roleType === 'pharmacist' ? (
+            <span style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+              Online
+            </span>
+          ) : (
+            <em>{profile.email}</em>
+          )}
         </span>
         <MenuIcon name="chevronDown" size={18} className="user-profile-chevron" />
       </button>

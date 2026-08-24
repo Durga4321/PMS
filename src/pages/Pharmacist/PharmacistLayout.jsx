@@ -61,10 +61,11 @@ function PharmacistLayout({ activeLabel, title, subtitle, children }) {
           </form>
           <button className="pharmacist-bell" type="button" aria-label="Notifications">
             <Icon><path d="M6 9a6 6 0 0 1 12 0c0 7 2 7 2 9H4c0-2 2-2 2-9" /><path d="M10 21h4" /></Icon>
+            <b>3</b>
           </button>
           <UserProfileMenu roleType="pharmacist" />
         </header>
-        <div className={`pharmacist-content${activeLabel === 'Dashboard' ? ' is-dashboard' : ''}`}>
+        <div className="pharmacist-content is-dashboard">
           {children}
         </div>
       </main>
