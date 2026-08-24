@@ -32,6 +32,26 @@ const loginFlows = [
   },
 ]
 
+function PasswordIcon({ visible }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {visible ? (
+        <>
+          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+          <circle cx="12" cy="12" r="3" />
+        </>
+      ) : (
+        <>
+          <path d="M3 3l18 18" />
+          <path d="M10.7 5.2A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a18.6 18.6 0 0 1-3 4.1" />
+          <path d="M14.1 14.1A3 3 0 0 1 9.9 9.9" />
+          <path d="M6.6 6.6C3.8 8.5 2 12 2 12s3.5 7 10 7c1.5 0 2.8-.4 4-1" />
+        </>
+      )}
+    </svg>
+  )
+}
+
 function clearAuthSession() {
   loginFlows.forEach(({ tokenKey, userKey, assignmentKey }) => {
     sessionStorage.removeItem(tokenKey)
@@ -48,6 +68,7 @@ function clearAuthSession() {
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -122,15 +143,26 @@ function Login() {
         </label>
         <label>
           Password
-          <input
-            type="password"
-            name="login-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Enter password"
-            autoComplete="new-password"
-            required
-          />
+          <span className="auth-password-field">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              name="login-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter password"
+              autoComplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              className="auth-password-toggle"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <PasswordIcon visible={showPassword} />
+            </button>
+          </span>
         </label>
         {error ? <div className="form-error" role="alert">{error}</div> : null}
         <div className="auth-row">

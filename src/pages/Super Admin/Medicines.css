@@ -83,6 +83,12 @@
   color: #64748b;
 }
 
+.medicines-search svg {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+
 .medicines-search input,
 .medicines-filters select {
   border: 0;
@@ -224,6 +230,11 @@
 
 .medicine-actions button:hover {
   background: #eff6ff;
+}
+
+.medicine-actions button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .medicines-state {

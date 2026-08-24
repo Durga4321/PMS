@@ -3,6 +3,14 @@ import './ToastProvider.css'
 
 const ToastContext = createContext(null)
 
+function createToastId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID()
+  }
+
+  return `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
 
@@ -11,7 +19,7 @@ function ToastProvider({ children }) {
   }, [])
 
   const showToast = useCallback((message, type = 'success', title) => {
-    const id = crypto.randomUUID()
+    const id = createToastId()
 
     setToasts((currentToasts) => [...currentToasts, { id, message, type, title }])
     window.setTimeout(() => removeToast(id), 2500)
