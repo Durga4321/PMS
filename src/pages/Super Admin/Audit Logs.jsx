@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getPharmacyAuditLogs, listAssignmentHospitals, listHospitalBranches } from '../../config/api'
+import { getSuperAdminAuditLogs, listAssignmentHospitals, listHospitalBranches } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './Audit Logs.css'
@@ -96,7 +96,7 @@ function AuditLogs() {
   async function loadLogs() {
     setLoading(true)
     try {
-      const response = await getPharmacyAuditLogs()
+      const response = await getSuperAdminAuditLogs()
       setLogs(listFrom(response).map(normalizeLog))
     } catch {
       setLogs([])

@@ -29,14 +29,20 @@ export const replacePathParams = (path, params = {}) =>
     return value === undefined || value === null ? '' : encodeURIComponent(String(value))
   })
 
+function authTokenFor(path = '') {
+  const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
+  const route = typeof window !== 'undefined' ? window.location.pathname : ''
+  const read = (name) => sessionStorage.getItem(name) || localStorage.getItem(name)
+
+  if (cleanPath.startsWith('pharmacy-super-admin') || route.startsWith('/super-admin')) return read('superAdminToken')
+  if (cleanPath.startsWith('pharmacy-admin') || route.startsWith('/admin')) return read('pharmacyAdminToken')
+  if (cleanPath.startsWith('pharmacist') || cleanPath.startsWith('pharmacy-auth') || route.startsWith('/pharmacist')) return read('pharmacistToken')
+  if (cleanPath.startsWith('pharmacy/')) return read('pharmacistToken') || read('pharmacyAdminToken')
+  return read('superAdminToken') || read('pharmacyAdminToken') || read('pharmacistToken')
+}
+
 async function request(path, options = {}) {
-  const token =
-    sessionStorage.getItem('superAdminToken') ||
-    localStorage.getItem('superAdminToken') ||
-    sessionStorage.getItem('pharmacyAdminToken') ||
-    localStorage.getItem('pharmacyAdminToken') ||
-    sessionStorage.getItem('pharmacistToken') ||
-    localStorage.getItem('pharmacistToken')
+  const token = authTokenFor(path)
 
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
   const response = await fetch(apiUrl(path), {
@@ -59,12 +65,34 @@ async function request(path, options = {}) {
   return data
 }
 
-export function loginSuperAdmin(credentials) {
-  return request('pharmacy-super-admin-auth/login', {
+
+async function downloadRequest(path, filename) {
+  const token = authTokenFor(path)
+  const response = await fetch(apiUrl(path), {
+    headers: {
+      'ngrok-skip-browser-warning': 'true',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  if (!response.ok) {
+    const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : null
+    throw new Error(data?.message || data?.error || 'Download failed. Please try again.')
+  }
+  const blob = await response.blob()
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(link.href)
+  return true
+}
+export function loginUnifiedAuth(credentials) {
+  return request('auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
   })
 }
+
 
 export function logoutSuperAdmin(token) {
   return request('pharmacy-super-admin-auth/logout', {
@@ -101,12 +129,6 @@ export function resetForgottenSuperAdminPassword(payload) {
   })
 }
 
-export function loginPharmacyAdmin(credentials) {
-  return request('pharmacy-admin-auth/login', {
-    method: 'POST',
-    body: JSON.stringify(credentials),
-  })
-}
 
 export function logoutPharmacyAdmin(token) {
   return request('pharmacy-admin-auth/logout', {
@@ -136,12 +158,6 @@ export function resetForgottenPharmacyAdminPassword(payload) {
   })
 }
 
-export function loginPharmacist(credentials) {
-  return request('pharmacy-auth/login', {
-    method: 'POST',
-    body: JSON.stringify(credentials),
-  })
-}
 
 export function logoutPharmacist(token) {
   return request('pharmacy-auth/logout', {
@@ -326,6 +342,13 @@ export function updateInventoryLevels(medicineId, payload) {
 }
 
 export function adjustInventory(payload) {
+  return request('inventory/adjust', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function adjustInventoryWithReason(payload) {
   return request('inventory/adjustments', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -712,3 +735,33 @@ export function createManualPharmacyPrescription(payload) {
     body: JSON.stringify(payload),
   })
 }
+export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-auth/permissions')
+export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
+export const getPharmacyPrescriptions = (params = {}) => request(`pharmacy/prescriptions${queryString(params)}`)
+export const getPharmacyDispensingOverview = (params = {}) => request(`pharmacy/dispensing${queryString(params)}`)
+export const getSuperAdminAuditLogs = (params = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`)
+export const getSuperAdminAuditLogSummary = () => request('pharmacy-super-admin/audit-logs/summary')
+export const getSuperAdminBranches = (params = {}) => request(`pharmacy-super-admin/branches${queryString(params)}`)
+export const changeSuperAdminBranchStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/branches/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(payload) })
+export const changeSuperAdminHospitalStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/hospitals/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(payload) })
+export const getSuperAdminMedicines = (params = {}) => request(`pharmacy-super-admin/medicines${queryString(params)}`)
+export const changeSuperAdminMedicineStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/medicines/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(payload) })
+export const getSuperAdminRevenueReport = (params = {}) => request(`pharmacy-super-admin/reports/revenue${queryString(params)}`)
+export const exportSuperAdminRevenueExcel = (params = {}) => downloadRequest(`pharmacy-super-admin/reports/revenue/export-excel${queryString(params)}`, 'revenue-report.xlsx')
+export const exportSuperAdminRevenuePdf = (params = {}) => downloadRequest(`pharmacy-super-admin/reports/revenue/export-pdf${queryString(params)}`, 'revenue-report.pdf')
+export const getSuperAdminSettings = () => request('pharmacy-super-admin/settings')
+export const updateSuperAdminSettings = (payload) => request('pharmacy-super-admin/settings', { method: 'PUT', body: JSON.stringify(payload) })
+export const listSuperAdminRoles = (params = {}) => request(`pharmacy-super-admin/roles${queryString(params)}`)
+export const createSuperAdminRole = (payload) => request('pharmacy-super-admin/roles', { method: 'POST', body: JSON.stringify(payload) })
+export const updateSuperAdminRole = (id, payload) => request(replacePathParams('pharmacy-super-admin/roles/{id}', { id }), { method: 'PUT', body: JSON.stringify(payload) })
+export const deleteSuperAdminRole = (id) => request(replacePathParams('pharmacy-super-admin/roles/{id}', { id }), { method: 'DELETE' })
+export const getSuperAdminRolePermissions = (roleId) => request(replacePathParams('pharmacy-super-admin/roles/{roleId}/permissions', { roleId }))
+export const updateSuperAdminRolePermissions = (roleId, payload) => request(replacePathParams('pharmacy-super-admin/roles/{roleId}/permissions', { roleId }), { method: 'PUT', body: JSON.stringify(payload) })
+export const listSuperAdminRoleDropdown = () => request('pharmacy-super-admin/roles/dropdown')
+export const getPharmacyAdminRole = (adminId) => request(replacePathParams('pharmacy-super-admin/admins/{adminId}/role', { adminId }))
+export const assignPharmacyAdminRole = (adminId, payload) => request(replacePathParams('pharmacy-super-admin/admins/{adminId}/role', { adminId }), { method: 'PUT', body: JSON.stringify(payload) })
+export const listSuperAdminNotifications = (params = {}) => request(`pharmacy-super-admin/notifications${queryString(params)}`)
+export const sendSuperAdminNotification = (payload) => request('pharmacy-super-admin/notifications', { method: 'POST', body: JSON.stringify(payload) })
+export const deleteSuperAdminNotification = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}', { id }), { method: 'DELETE' })
+export const markSuperAdminNotificationRead = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}/read', { id }), { method: 'PATCH' })
+export const markAllSuperAdminNotificationsRead = () => request('pharmacy-super-admin/notifications/mark-all-read', { method: 'PATCH' })

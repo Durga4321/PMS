@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getPharmacySalesReport } from '../../config/api'
+import { exportSuperAdminRevenueExcel, exportSuperAdminRevenuePdf, getSuperAdminRevenueReport } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './Reports.css'
@@ -59,7 +59,7 @@ function Reports() {
   async function loadReport() {
     setLoading(true)
     try {
-      const response = await getPharmacySalesReport()
+      const response = await getSuperAdminRevenueReport({ startDate, endDate })
       setRecords(recordsFrom(response).map(normalize))
     } catch {
       setRecords([])
@@ -101,15 +101,10 @@ function Reports() {
     return [...grouped.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
   }, [filteredRecords])
 
-  function exportReport(type) {
-    if (type === 'PDF') { window.print(); return }
-    const rows = [['S.No', 'Admin', 'Branch', 'Purchases', 'Sales', 'Prescriptions', 'GST', 'Total Revenue'], ...filteredRecords.map((record, index) => [index + 1, record.admin, record.branch, record.purchases, record.sales, record.prescriptions, record.gst, record.revenue])]
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n')
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    link.download = 'pharmacy-report.csv'
-    link.click()
-    URL.revokeObjectURL(link.href)
+  async function exportReport(type) {
+    const params = { startDate, endDate }
+    if (type === 'PDF') await exportSuperAdminRevenuePdf(params)
+    else await exportSuperAdminRevenueExcel(params)
   }
 
   return <div className={`super-admin-shell${sidebarOpen ? ' sidebar-open' : ''}`}>

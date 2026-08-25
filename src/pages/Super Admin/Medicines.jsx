@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listMedicines } from '../../config/api'
+import { changeSuperAdminMedicineStatus, getSuperAdminMedicines } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './Medicines.css'
@@ -54,6 +54,10 @@ function medicineStatus(item) {
   return value || 'Active'
 }
 
+function medicineId(item) {
+  return item?._id || item?.id || item?.medicineId
+}
+
 function priceValue(item) {
   const value = item?.price ?? item?.mrp ?? item?.priceMrp ?? item?.sellingPrice
   if (value === undefined || value === null || value === '') return '-'
@@ -75,7 +79,7 @@ function Medicines() {
       setLoading(true)
       setError('')
       try {
-        const response = await listMedicines()
+        const response = await getSuperAdminMedicines()
         if (active) setMedicines(normalizeList(response))
       } catch (requestError) {
         if (active) setError(requestError.message || 'Unable to load medicines.')
@@ -101,6 +105,19 @@ function Medicines() {
   const pageCount = Math.max(1, Math.ceil(filteredMedicines.length / pageSize))
   const visibleMedicines = filteredMedicines.slice((page - 1) * pageSize, page * pageSize)
 
+  async function toggleStatus(medicine) {
+    const id = medicineId(medicine)
+    if (!id) return
+    const currentStatus = medicineStatus(medicine).toLowerCase()
+    const nextStatus = currentStatus === 'active' ? 'Inactive' : 'Active'
+    try {
+      await changeSuperAdminMedicineStatus(id, { status: nextStatus, isActive: nextStatus === 'Active' })
+      setMedicines((current) => current.map((item) => medicineId(item) === id ? { ...item, status: nextStatus, isActive: nextStatus === 'Active' } : item))
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to change medicine status.')
+    }
+  }
+
   return (
     <div className="super-admin-shell medicines-page">
       <SuperAdminSidebar activeLabel="Medicines" />
@@ -109,7 +126,7 @@ function Medicines() {
         <section className="medicines-heading"><p>Super Admin</p><h1>Medicines</h1><span>{loading ? 'Loading medicines...' : error ? 'Unable to load medicines' : `${filteredMedicines.length} medicines found`}</span></section>
         <section className="medicines-panel">
           <header className="medicines-card-header"><div><h2>Medicines</h2><p>{loading ? 'Loading data...' : `${filteredMedicines.length} medicines found`}</p></div><div className="medicines-filters"><label className="medicines-search"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search medicines by name, brand, or SKU..." /></label><select value={filter} onChange={(event) => setFilter(event.target.value)} aria-label="Filter medicines"><option>All</option><option>Active</option><option>Inactive</option><option>Low Stock</option></select></div></header>
-          <div className="medicines-table-wrap"><table className="medicines-table"><thead><tr><th>S.No</th><th>Medicine Name</th><th>Brand</th><th>Category</th><th>SKU</th><th>Stock</th><th>Price (MRP)</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loading ? <tr><td colSpan="9"><div className="medicines-loading"><span /><span /><span />Loading medicines...</div></td></tr> : error ? <tr><td colSpan="9"><div className="medicines-state medicines-error"><Icon name="package" /><strong>Unable to load medicines</strong><small>{error}</small></div></td></tr> : visibleMedicines.length ? visibleMedicines.map((medicine, index) => { const stock = stockState(medicine); const status = medicineStatus(medicine); return <tr key={medicine?._id || medicine?.id || `${medicineName(medicine)}-${index}`}><td>{(page - 1) * pageSize + index + 1}</td><td><span className="medicine-name"><span className="medicine-icon"><Icon name="package" /></span>{medicineName(medicine)}</span></td><td>{brandName(medicine)}</td><td>{categoryName(medicine)}</td><td>{medicine?.sku || medicine?.SKU || medicine?.code || '-'}</td><td><span className={`medicine-stock ${stock}`}><i />{stockValue(medicine)}</span></td><td>{priceValue(medicine)}</td><td><span className={`medicine-status ${status.toLowerCase()}`}>{status}</span></td><td><span className="medicine-actions"><button type="button" title={`View ${medicineName(medicine)}`} aria-label={`View ${medicineName(medicine)}`}><Icon name="eye" /></button><button type="button" title={`Edit ${medicineName(medicine)}`} aria-label={`Edit ${medicineName(medicine)}`}><Icon name="edit" /></button></span></td></tr> }) : <tr><td colSpan="9"><div className="medicines-state"><Icon name="package" /><strong>No medicines found</strong><small>Medicines from the API will appear here when available.</small></div></td></tr>}</tbody></table></div>
+          <div className="medicines-table-wrap"><table className="medicines-table"><thead><tr><th>S.No</th><th>Medicine Name</th><th>Brand</th><th>Category</th><th>SKU</th><th>Stock</th><th>Price (MRP)</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loading ? <tr><td colSpan="9"><div className="medicines-loading"><span /><span /><span />Loading medicines...</div></td></tr> : error ? <tr><td colSpan="9"><div className="medicines-state medicines-error"><Icon name="package" /><strong>Unable to load medicines</strong><small>{error}</small></div></td></tr> : visibleMedicines.length ? visibleMedicines.map((medicine, index) => { const stock = stockState(medicine); const status = medicineStatus(medicine); return <tr key={medicine?._id || medicine?.id || `${medicineName(medicine)}-${index}`}><td>{(page - 1) * pageSize + index + 1}</td><td><span className="medicine-name"><span className="medicine-icon"><Icon name="package" /></span>{medicineName(medicine)}</span></td><td>{brandName(medicine)}</td><td>{categoryName(medicine)}</td><td>{medicine?.sku || medicine?.SKU || medicine?.code || '-'}</td><td><span className={`medicine-stock ${stock}`}><i />{stockValue(medicine)}</span></td><td>{priceValue(medicine)}</td><td><span className={`medicine-status ${status.toLowerCase()}`}>{status}</span></td><td><span className="medicine-actions"><button type="button" title={`View ${medicineName(medicine)}`} aria-label={`View ${medicineName(medicine)}`}><Icon name="eye" /></button><button type="button" title={`${status.toLowerCase() === 'active' ? 'Deactivate' : 'Activate'} ${medicineName(medicine)}`} aria-label={`${status.toLowerCase() === 'active' ? 'Deactivate' : 'Activate'} ${medicineName(medicine)}`} onClick={() => toggleStatus(medicine)}><Icon name="edit" /></button></span></td></tr> }) : <tr><td colSpan="9"><div className="medicines-state"><Icon name="package" /><strong>No medicines found</strong><small>Medicines from the API will appear here when available.</small></div></td></tr>}</tbody></table></div>
           <footer className="medicines-footer"><span>Showing {visibleMedicines.length} of {filteredMedicines.length} medicines</span><div><button type="button" onClick={() => setPage(1)} disabled={page === 1}>First</button><button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1}>Prev</button><strong>Page {page} of {pageCount}</strong><button type="button" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={page === pageCount}>Next</button><button type="button" onClick={() => setPage(pageCount)} disabled={page === pageCount}>Last</button></div></footer>
         </section>
       </main>

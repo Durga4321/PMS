@@ -35,11 +35,13 @@ import PharmacistBills from './pages/Pharmacist/Bills'
 import PharmacistReturns from './pages/Pharmacist/Returns'
 import PharmacistReports from './pages/Pharmacist/Reports'
 import ToastProvider from './components/ToastProvider'
+import FormValidationGuard from './components/FormValidationGuard'
 import './App.css'
 
 function App() {
   return (
     <ToastProvider>
+      <FormValidationGuard />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<PmsLanding />} />

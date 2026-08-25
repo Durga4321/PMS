@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPharmacySuperAdminDashboard, listPharmacyAdmins } from '../../config/api'
+import { getPharmacySuperAdminDashboard, getPharmacySuperAdminDashboardAnalytics, getPharmacySuperAdminDashboardExpiryAlerts, getPharmacySuperAdminDashboardLowStock, listPharmacyAdmins } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './DashboardReference.css'
@@ -97,11 +97,27 @@ function SuperAdminDashboard() {
   useEffect(() => {
     let active = true
 
-    Promise.allSettled([getPharmacySuperAdminDashboard(), listPharmacyAdmins()])
-      .then(([dashboardResult, adminsResult]) => {
+    Promise.allSettled([
+      getPharmacySuperAdminDashboard(),
+      listPharmacyAdmins(),
+      getPharmacySuperAdminDashboardAnalytics(),
+      getPharmacySuperAdminDashboardExpiryAlerts(),
+      getPharmacySuperAdminDashboardLowStock(),
+    ])
+      .then(([dashboardResult, adminsResult, analyticsResult, expiryResult, lowStockResult]) => {
         if (!active) return
-        if (dashboardResult.status === 'fulfilled') setData(unwrap(dashboardResult.value))
-        else setError(dashboardResult.reason?.message || 'Unable to load dashboard.')
+        if (dashboardResult.status === 'fulfilled') {
+          const dashboard = unwrap(dashboardResult.value)
+          const analytics = analyticsResult.status === 'fulfilled' ? unwrap(analyticsResult.value) : {}
+          const expiry = expiryResult.status === 'fulfilled' ? unwrap(expiryResult.value) : {}
+          const lowStock = lowStockResult.status === 'fulfilled' ? unwrap(lowStockResult.value) : {}
+          setData({
+            ...dashboard,
+            analytics,
+            expiryAlerts: items(expiry, ['expiryAlerts', 'nearExpiryMedicines', 'nearExpiryInventory', 'items', 'results', 'data']),
+            medicineInventory: items(lowStock, ['lowStock', 'lowStockMedicines', 'items', 'results', 'data']),
+          })
+        } else setError(dashboardResult.reason?.message || 'Unable to load dashboard.')
         if (adminsResult.status === 'fulfilled') setAdminTotal(adminCount(adminsResult.value))
       })
       .finally(() => active && setLoading(false))

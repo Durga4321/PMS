@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listAssignmentHospitals, listHospitalBranches } from '../../config/api'
+import { changeSuperAdminBranchStatus, getSuperAdminBranches } from '../../config/api'
 import SuperAdminModulePage from './SuperAdminModulePage'
 import './Branches.css'
 
-const headers = ['Branch', 'Clinic / Hospital', 'Location', 'Contact', 'Email', 'Status']
+const headers = ['Branch', 'Clinic / Hospital', 'Location', 'Contact', 'Email', 'Status', 'Actions']
 
 function normalizeList(response, key) {
   if (Array.isArray(response)) return response
@@ -13,14 +13,6 @@ function normalizeList(response, key) {
   if (Array.isArray(response?.[key])) return response[key]
   if (Array.isArray(response?.results)) return response.results
   return []
-}
-
-function getHospitalId(hospital) {
-  return hospital?._id || hospital?.id || hospital?.hospitalId || hospital?.externalHospitalId || hospital?.uuid
-}
-
-function getHospitalName(hospital) {
-  return hospital?.name || hospital?.clinicName || hospital?.hospitalName || hospital?.title || '-'
 }
 
 function Branches() {
@@ -36,16 +28,8 @@ function Branches() {
       setError('')
 
       try {
-        const hospitalResponse = await listAssignmentHospitals()
-        const hospitals = normalizeList(hospitalResponse, 'hospitals')
-        const branchGroups = await Promise.all(hospitals.map(async (hospital) => {
-          const hospitalId = getHospitalId(hospital)
-          if (!hospitalId) return []
-          const response = await listHospitalBranches(hospitalId)
-          return normalizeList(response, 'branches').map((branch) => ({ ...branch, hospitalName: getHospitalName(hospital) }))
-        }))
-
-        if (active) setBranches(branchGroups.flat())
+        const response = await getSuperAdminBranches()
+        if (active) setBranches(normalizeList(response, 'branches'))
       } catch (requestError) {
         if (active) setError(requestError.message || 'Unable to load branches.')
       } finally {
@@ -59,6 +43,23 @@ function Branches() {
     }
   }, [])
 
+function branchId(branch) {
+    return branch?._id || branch?.id || branch?.branchId || branch?.externalBranchId
+  }
+
+  async function toggleBranchStatus(branch) {
+    const id = branchId(branch)
+    if (!id) return
+    const current = String(branch?.status ?? (branch?.isActive === false ? 'Inactive' : 'Active')).toLowerCase()
+    const nextStatus = current === 'active' ? 'Inactive' : 'Active'
+    try {
+      await changeSuperAdminBranchStatus(id, { status: nextStatus, isActive: nextStatus === 'Active' })
+      setBranches((currentBranches) => currentBranches.map((item) => branchId(item) === id ? { ...item, status: nextStatus, isActive: nextStatus === 'Active' } : item))
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to change branch status.')
+    }
+  }
+
   const rows = useMemo(() => branches.map((branch) => {
     const statusValue = branch?.status ?? branch?.isActive
     const status = typeof statusValue === 'boolean' ? (statusValue ? 'Active' : 'Inactive') : statusValue || 'Active'
@@ -70,6 +71,7 @@ function Branches() {
       branch?.phone || branch?.mobile || branch?.contactNumber || branch?.contact || '-',
       branch?.email || '-',
       status,
+      <button className="super-admin-inline-action" type="button" onClick={() => toggleBranchStatus(branch)}>{String(status).toLowerCase() === 'active' ? 'Deactivate' : 'Activate'}</button>,
     ]
   }), [branches])
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiUrl } from '../../config/api'
+import { getSuperAdminSettings, updateSuperAdminSettings } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './SystemSettings.css'
@@ -30,36 +30,13 @@ const initialSettings = {
   paymentApiKey: '',
 }
 
-const endpoints = ['pharmacy-super-admin/settings', 'pharmacy-super-admin/system-settings']
-
-function getToken() {
-  return sessionStorage.getItem('superAdminToken') || localStorage.getItem('superAdminToken') || ''
-}
-
 function unwrap(response) {
   return response?.data?.settings || response?.data?.configuration || response?.settings || response?.configuration || response?.data || response || {}
-}
-
-async function settingsRequest(path, options = {}) {
-  const response = await fetch(apiUrl(path), {
-    ...options,
-    headers: {
-      'ngrok-skip-browser-warning': 'true',
-      'Content-Type': 'application/json',
-      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-      ...(options.headers || {}),
-    },
-  })
-  const contentType = response.headers.get('content-type')
-  const data = contentType?.includes('application/json') ? await response.json() : null
-  if (!response.ok) throw new Error(data?.message || data?.error || 'Unable to process settings request.')
-  return data
 }
 
 function SystemSettings() {
   const [settings, setSettings] = useState(initialSettings)
   const [tab, setTab] = useState('general')
-  const [endpoint, setEndpoint] = useState(endpoints[0])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -71,23 +48,13 @@ function SystemSettings() {
     async function loadSettings() {
       setLoading(true)
       setError('')
-      let lastError = null
-      for (const path of endpoints) {
-        try {
-          const response = await settingsRequest(path)
-          if (active) {
-            setSettings((current) => ({ ...current, ...unwrap(response) }))
-            setEndpoint(path)
-          }
-          if (active) setLoading(false)
-          return
-        } catch (requestError) {
-          lastError = requestError
-        }
-      }
-      if (active) {
-        setError(lastError?.message || 'Unable to load system settings.')
-        setLoading(false)
+      try {
+        const response = await getSuperAdminSettings()
+        if (active) setSettings((current) => ({ ...current, ...unwrap(response) }))
+      } catch (requestError) {
+        if (active) setError(requestError.message || 'Unable to load system settings.')
+      } finally {
+        if (active) setLoading(false)
       }
     }
     loadSettings()
@@ -105,7 +72,7 @@ function SystemSettings() {
     setError('')
     setFeedback('')
     try {
-      await settingsRequest(endpoint, { method: 'PUT', body: JSON.stringify(settings) })
+      await updateSuperAdminSettings(settings)
       setFeedback('Settings saved successfully.')
     } catch (requestError) {
       setError(requestError.message || 'Unable to save system settings.')

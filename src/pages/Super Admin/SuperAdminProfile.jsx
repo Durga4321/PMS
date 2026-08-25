@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
-import { changePharmacyAdminPassword, changeSignedInPharmacistPassword, changeSuperAdminPassword } from '../../config/api'
+import { changePharmacyAdminPassword, changeSignedInPharmacistPassword, changeSuperAdminPassword, getSuperAdminProfile } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import PharmacistSidebar from '../Pharmacist/PharmacistSidebar'
@@ -33,6 +33,7 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
   const [submitted, setSubmitted] = useState(false)
   const isPharmacyAdmin = roleType === 'pharmacy-admin'
   const isPharmacist = roleType === 'pharmacist'
+  const [profileUser, setProfileUser] = useState(null)
 
   const routeTab = searchParams.get('tab') === 'password' ? 'password' : initialTab
 

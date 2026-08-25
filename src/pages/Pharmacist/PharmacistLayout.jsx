@@ -8,7 +8,7 @@ import './pharmacist.css'
 
 function Icon({ children }) { return <svg className="pharmacist-topbar-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">{children}</svg> }
 
-function PharmacistLayout({ activeLabel, title, subtitle, children }) {
+function PharmacistLayout({ activeLabel, children }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')

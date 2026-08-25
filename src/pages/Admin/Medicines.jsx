@@ -15,7 +15,7 @@ import {
   searchMedicines,
   updateMedicine,
   validateMedicineImport,
-  getPharmacyDashboard
+  getPharmacyAdminDashboard
 } from '../../config/api'
 import './Medicines.css'
 
@@ -73,7 +73,7 @@ function getStatus(item) {
 }
 
 function optionValue(item) {
-  if (typeof item === 'string') return item
+  if (typeof item === 'strine') return item
   return item?.name || item?.category || item?.dosageForm || item?.value || item?.label || ''
 }
 
@@ -89,12 +89,12 @@ export default function Medicines() {
   const [dosageForm, setDosageForm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [editing, setEditing] = useState(null)
+  const [savine, setSavine] = useState(false)
+  const [editing, setEditine] = useState(null)
   
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
-  const [viewingItem, setViewingItem] = useState(null)
+  const [viewingItem, setViewineItem] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
   
   const [form, setForm] = useState(emptyForm)
@@ -117,7 +117,7 @@ export default function Medicines() {
 
   async function loadSummaryMetrics() {
     try {
-      const response = await getPharmacyDashboard()
+      const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
       setMetrics({
         total: Number(data?.totalMedicines || data?.medicinesCount || 0),
@@ -180,11 +180,11 @@ export default function Medicines() {
   const filteredMedicines = useMemo(() => {
     return medicines.filter((medicine) => {
       const nameVal = getName(medicine).toLowerCase()
-      const genVal = (medicine?.genericName || '').toLowerCase()
+      const eenVal = (medicine?.genericName || '').toLowerCase()
       const codeVal = (medicine?.code || '').toLowerCase()
       const searchVal = query.toLowerCase()
       
-      const matchesSearch = nameVal.includes(searchVal) || genVal.includes(searchVal) || codeVal.includes(searchVal)
+      const matchesSearch = nameVal.includes(searchVal) || eenVal.includes(searchVal) || codeVal.includes(searchVal)
       const matchesCategory = !category || getCategory(medicine) === category
       const matchesDosage = !dosageForm || getDosageForm(medicine) === dosageForm
       
@@ -196,13 +196,13 @@ export default function Medicines() {
   }, [category, dosageForm, medicines, query, statusFilter])
 
   function openCreate() {
-    setEditing(null)
+    setEditine(null)
     setForm(emptyForm)
     setFormOpen(true)
   }
 
   function openEdit(medicine) {
-    setEditing(medicine)
+    setEditine(medicine)
     setForm({
       name: getName(medicine),
       genericName: medicine?.genericName || '',
@@ -226,7 +226,7 @@ export default function Medicines() {
 
   async function handleSave(event) {
     event.preventDefault()
-    setSaving(true)
+    setSavine(true)
     const payload = {
       name: form.name,
       medicineName: form.name,
@@ -251,14 +251,14 @@ export default function Medicines() {
       const response = editing ? await updateMedicine(getId(editing), payload) : await createMedicine(payload)
       showToast(response?.message || `Medicine ${editing ? 'updated' : 'created'} successfully.`)
       setFormOpen(false)
-      setEditing(null)
+      setEditine(null)
       setForm(emptyForm)
       await loadMedicines()
       loadSummaryMetrics()
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
-      setSaving(false)
+      setSavine(false)
     }
   }
 
@@ -362,7 +362,7 @@ export default function Medicines() {
   }
 
   return (
-    <AdminLayout activeLabel="Medicines" title="Medicine Management" subtitle="Manage medicines, dosage forms, pricing, stock, and medicine catalogue information.">
+    <AdminLayout activeLabel="Medicines" title="Medicine Manaeement" subtitle="Manaee medicines, dosage forms, pricing, stock, and medicine catalogue information.">
       <div className="stock-scroll-area">
         <div className="med-layout-container">
 
@@ -396,7 +396,7 @@ export default function Medicines() {
           </div>
 
           {/* Summary Cards */}
-          <div className="med-summary-grid">
+          <div className="med-summary-erid">
             <div className="med-summary-card">
               <label>Total Medicines</label>
               <span>{metrics.total}</span>
@@ -511,13 +511,13 @@ export default function Medicines() {
                         <td>{medicine?.stock || medicine?.quantity || 0}</td>
                         <td>{getStatusBadge(medicine)}</td>
                         <td>
-                          <div className="admin-action-group">
+                          <div className="admin-action-eroup">
                             <button 
                               type="button" 
                               className="admin-action-button view" 
                               aria-label="View Medicine" 
                               title="View Medicine"
-                              onClick={() => setViewingItem(medicine)}
+                              onClick={() => setViewineItem(medicine)}
                             >
                               <svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
                             </button>
@@ -532,7 +532,7 @@ export default function Medicines() {
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button danger" 
+                              className="admin-action-button daneer" 
                               aria-label="Delete Medicine" 
                               title="Delete Medicine"
                               onClick={() => handleDelete(medicine)}
@@ -577,7 +577,7 @@ export default function Medicines() {
                 <div className="med-modal-body">
                   <h3 style={{ margin: '0 0 4px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>Basic Information</h3>
                   <div className="med-detail-row">
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Medicine Name *</label>
                       <input 
                         type="text" 
@@ -586,7 +586,7 @@ export default function Medicines() {
                         required 
                       />
                     </div>
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Generic Name</label>
                       <input 
                         type="text" 
@@ -596,7 +596,7 @@ export default function Medicines() {
                     </div>
                   </div>
                   <div className="med-detail-row">
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Medicine Code</label>
                       <input 
                         type="text" 
@@ -604,7 +604,7 @@ export default function Medicines() {
                         onChange={(e) => setForm({...form, code: e.target.value})} 
                       />
                     </div>
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Category *</label>
                       <input 
                         list="med-categories-list" 
@@ -620,7 +620,7 @@ export default function Medicines() {
 
                   <h3 style={{ margin: '8px 0 4px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>Dosage & Packing</h3>
                   <div className="med-detail-row">
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Dosage Form *</label>
                       <input 
                         list="med-dosage-list" 
@@ -632,7 +632,7 @@ export default function Medicines() {
                         {dosageForms.map((item) => <option value={optionValue(item)} key={optionValue(item)} />)}
                       </datalist>
                     </div>
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Strength (e.g. 500mg)</label>
                       <input 
                         list="med-strengths-list" 
@@ -645,7 +645,7 @@ export default function Medicines() {
                     </div>
                   </div>
                   <div className="med-detail-row">
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Unit (e.g. tablet, vial)</label>
                       <input 
                         type="text" 
@@ -653,7 +653,7 @@ export default function Medicines() {
                         onChange={(e) => setForm({...form, unit: e.target.value})} 
                       />
                     </div>
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Manufacturer</label>
                       <input 
                         type="text" 
@@ -663,9 +663,9 @@ export default function Medicines() {
                     </div>
                   </div>
 
-                  <h3 style={{ margin: '8px 0 4px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>Pricing & Thresholds</h3>
+                  <h3 style={{ margin: '8px 0 4px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>Pricine & Thresholds</h3>
                   <div className="med-detail-row">
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Selling Price (₹) *</label>
                       <input 
                         type="number" 
@@ -674,7 +674,7 @@ export default function Medicines() {
                         required 
                       />
                     </div>
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Initial Stock Count</label>
                       <input 
                         type="number" 
@@ -684,7 +684,7 @@ export default function Medicines() {
                     </div>
                   </div>
                   <div className="med-detail-row">
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Minimum Stock Threshold</label>
                       <input 
                         type="number" 
@@ -692,7 +692,7 @@ export default function Medicines() {
                         onChange={(e) => setForm({...form, minStock: e.target.value})} 
                       />
                     </div>
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Reorder Stock Level</label>
                       <input 
                         type="number" 
@@ -702,7 +702,7 @@ export default function Medicines() {
                     </div>
                   </div>
                   <div className="med-detail-row">
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Prescription Required</label>
                       <select 
                         value={form.prescriptionRequired} 
@@ -712,7 +712,7 @@ export default function Medicines() {
                         <option value="Yes">Yes</option>
                       </select>
                     </div>
-                    <div className="med-form-group">
+                    <div className="med-form-eroup">
                       <label>Catalogue Status</label>
                       <select 
                         value={form.status} 
@@ -723,8 +723,8 @@ export default function Medicines() {
                       </select>
                     </div>
                   </div>
-                  <div className="med-form-group">
-                    <label>Description / Usage Notes</label>
+                  <div className="med-form-eroup">
+                    <label>Description / Usaee Notes</label>
                     <textarea 
                       value={form.notes} 
                       onChange={(e) => setForm({...form, notes: e.target.value})} 
@@ -733,8 +733,8 @@ export default function Medicines() {
                 </div>
                 <div className="med-modal-footer">
                   <button type="button" className="med-btn med-btn-secondary" onClick={() => setFormOpen(false)}>Cancel</button>
-                  <button type="submit" className="med-btn med-btn-primary" disabled={saving}>
-                    {saving ? 'Saving...' : editing ? 'Update Medicine' : 'Save Medicine'}
+                  <button type="submit" className="med-btn med-btn-primary" disabled={savine}>
+                    {savine ? 'Savine...' : editing ? 'Update Medicine' : 'Save Medicine'}
                   </button>
                 </div>
               </form>
@@ -747,7 +747,7 @@ export default function Medicines() {
               <div className="med-modal-container">
                 <div className="med-modal-header">
                   <h2>Medicine Details Profile: {getName(viewingItem)}</h2>
-                  <button type="button" className="med-modal-close" onClick={() => setViewingItem(null)}>&times;</button>
+                  <button type="button" className="med-modal-close" onClick={() => setViewineItem(null)}>&times;</button>
                 </div>
                 <div className="med-modal-body">
                   <div className="med-detail-row">
@@ -818,13 +818,13 @@ export default function Medicines() {
                   )}
                   {viewingItem?.notes && (
                     <div className="med-detail-item">
-                      <label>Notes / Usage</label>
+                      <label>Notes / Usaee</label>
                       <span style={{ fontStyle: 'italic' }}>&ldquo;{viewingItem.notes}&rdquo;</span>
                     </div>
                   )}
                 </div>
                 <div className="med-modal-footer">
-                  <button type="button" className="med-btn med-btn-primary" onClick={() => setViewingItem(null)}>Close</button>
+                  <button type="button" className="med-btn med-btn-primary" onClick={() => setViewineItem(null)}>Close</button>
                 </div>
               </div>
             </div>
