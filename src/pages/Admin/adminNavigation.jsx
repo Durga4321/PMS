@@ -20,4 +20,5 @@ export const adminNavigation = [
   item('Expiry Alerts', '/admin/expiry-alerts', 'notifications', 'orange'),
   item('Reports', '/admin/reports', 'reports', 'teal'),
   item('Settings', '/admin/settings', 'settings', 'amber'),
+  item('CMS Integration', '/admin/cms-integration', 'settings', 'teal'),
 ]

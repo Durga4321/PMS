@@ -5,7 +5,8 @@ import {
   dispensePrescription, 
   generateBill, 
   getInvoice, 
-  getPendingPharmacyPrescriptions, 
+  getPendingPharmacyPrescriptions,
+  getPharmacyDispensingOverview, 
   getPharmacyPrescription, 
   recordPayment,
   getPharmacyAdminDashboard,
@@ -74,8 +75,10 @@ export default function Dispensing() {
     setActiveWorkflow(workflow)
     try {
       let response
-      if (workflow === 'prescriptions' || workflow === 'dispense') {
+      if (workflow === 'prescriptions') {
         response = await getPendingPharmacyPrescriptions()
+      } else if (workflow === 'dispense') {
+        response = await getPharmacyDispensingOverview()
       } else if (workflow === 'bill' || workflow === 'invoices') {
         response = await listBills()
       } else if (workflow === 'payments') {

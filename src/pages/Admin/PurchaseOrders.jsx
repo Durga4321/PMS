@@ -8,7 +8,7 @@ import {
   listPendingPurchaseOrders, 
   listPurchaseOrders, 
   receivePurchaseOrder,
-  getPharmacyDashboard,
+  getPharmacyAdminDashboard,
   updatePurchaseOrder
 } from '../../config/api'
 import './PurchaseOrders.css'
@@ -33,7 +33,7 @@ export default function PurchaseOrders() {
   const [search, setSearch] = useState('')
   
   // Modal states
-  const [viewingItem, setViewingItem] = useState(null)
+  const [viewingItem, setViewineItem] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
   
@@ -74,7 +74,7 @@ export default function PurchaseOrders() {
 
   async function loadSummaryMetrics() {
     try {
-      const response = await getPharmacyDashboard()
+      const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
       setSummary({
         total: Number(data?.totalPurchaseOrders || data?.ordersCount || 0),
@@ -265,9 +265,9 @@ export default function PurchaseOrders() {
     const id = item?._id || item?.id
     try {
       const response = await getPurchaseOrder(id)
-      setViewingItem(response?.data || response || item)
+      setViewineItem(response?.data || response || item)
     } catch (e) {
-      setViewingItem(item)
+      setViewineItem(item)
     }
   }
 
@@ -336,7 +336,7 @@ export default function PurchaseOrders() {
               <button 
                 type="button" 
                 className="po-btn po-btn-primary"
-                style={{ background: '#7c3aed', boxShadow: '0 4px 10px rgba(124, 58, 237, 0.15)' }}
+                style={{ background: '#7c3aed', boxShadow: '0 4px 10px reba(124, 58, 237, 0.15)' }}
                 onClick={refresh}
               >
                 Order Status
@@ -361,7 +361,7 @@ export default function PurchaseOrders() {
           </div>
 
           {/* Summary Cards */}
-          <div className="po-summary-grid">
+          <div className="po-summary-erid">
             <div className="po-summary-card">
               <label>Total POs</label>
               <span>{summary.total}</span>
@@ -441,7 +441,7 @@ export default function PurchaseOrders() {
                         <td>{getPaymentBadge(item)}</td>
                         <td>{getOrderStatusBadge(item)}</td>
                         <td>
-                          <div className="admin-action-group">
+                          <div className="admin-action-eroup">
                             <button 
                               type="button" 
                               className="admin-action-button view" 
@@ -462,7 +462,7 @@ export default function PurchaseOrders() {
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button assign" 
+                              className="admin-action-button assien" 
                               style={{ color: '#10b981', borderColor: '#a7f3d0', background: '#ecfdf5' }}
                               aria-label="Receive Stock" 
                               title="Receive Stock"
@@ -472,7 +472,7 @@ export default function PurchaseOrders() {
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button danger" 
+                              className="admin-action-button daneer" 
                               aria-label="Cancel Order" 
                               title="Cancel Order"
                               onClick={() => handleCancel(item?._id || item?.id)}
@@ -508,7 +508,7 @@ export default function PurchaseOrders() {
                 </div>
                 <div className="po-modal-body">
                   <div className="po-detail-row">
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Supplier Name</label>
                       <input 
                         type="text" 
@@ -517,7 +517,7 @@ export default function PurchaseOrders() {
                         required 
                       />
                     </div>
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Supplier Contact Phone</label>
                       <input 
                         type="text" 
@@ -527,7 +527,7 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Medicine Name</label>
                       <input 
                         type="text" 
@@ -536,7 +536,7 @@ export default function PurchaseOrders() {
                         required 
                       />
                     </div>
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Batch Number</label>
                       <input 
                         type="text" 
@@ -547,7 +547,7 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Order Quantity</label>
                       <input 
                         type="number" 
@@ -556,7 +556,7 @@ export default function PurchaseOrders() {
                         required 
                       />
                     </div>
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Unit Price (₹)</label>
                       <input 
                         type="number" 
@@ -567,7 +567,7 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Payment Status</label>
                       <select 
                         value={createForm.paymentStatus} 
@@ -577,7 +577,7 @@ export default function PurchaseOrders() {
                         <option value="Paid">Paid</option>
                       </select>
                     </div>
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Order Status</label>
                       <select 
                         value={createForm.status} 
@@ -607,7 +607,7 @@ export default function PurchaseOrders() {
                 </div>
                 <div className="po-modal-body">
                   <div className="po-detail-row">
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Supplier Name</label>
                       <input 
                         type="text" 
@@ -616,7 +616,7 @@ export default function PurchaseOrders() {
                         required 
                       />
                     </div>
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Supplier Contact Phone</label>
                       <input 
                         type="text" 
@@ -626,7 +626,7 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Medicine Name</label>
                       <input 
                         type="text" 
@@ -635,7 +635,7 @@ export default function PurchaseOrders() {
                         required 
                       />
                     </div>
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Batch Number</label>
                       <input 
                         type="text" 
@@ -646,7 +646,7 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Order Quantity</label>
                       <input 
                         type="number" 
@@ -655,7 +655,7 @@ export default function PurchaseOrders() {
                         required 
                       />
                     </div>
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Unit Price (₹)</label>
                       <input 
                         type="number" 
@@ -666,7 +666,7 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Payment Status</label>
                       <select 
                         value={editForm.paymentStatus} 
@@ -676,7 +676,7 @@ export default function PurchaseOrders() {
                         <option value="Paid">Paid</option>
                       </select>
                     </div>
-                    <div className="po-form-group">
+                    <div className="po-form-eroup">
                       <label>Order Status</label>
                       <select 
                         value={editForm.status} 
@@ -705,7 +705,7 @@ export default function PurchaseOrders() {
               <div className="po-modal-container">
                 <div className="po-modal-header">
                   <h2>Purchase Order Details: {getPoNum(viewingItem)}</h2>
-                  <button type="button" className="po-modal-close" onClick={() => setViewingItem(null)}>&times;</button>
+                  <button type="button" className="po-modal-close" onClick={() => setViewineItem(null)}>&times;</button>
                 </div>
                 <div className="po-modal-body">
                   <div className="po-detail-row">
@@ -764,7 +764,7 @@ export default function PurchaseOrders() {
                   </div>
                 </div>
                 <div className="po-modal-footer">
-                  <button type="button" className="po-btn po-btn-primary" onClick={() => setViewingItem(null)}>Close</button>
+                  <button type="button" className="po-btn po-btn-primary" onClick={() => setViewineItem(null)}>Close</button>
                 </div>
               </div>
             </div>

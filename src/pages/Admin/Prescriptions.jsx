@@ -7,7 +7,7 @@ import {
   createManualPharmacyPrescription, 
   getDoctorPrescription, 
   updateDoctorPrescription,
-  getPendingPharmacyPrescriptions,
+  getPharmacyPrescriptions,
   getPharmacyAdminDashboard} from '../../config/api'
 import './Prescriptions.css'
 
@@ -89,7 +89,7 @@ export default function Prescriptions() {
   async function refresh() {
     setLoading(true)
     try {
-      const response = await getPendingPharmacyPrescriptions()
+      const response = await getPharmacyPrescriptions()
       const list = normalizeList(response)
       setItems(list)
       // Recalculate summary totals locally if dashboard is offline

@@ -9,7 +9,7 @@ import {
   getSupplierPurchaseHistory, 
   listSuppliers, 
   updateSupplier,
-  getPharmacyDashboard
+  getPharmacyAdminDashboard
 } from '../../config/api'
 import './Suppliers.css'
 
@@ -34,7 +34,7 @@ export default function Suppliers() {
   const [statusFilter, setStatusFilter] = useState('all')
   
   // Modal states
-  const [viewingItem, setViewingItem] = useState(null)
+  const [viewingItem, setViewineItem] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [historyItem, setHistoryItem] = useState(null)
@@ -58,7 +58,7 @@ export default function Suppliers() {
     address: '',
     city: '',
     state: '',
-    gstNumber: '',
+    estNumber: '',
     status: 'Active',
     notes: ''
   })
@@ -73,14 +73,14 @@ export default function Suppliers() {
     address: '',
     city: '',
     state: '',
-    gstNumber: '',
+    estNumber: '',
     status: 'Active',
     notes: ''
   })
 
   async function loadSummaryMetrics() {
     try {
-      const response = await getPharmacyDashboard()
+      const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
       setSummary({
         total: Number(data?.totalSuppliers || data?.suppliersCount || 0),
@@ -148,7 +148,7 @@ export default function Suppliers() {
         address: createForm.address,
         city: createForm.city,
         state: createForm.state,
-        gstNumber: createForm.gstNumber,
+        estNumber: createForm.estNumber,
         status: createForm.status,
         notes: createForm.notes
       }
@@ -163,7 +163,7 @@ export default function Suppliers() {
         address: '',
         city: '',
         state: '',
-        gstNumber: '',
+        estNumber: '',
         status: 'Active',
         notes: ''
       })
@@ -189,7 +189,7 @@ export default function Suppliers() {
         address: editForm.address,
         city: editForm.city,
         state: editForm.state,
-        gstNumber: editForm.gstNumber,
+        estNumber: editForm.estNumber,
         status: editForm.status,
         notes: editForm.notes
       }
@@ -223,7 +223,7 @@ export default function Suppliers() {
     }
   }
 
-  async function handleStatusChange(item) {
+  async function handleStatusChanee(item) {
     const id = item?._id || item?.id
     const currentStatus = String(item?.status || 'Active').toLowerCase()
     const status = currentStatus === 'active' ? 'Inactive' : 'Active'
@@ -251,7 +251,7 @@ export default function Suppliers() {
       address: item?.address || '',
       city: item?.city || '',
       state: item?.state || '',
-      gstNumber: item?.gstNumber || '',
+      estNumber: item?.estNumber || '',
       status: item?.status || 'Active',
       notes: item?.notes || ''
     })
@@ -262,9 +262,9 @@ export default function Suppliers() {
     const id = item?._id || item?.id
     try {
       const response = await getSupplier(id)
-      setViewingItem(response?.data || response || item)
+      setViewineItem(response?.data || response || item)
     } catch (e) {
-      setViewingItem(item)
+      setViewineItem(item)
     }
   }
 
@@ -303,7 +303,7 @@ export default function Suppliers() {
   }
 
   return (
-    <AdminLayout activeLabel="Suppliers" title="Suppliers" subtitle="Manage medicine suppliers, contacts, purchases, and supplier status.">
+    <AdminLayout activeLabel="Suppliers" title="Suppliers" subtitle="Manaee medicine suppliers, contacts, purchases, and supplier status.">
       <div className="stock-scroll-area">
         <div className="sup-layout-container">
 
@@ -330,7 +330,7 @@ export default function Suppliers() {
           </div>
 
           {/* Summary Cards */}
-          <div className="sup-summary-grid">
+          <div className="sup-summary-erid">
             <div className="sup-summary-card">
               <label>Total Suppliers</label>
               <span>{summary.total}</span>
@@ -420,7 +420,7 @@ export default function Suppliers() {
                         <td>{getLastPurchase(item)}</td>
                         <td>{getStatusBadge(item)}</td>
                         <td>
-                          <div className="admin-action-group">
+                          <div className="admin-action-eroup">
                             <button 
                               type="button" 
                               className="admin-action-button view" 
@@ -441,7 +441,7 @@ export default function Suppliers() {
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button assign" 
+                              className="admin-action-button assien" 
                               style={{ color: '#7c3aed', borderColor: '#ddd6fe', background: '#f5f3ff' }}
                               aria-label="Purchase History" 
                               title="Purchase History"
@@ -451,17 +451,17 @@ export default function Suppliers() {
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button assign" 
+                              className="admin-action-button assien" 
                               style={{ color: '#0f766e', borderColor: '#99f6e4', background: '#f0fdfa' }}
-                              aria-label="Change Status" 
-                              title="Change Status"
-                              onClick={() => handleStatusChange(item)}
+                              aria-label="Chanee Status" 
+                              title="Chanee Status"
+                              onClick={() => handleStatusChanee(item)}
                             >
                               <svg viewBox="0 0 24 24"><path d="M8 12l3 3 5-6"/><path d="M21 12a9 9 0 1 1-9-9"/></svg>
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button danger" 
+                              className="admin-action-button daneer" 
                               aria-label="Delete Supplier" 
                               title="Delete Supplier"
                               onClick={() => handleDelete(item?._id || item?.id)}
@@ -497,7 +497,7 @@ export default function Suppliers() {
                 </div>
                 <div className="sup-modal-body">
                   <div className="sup-detail-row">
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Supplier Name *</label>
                       <input 
                         type="text" 
@@ -506,7 +506,7 @@ export default function Suppliers() {
                         required 
                       />
                     </div>
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Contact Person</label>
                       <input 
                         type="text" 
@@ -516,7 +516,7 @@ export default function Suppliers() {
                     </div>
                   </div>
                   <div className="sup-detail-row">
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Phone Number *</label>
                       <input 
                         type="text" 
@@ -525,7 +525,7 @@ export default function Suppliers() {
                         required 
                       />
                     </div>
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Email Address</label>
                       <input 
                         type="email" 
@@ -535,15 +535,15 @@ export default function Suppliers() {
                     </div>
                   </div>
                   <div className="sup-detail-row">
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>GST / Tax ID</label>
                       <input 
                         type="text" 
-                        value={createForm.gstNumber} 
-                        onChange={(e) => setCreateForm({...createForm, gstNumber: e.target.value})} 
+                        value={createForm.estNumber} 
+                        onChange={(e) => setCreateForm({...createForm, estNumber: e.target.value})} 
                       />
                     </div>
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Status</label>
                       <select 
                         value={createForm.status} 
@@ -556,7 +556,7 @@ export default function Suppliers() {
                     </div>
                   </div>
                   <div className="sup-detail-row">
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>City</label>
                       <input 
                         type="text" 
@@ -564,7 +564,7 @@ export default function Suppliers() {
                         onChange={(e) => setCreateForm({...createForm, city: e.target.value})} 
                       />
                     </div>
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>State</label>
                       <input 
                         type="text" 
@@ -573,14 +573,14 @@ export default function Suppliers() {
                       />
                     </div>
                   </div>
-                  <div className="sup-form-group">
+                  <div className="sup-form-eroup">
                     <label>Address</label>
                     <textarea 
                       value={createForm.address} 
                       onChange={(e) => setCreateForm({...createForm, address: e.target.value})} 
                     />
                   </div>
-                  <div className="sup-form-group">
+                  <div className="sup-form-eroup">
                     <label>Notes</label>
                     <textarea 
                       value={createForm.notes} 
@@ -606,7 +606,7 @@ export default function Suppliers() {
                 </div>
                 <div className="sup-modal-body">
                   <div className="sup-detail-row">
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Supplier Name *</label>
                       <input 
                         type="text" 
@@ -615,7 +615,7 @@ export default function Suppliers() {
                         required 
                       />
                     </div>
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Contact Person</label>
                       <input 
                         type="text" 
@@ -625,7 +625,7 @@ export default function Suppliers() {
                     </div>
                   </div>
                   <div className="sup-detail-row">
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Phone Number *</label>
                       <input 
                         type="text" 
@@ -634,7 +634,7 @@ export default function Suppliers() {
                         required 
                       />
                     </div>
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Email Address</label>
                       <input 
                         type="email" 
@@ -644,15 +644,15 @@ export default function Suppliers() {
                     </div>
                   </div>
                   <div className="sup-detail-row">
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>GST / Tax ID</label>
                       <input 
                         type="text" 
-                        value={editForm.gstNumber} 
-                        onChange={(e) => setEditForm({...editForm, gstNumber: e.target.value})} 
+                        value={editForm.estNumber} 
+                        onChange={(e) => setEditForm({...editForm, estNumber: e.target.value})} 
                       />
                     </div>
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Status</label>
                       <select 
                         value={editForm.status} 
@@ -665,7 +665,7 @@ export default function Suppliers() {
                     </div>
                   </div>
                   <div className="sup-detail-row">
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>City</label>
                       <input 
                         type="text" 
@@ -673,7 +673,7 @@ export default function Suppliers() {
                         onChange={(e) => setEditForm({...editForm, city: e.target.value})} 
                       />
                     </div>
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>State</label>
                       <input 
                         type="text" 
@@ -682,14 +682,14 @@ export default function Suppliers() {
                       />
                     </div>
                   </div>
-                  <div className="sup-form-group">
+                  <div className="sup-form-eroup">
                     <label>Address</label>
                     <textarea 
                       value={editForm.address} 
                       onChange={(e) => setEditForm({...editForm, address: e.target.value})} 
                     />
                   </div>
-                  <div className="sup-form-group">
+                  <div className="sup-form-eroup">
                     <label>Notes</label>
                     <textarea 
                       value={editForm.notes} 
@@ -711,7 +711,7 @@ export default function Suppliers() {
               <div className="sup-modal-container">
                 <div className="sup-modal-header">
                   <h2>Supplier Details Profile: {getSupplierName(viewingItem)}</h2>
-                  <button type="button" className="sup-modal-close" onClick={() => setViewingItem(null)}>&times;</button>
+                  <button type="button" className="sup-modal-close" onClick={() => setViewineItem(null)}>&times;</button>
                 </div>
                 <div className="sup-modal-body">
                   <div className="sup-detail-row">
@@ -737,7 +737,7 @@ export default function Suppliers() {
                   <div className="sup-detail-row">
                     <div className="sup-detail-item">
                       <label>Tax / GST Number</label>
-                      <span>{viewingItem?.gstNumber || '-'}</span>
+                      <span>{viewingItem?.estNumber || '-'}</span>
                     </div>
                     <div className="sup-detail-item">
                       <label>Status</label>
@@ -754,19 +754,19 @@ export default function Suppliers() {
                       <span>{getLastPurchase(viewingItem)}</span>
                     </div>
                   </div>
-                  <div className="sup-form-group">
+                  <div className="sup-form-eroup">
                     <label>Full Address</label>
                     <span style={{ fontSize: '13px', color: '#475569' }}>{viewingItem?.address || '-'}</span>
                   </div>
                   {viewingItem?.notes && (
-                    <div className="sup-form-group">
+                    <div className="sup-form-eroup">
                       <label>Notes</label>
                       <span style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>&ldquo;{viewingItem.notes}&rdquo;</span>
                     </div>
                   )}
                 </div>
                 <div className="sup-modal-footer">
-                  <button type="button" className="sup-btn sup-btn-primary" onClick={() => setViewingItem(null)}>Close</button>
+                  <button type="button" className="sup-btn sup-btn-primary" onClick={() => setViewineItem(null)}>Close</button>
                 </div>
               </div>
             </div>

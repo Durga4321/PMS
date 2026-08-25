@@ -3,7 +3,7 @@ import { useToast } from '../../components/ToastProvider'
 import AdminLayout from './AdminLayout'
 import { 
   addInventoryStock,
-  adjustInventory,
+  adjustInventoryWithReason,
   disposeInventoryBatch,
   getInventory,
   getInventoryBatch,
@@ -222,7 +222,7 @@ export default function Stock() {
         reason: adjustmentForm.reason,
         notes: adjustmentForm.notes || undefined
       }
-      const response = await adjustInventory(body)
+      const response = await adjustInventoryWithReason(body)
       showToast(response?.message || 'Stock levels adjusted successfully!')
       setAdjustOpen(false)
       setAdjustmentForm({

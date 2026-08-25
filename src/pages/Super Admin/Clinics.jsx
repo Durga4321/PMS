@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listAssignmentHospitals } from '../../config/api'
+import { changeSuperAdminHospitalStatus, listAssignmentHospitals } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './Clinics.css'
@@ -34,6 +34,10 @@ function clinicAddress(clinic) {
 
 function clinicPhone(clinic) {
   return clinic?.phone || clinic?.mobile || clinic?.contactNumber || clinic?.contact || '-'
+}
+
+function clinicId(clinic) {
+  return clinic?._id || clinic?.id || clinic?.hospitalId || clinic?.externalHospitalId
 }
 
 function clinicStatus(clinic) {
@@ -85,6 +89,18 @@ function Clinics() {
 
   useEffect(() => setPage(1), [query, statusFilter])
 
+async function toggleClinicStatus(clinic) {
+    const id = clinicId(clinic)
+    if (!id) return
+    const nextStatus = clinicStatus(clinic).toLowerCase() === 'active' ? 'Inactive' : 'Active'
+    try {
+      await changeSuperAdminHospitalStatus(id, { status: nextStatus, isActive: nextStatus === 'Active' })
+      setClinics((current) => current.map((item) => clinicId(item) === id ? { ...item, status: nextStatus, isActive: nextStatus === 'Active' } : item))
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to change clinic status.')
+    }
+  }
+
   const pageCount = Math.max(1, Math.ceil(filteredClinics.length / pageSize))
   const visibleClinics = filteredClinics.slice((page - 1) * pageSize, page * pageSize)
 
@@ -103,7 +119,7 @@ function Clinics() {
             <table className="clinics-table">
               <thead><tr><th>S.No</th><th>Clinic Name</th><th>Address</th><th>Contact Number</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan="7">Loading clinics...</td></tr> : error ? <tr><td colSpan="7" className="clinics-error">{error}</td></tr> : visibleClinics.length ? visibleClinics.map((clinic, index) => { const status = clinicStatus(clinic); return <tr key={clinic?._id || clinic?.id || `${clinicName(clinic)}-${index}`}><td>{(page - 1) * pageSize + index + 1}</td><td><span className="clinic-name"><span className="clinic-avatar">{clinicName(clinic).slice(0, 1).toUpperCase()}</span>{clinicName(clinic)}</span></td><td><span className="clinic-with-icon"><Icon name="map" />{clinicAddress(clinic)}</span></td><td><span className="clinic-with-icon"><Icon name="phone" />{clinicPhone(clinic)}</span></td><td>{clinic?.email || '-'}</td><td><span className={`clinic-status ${status.toLowerCase()}`}>{status}</span></td><td><button className="clinic-view-button" type="button" aria-label={`View ${clinicName(clinic)}`} title={`View ${clinicName(clinic)}`}><Icon name="eye" /></button></td></tr> }) : <tr><td colSpan="7">No clinics found.</td></tr>}
+                {loading ? <tr><td colSpan="7">Loading clinics...</td></tr> : error ? <tr><td colSpan="7" className="clinics-error">{error}</td></tr> : visibleClinics.length ? visibleClinics.map((clinic, index) => { const status = clinicStatus(clinic); return <tr key={clinic?._id || clinic?.id || `${clinicName(clinic)}-${index}`}><td>{(page - 1) * pageSize + index + 1}</td><td><span className="clinic-name"><span className="clinic-avatar">{clinicName(clinic).slice(0, 1).toUpperCase()}</span>{clinicName(clinic)}</span></td><td><span className="clinic-with-icon"><Icon name="map" />{clinicAddress(clinic)}</span></td><td><span className="clinic-with-icon"><Icon name="phone" />{clinicPhone(clinic)}</span></td><td>{clinic?.email || '-'}</td><td><span className={`clinic-status ${status.toLowerCase()}`}>{status}</span></td><td><button className="clinic-view-button" type="button" aria-label={`${status.toLowerCase() === 'active' ? 'Deactivate' : 'Activate'} ${clinicName(clinic)}`} title={`${status.toLowerCase() === 'active' ? 'Deactivate' : 'Activate'} ${clinicName(clinic)}`} onClick={() => toggleClinicStatus(clinic)}><Icon name="eye" /></button></td></tr> }) : <tr><td colSpan="7">No clinics found.</td></tr>}
               </tbody>
             </table>
           </div>

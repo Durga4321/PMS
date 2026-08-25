@@ -5,7 +5,7 @@ import {
   getDailySalesReport,
   getPharmacyAlerts,
   getPharmacyAuditLogs,
-  getPharmacyDashboard,
+  getPharmacyAdminDashboard,
   getPharmacyExpiryReport,
   getPharmacyPayments,
   getPharmacyPurchasesReport,
@@ -72,7 +72,7 @@ export default function Reports() {
   async function loadInitialData() {
     setLoading(true)
     try {
-      const response = await getPharmacyDashboard()
+      const response = await getPharmacyAdminDashboard()
       const data = normalizeList(response)
       setItems(data)
       setMessage(JSON.stringify(response?.data && !Array.isArray(response.data) ? response.data : '', null, 2))
@@ -214,7 +214,7 @@ export default function Reports() {
         <div className="reports-layout-container">
 
           {/* Report Cards Grid */}
-          <div className="reports-cards-grid">
+          <div className="reports-cards-erid">
             {reportCards.map((report) => (
               <div 
                 key={report.title} 
@@ -278,7 +278,7 @@ export default function Reports() {
             </div>
             
             {loading ? (
-              <p>Running report query, please wait...</p>
+              <p>Runnine report query, please wait...</p>
             ) : (
               <>
                 <div className="branch-table-wrap">

@@ -8,7 +8,7 @@ import {
   getStockTransfer, 
   listStockTransfers, 
   receiveStockTransfer,
-  getPharmacyDashboard
+  getPharmacyAdminDashboard
 } from '../../config/api'
 import './StockTransfers.css'
 
@@ -32,7 +32,7 @@ export default function StockTransfers() {
   const [search, setSearch] = useState('')
   
   // Modal states
-  const [viewingItem, setViewingItem] = useState(null)
+  const [viewingItem, setViewineItem] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
   
@@ -71,7 +71,7 @@ export default function StockTransfers() {
 
   async function loadSummaryMetrics() {
     try {
-      const response = await getPharmacyDashboard()
+      const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
       setSummary({
         total: Number(data?.totalTransfers || data?.transfersCount || 0),
@@ -252,9 +252,9 @@ export default function StockTransfers() {
     const id = item?._id || item?.id
     try {
       const response = await getStockTransfer(id)
-      setViewingItem(response?.data || response || item)
+      setViewineItem(response?.data || response || item)
     } catch (e) {
-      setViewingItem(item)
+      setViewineItem(item)
     }
   }
 
@@ -281,7 +281,7 @@ export default function StockTransfers() {
   }
 
   return (
-    <AdminLayout activeLabel="Stock Transfers" title="Stock Transfers" subtitle="Manage medicine stock transfers between pharmacy locations.">
+    <AdminLayout activeLabel="Stock Transfers" title="Stock Transfers" subtitle="Manaee medicine stock transfers between pharmacy locations.">
       <div className="stock-scroll-area">
         <div className="transfer-layout-container">
 
@@ -308,7 +308,7 @@ export default function StockTransfers() {
           </div>
 
           {/* Summary Cards */}
-          <div className="transfer-summary-grid">
+          <div className="transfer-summary-erid">
             <div className="transfer-summary-card">
               <label>Total Transfers</label>
               <span>{summary.total}</span>
@@ -381,7 +381,7 @@ export default function StockTransfers() {
                         <td>{getDate(item)}</td>
                         <td>{getStatusBadge(item)}</td>
                         <td>
-                          <div className="admin-action-group">
+                          <div className="admin-action-eroup">
                             <button 
                               type="button" 
                               className="admin-action-button view" 
@@ -402,7 +402,7 @@ export default function StockTransfers() {
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button assign" 
+                              className="admin-action-button assien" 
                               aria-label="Dispatch Stock" 
                               title="Dispatch Stock"
                               onClick={() => handleDispatch(item?._id || item?.id)}
@@ -411,7 +411,7 @@ export default function StockTransfers() {
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button assign" 
+                              className="admin-action-button assien" 
                               style={{ color: '#10b981', borderColor: '#a7f3d0', background: '#ecfdf5' }}
                               aria-label="Receive Stock" 
                               title="Receive Stock"
@@ -421,7 +421,7 @@ export default function StockTransfers() {
                             </button>
                             <button 
                               type="button" 
-                              className="admin-action-button danger" 
+                              className="admin-action-button daneer" 
                               aria-label="Cancel Transfer" 
                               title="Cancel Transfer"
                               onClick={() => handleCancel(item?._id || item?.id)}
@@ -457,7 +457,7 @@ export default function StockTransfers() {
                 </div>
                 <div className="transfer-modal-body">
                   <div className="transfer-detail-row">
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>From Location / Pharmacy</label>
                       <input 
                         type="text" 
@@ -466,7 +466,7 @@ export default function StockTransfers() {
                         required 
                       />
                     </div>
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>To Location / Pharmacy</label>
                       <input 
                         type="text" 
@@ -477,7 +477,7 @@ export default function StockTransfers() {
                     </div>
                   </div>
                   <div className="transfer-detail-row">
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Medicine Name</label>
                       <input 
                         type="text" 
@@ -486,7 +486,7 @@ export default function StockTransfers() {
                         required 
                       />
                     </div>
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Batch Number</label>
                       <input 
                         type="text" 
@@ -496,7 +496,7 @@ export default function StockTransfers() {
                       />
                     </div>
                   </div>
-                  <div className="transfer-form-group">
+                  <div className="transfer-form-eroup">
                     <label>Transfer Quantity</label>
                     <input 
                       type="number" 
@@ -506,7 +506,7 @@ export default function StockTransfers() {
                     />
                   </div>
                   <div className="transfer-detail-row">
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Requested By</label>
                       <input 
                         type="text" 
@@ -514,7 +514,7 @@ export default function StockTransfers() {
                         onChange={(e) => setCreateForm({...createForm, requestedBy: e.target.value})} 
                       />
                     </div>
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Approved By</label>
                       <input 
                         type="text" 
@@ -542,7 +542,7 @@ export default function StockTransfers() {
                 </div>
                 <div className="transfer-modal-body">
                   <div className="transfer-detail-row">
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>From Location / Pharmacy</label>
                       <input 
                         type="text" 
@@ -551,7 +551,7 @@ export default function StockTransfers() {
                         required 
                       />
                     </div>
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>To Location / Pharmacy</label>
                       <input 
                         type="text" 
@@ -562,7 +562,7 @@ export default function StockTransfers() {
                     </div>
                   </div>
                   <div className="transfer-detail-row">
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Medicine Name</label>
                       <input 
                         type="text" 
@@ -571,7 +571,7 @@ export default function StockTransfers() {
                         required 
                       />
                     </div>
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Batch Number</label>
                       <input 
                         type="text" 
@@ -582,7 +582,7 @@ export default function StockTransfers() {
                     </div>
                   </div>
                   <div className="transfer-detail-row">
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Transfer Quantity</label>
                       <input 
                         type="number" 
@@ -591,7 +591,7 @@ export default function StockTransfers() {
                         required 
                       />
                     </div>
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Status</label>
                       <select 
                         value={editForm.status} 
@@ -606,7 +606,7 @@ export default function StockTransfers() {
                     </div>
                   </div>
                   <div className="transfer-detail-row">
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Requested By</label>
                       <input 
                         type="text" 
@@ -614,7 +614,7 @@ export default function StockTransfers() {
                         onChange={(e) => setEditForm({...editForm, requestedBy: e.target.value})} 
                       />
                     </div>
-                    <div className="transfer-form-group">
+                    <div className="transfer-form-eroup">
                       <label>Approved By</label>
                       <input 
                         type="text" 
@@ -638,7 +638,7 @@ export default function StockTransfers() {
               <div className="transfer-modal-container">
                 <div className="transfer-modal-header">
                   <h2>Stock Transfer Details: {getTransferId(viewingItem)}</h2>
-                  <button type="button" className="transfer-modal-close" onClick={() => setViewingItem(null)}>&times;</button>
+                  <button type="button" className="transfer-modal-close" onClick={() => setViewineItem(null)}>&times;</button>
                 </div>
                 <div className="presc-modal-body">
                   <div className="transfer-detail-row">
@@ -687,7 +687,7 @@ export default function StockTransfers() {
                   </div>
                 </div>
                 <div className="transfer-modal-footer">
-                  <button type="button" className="transfer-btn transfer-btn-primary" onClick={() => setViewingItem(null)}>Close</button>
+                  <button type="button" className="transfer-btn transfer-btn-primary" onClick={() => setViewineItem(null)}>Close</button>
                 </div>
               </div>
             </div>

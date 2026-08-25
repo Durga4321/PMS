@@ -2,33 +2,33 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
-import { getPharmacistAssignmentStatus, getPharmacyAdminAssignmentStatus, loginPharmacist, loginPharmacyAdmin, loginSuperAdmin } from '../config/api'
+import { getPharmacistAssignmentStatus, getPharmacyAdminAssignmentStatus, loginUnifiedAuth } from '../config/api'
 
 const loginFlows = [
   {
     role: 'super-admin',
-    login: loginSuperAdmin,
     tokenKey: 'superAdminToken',
     userKey: 'superAdminUser',
     dashboardPath: '/super-admin/dashboard',
+    aliases: ['super-admin', 'super admin', 'superadmin', 'pharmacy-super-admin', 'pharmacy super admin'],
   },
   {
     role: 'pharmacy-admin',
-    login: loginPharmacyAdmin,
     tokenKey: 'pharmacyAdminToken',
     userKey: 'pharmacyAdminUser',
     assignmentKey: 'pharmacyAdminAssignment',
     assignment: getPharmacyAdminAssignmentStatus,
     dashboardPath: '/admin/dashboard',
+    aliases: ['pharmacy-admin', 'pharmacy admin', 'admin', 'branch-admin', 'branch admin'],
   },
   {
     role: 'pharmacist',
-    login: loginPharmacist,
     tokenKey: 'pharmacistToken',
     userKey: 'pharmacistUser',
     assignmentKey: 'pharmacistAssignment',
     assignment: getPharmacistAssignmentStatus,
     dashboardPath: '/pharmacist/dashboard',
+    aliases: ['pharmacist', 'pharmacy', 'staff'],
   },
 ]
 
@@ -65,6 +65,20 @@ function clearAuthSession() {
   })
 }
 
+function unwrapLogin(data) {
+  return data?.data?.user ? data.data : data?.data || data || {}
+}
+
+function normalizeRole(value) {
+  return String(value || '').trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+}
+
+function roleFrom(loginData, user) {
+  const rawRole = user?.role || user?.roleName || user?.userType || user?.type || loginData?.role || loginData?.roleName || loginData?.userType
+  const normalized = normalizeRole(rawRole)
+  return loginFlows.find((flow) => flow.aliases.some((alias) => normalizeRole(alias) === normalized)) || loginFlows[1]
+}
+
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -83,29 +97,16 @@ function Login() {
     try {
       clearAuthSession()
       const storage = remember ? localStorage : sessionStorage
-      let authenticated = null
-      let lastError = null
+      const response = await loginUnifiedAuth({ email, password })
+      const loginData = unwrapLogin(response)
+      const user = loginData?.user || response?.user || { email }
+      const flow = roleFrom(loginData, user)
+      const token = loginData?.token || loginData?.accessToken || loginData?.jwt || response?.token || response?.accessToken
 
-      for (const flow of loginFlows) {
-        try {
-          const data = await flow.login({ email, password })
-          authenticated = { flow, data }
-          break
-        } catch (flowError) {
-          lastError = flowError
-        }
-      }
+      if (!token) throw new Error('Login succeeded but token was not returned.')
 
-      if (!authenticated) {
-        throw new Error(lastError?.message || 'Invalid email or password.')
-      }
-
-      const { flow, data } = authenticated
-      const token = data?.token || data?.accessToken || data?.data?.token || data?.data?.accessToken
-      const user = data?.user || data?.data?.user || { email, role: flow.role }
-
-      if (token) storage.setItem(flow.tokenKey, token)
-      storage.setItem(flow.userKey, JSON.stringify(user))
+      storage.setItem(flow.tokenKey, token)
+      storage.setItem(flow.userKey, JSON.stringify({ ...user, role: user?.role || flow.role }))
 
       if (flow.assignment) {
         try {
@@ -116,7 +117,7 @@ function Login() {
         }
       }
 
-      showToast('Welcome back to your dashboard.', 'success', data?.message || 'Login successful')
+      showToast('Welcome back to your dashboard.', 'success', response?.message || loginData?.message || 'Login successful')
       navigate(flow.dashboardPath)
     } catch (loginError) {
       setError(loginError.message)
@@ -131,60 +132,25 @@ function Login() {
       <form className="auth-form" onSubmit={handleSubmit} autoComplete="off">
         <label>
           Email Address
-          <input
-            type="email"
-            name="login-email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Enter email"
-            autoComplete="off"
-            required
-          />
+          <input type="email" name="login-email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Enter email" autoComplete="off" required />
         </label>
         <label>
           Password
           <span className="auth-password-field">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              name="login-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter password"
-              autoComplete="new-password"
-              required
-            />
-            <button
-              type="button"
-              className="auth-password-toggle"
-              onClick={() => setShowPassword((visible) => !visible)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              title={showPassword ? 'Hide password' : 'Show password'}
-            >
+            <input type={showPassword ? 'text' : 'password'} name="login-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter password" autoComplete="new-password" required />
+            <button type="button" className="auth-password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>
               <PasswordIcon visible={showPassword} />
             </button>
           </span>
         </label>
         {error ? <div className="form-error" role="alert">{error}</div> : null}
         <div className="auth-row">
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(event) => setRemember(event.target.checked)}
-            />
-            Remember Me
-          </label>
-          <Link to="/forgot-password" className="link-small">
-            Forgot Password?
-          </Link>
+          <label className="checkbox-row"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />Remember Me</label>
+          <Link to="/forgot-password" className="link-small">Forgot Password?</Link>
         </div>
-        <button type="submit" className="button-primary" disabled={isSubmitting}>
-          {isSubmitting ? 'Signing in...' : 'Login ->'}
-        </button>
+        <button type="submit" className="button-primary" disabled={isSubmitting}>{isSubmitting ? 'Signing in...' : 'Login ->'}</button>
       </form>
-      <div className="auth-meta">
-        Your data is secure with us | Terms & Conditions | Privacy Policy | Version 1.0.0
-      </div>
+      <div className="auth-meta">Your data is secure with us | Terms & Conditions | Privacy Policy | Version 1.0.0</div>
     </AuthLayout>
   )
 }
