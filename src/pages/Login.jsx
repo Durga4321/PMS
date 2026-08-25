@@ -70,13 +70,58 @@ function unwrapLogin(data) {
 }
 
 function normalizeRole(value) {
-  return String(value || '').trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+  return String(value || '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
 }
 
-function roleFrom(loginData, user) {
-  const rawRole = user?.role || user?.roleName || user?.userType || user?.type || loginData?.role || loginData?.roleName || loginData?.userType
-  const normalized = normalizeRole(rawRole)
-  return loginFlows.find((flow) => flow.aliases.some((alias) => normalizeRole(alias) === normalized)) || loginFlows[1]
+function roleValuesFrom(source) {
+  if (!source || typeof source !== 'object') return []
+
+  const directValues = [
+    source.role,
+    source.roleName,
+    source.userRole,
+    source.userType,
+    source.type,
+    source.accountType,
+    source.designation,
+  ]
+  const nestedValues = [source.role, source.roles, source.userRole]
+    .flatMap((value) => Array.isArray(value) ? value : [value])
+    .filter((value) => value && typeof value === 'object')
+    .flatMap((value) => [value.name, value.role, value.roleName, value.slug, value.type])
+
+  return [...directValues, ...nestedValues].filter(Boolean)
+}
+
+function matchesFlow(flow, candidates) {
+  return candidates.some((candidate) => {
+    const normalized = normalizeRole(candidate)
+    return flow.aliases.some((alias) => {
+      const normalizedAlias = normalizeRole(alias)
+      return normalized === normalizedAlias || normalized.includes(normalizedAlias)
+    })
+  })
+}
+
+function roleFrom(loginData, user, response) {
+  const candidates = [
+    ...roleValuesFrom(user),
+    ...roleValuesFrom(loginData),
+    ...roleValuesFrom(response),
+    loginData?.superAdminToken || response?.superAdminToken ? 'super-admin' : '',
+    loginData?.pharmacyAdminToken || response?.pharmacyAdminToken ? 'pharmacy-admin' : '',
+    loginData?.pharmacistToken || response?.pharmacistToken ? 'pharmacist' : '',
+    user?.isSuperAdmin || loginData?.isSuperAdmin ? 'super-admin' : '',
+    user?.isPharmacyAdmin || loginData?.isPharmacyAdmin ? 'pharmacy-admin' : '',
+    user?.isPharmacist || loginData?.isPharmacist ? 'pharmacist' : '',
+  ].filter(Boolean)
+
+  return loginFlows.find((flow) => matchesFlow(flow, candidates)) || loginFlows[1]
 }
 
 function Login() {
@@ -100,8 +145,8 @@ function Login() {
       const response = await loginUnifiedAuth({ email, password })
       const loginData = unwrapLogin(response)
       const user = loginData?.user || response?.user || { email }
-      const flow = roleFrom(loginData, user)
-      const token = loginData?.token || loginData?.accessToken || loginData?.jwt || response?.token || response?.accessToken
+      const flow = roleFrom(loginData, user, response)
+      const token = loginData?.[flow.tokenKey] || response?.[flow.tokenKey] || loginData?.token || loginData?.accessToken || loginData?.jwt || response?.token || response?.accessToken
 
       if (!token) throw new Error('Login succeeded but token was not returned.')
 
@@ -118,7 +163,7 @@ function Login() {
       }
 
       showToast('Welcome back to your dashboard.', 'success', response?.message || loginData?.message || 'Login successful')
-      navigate(flow.dashboardPath)
+      navigate(flow.dashboardPath, { replace: true })
     } catch (loginError) {
       setError(loginError.message)
       showToast(loginError.message, 'error')
