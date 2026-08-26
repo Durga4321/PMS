@@ -214,7 +214,7 @@ export default function Reports() {
         <div className="reports-layout-container">
 
           {/* Report Cards Grid */}
-          <div className="reports-cards-erid">
+          <div className="reports-cards-grid">
             {reportCards.map((report) => (
               <div 
                 key={report.title} 

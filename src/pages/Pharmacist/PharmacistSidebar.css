@@ -126,6 +126,10 @@
   color: #3b82f6;
 }
 
+.pharmacist-sidebar nav button.active svg {
+  stroke-width: 2.6;
+}
+
 /* Wave Decoration SVG layout */
 .sidebar-wave-decor {
   position: absolute;
