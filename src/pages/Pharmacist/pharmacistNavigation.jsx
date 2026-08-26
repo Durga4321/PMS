@@ -4,9 +4,9 @@ const item = (label, path, iconName, color) => ({ label, path, icon: <SidebarIco
 
 export const pharmacistNavigation = [
   item('Dashboard', '/pharmacist/dashboard', 'dashboard', 'blue'),
-  item('Pending', '/pharmacist/pending', 'reports', 'green'),
-  item('Dispensing', '/pharmacist/dispensing', 'clinics', 'violet'),
-  item('Bills', '/pharmacist/bills', 'audit', 'sky'),
-  item('Returns', '/pharmacist/returns', 'notifications', 'orange'),
-  item('Reports', '/pharmacist/reports', 'reports', 'teal'),
+  item('Pending', '/pharmacist/pending', 'clock', 'green'),
+  item('Dispensing', '/pharmacist/dispensing', 'clipboardCheck', 'violet'),
+  item('Bills', '/pharmacist/bills', 'receipt', 'sky'),
+  item('Returns', '/pharmacist/returns', 'rotateCcw', 'orange'),
+  item('Reports', '/pharmacist/reports', 'barChart3', 'teal'),
 ]

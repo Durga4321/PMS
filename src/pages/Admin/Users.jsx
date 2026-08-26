@@ -75,9 +75,59 @@ function Users() {
     loadPharmacists()
   }, [])
 
+  const [formErrors, setFormErrors] = useState({})
+
+  function validateForm() {
+    const errs = {}
+    const nameVal = (form.name || '').trim()
+    if (!nameVal) {
+      errs.name = 'Pharmacist Name is required.'
+    } else if (nameVal.length < 2) {
+      errs.name = 'Pharmacist Name must be at least 2 characters.'
+    }
+
+    const emailVal = (form.email || '').trim()
+    if (!emailVal) {
+      errs.email = 'Email Address is required.'
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(emailVal)) {
+        errs.email = 'Please enter a valid email address.'
+      }
+    }
+
+    const phoneVal = (form.phone || '').trim()
+    if (phoneVal) {
+      const cleanPhone = phoneVal.replace(/[+\-\s()]/g, '')
+      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
+        errs.phone = 'Please enter a valid phone number (at least 8 digits).'
+      }
+    }
+
+    if (!editing) {
+      const passVal = form.password
+      if (!passVal) {
+        errs.password = 'Password is required for new accounts.'
+      } else if (passVal.length < 6) {
+        errs.password = 'Password must be at least 6 characters.'
+      }
+    } else if (form.password && form.password.length < 6) {
+      errs.password = 'Password must be at least 6 characters.'
+    }
+
+    setFormErrors(errs)
+    const firstKey = Object.keys(errs)[0]
+    if (firstKey) {
+      const el = document.getElementById(`user-${firstKey}`)
+      if (el) el.focus()
+    }
+    return Object.keys(errs).length === 0
+  }
+
   function openCreate() {
     setEditing(null)
     setForm(emptyForm)
+    setFormErrors({})
     setFormOpen(true)
   }
 
@@ -89,11 +139,13 @@ function Users() {
       phone: pharmacist?.phone || pharmacist?.mobile || '',
       password: '',
     })
+    setFormErrors({})
     setFormOpen(true)
   }
 
   async function handleSave(event) {
     event.preventDefault()
+    if (!validateForm()) return
     setSaving(true)
     const payload = {
       name: form.name,
@@ -108,6 +160,7 @@ function Users() {
       setFormOpen(false)
       setEditing(null)
       setForm(emptyForm)
+      setFormErrors({})
       await loadPharmacists()
     } catch (error) {
       showToast(error.message, 'error')
@@ -248,13 +301,74 @@ function Users() {
 
       {formOpen ? (
         <div className="admin-modal">
-          <form onSubmit={handleSave}>
+          <form onSubmit={handleSave} noValidate>
             <button type="button" onClick={() => setFormOpen(false)}>x</button>
             <h2>{editing ? 'Edit Pharmacist' : 'Create Pharmacist'}</h2>
-            <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
-            <label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
-            <label>Phone<input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
-            <label>Password<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required={!editing} /></label>
+            <label>
+              Name *
+              <input 
+                id="user-name"
+                value={form.name} 
+                onChange={(event) => {
+                  setForm({ ...form, name: event.target.value })
+                  if (formErrors.name) setFormErrors({ ...formErrors, name: '' })
+                }} 
+                style={formErrors.name ? { borderColor: '#ef4444' } : {}}
+                required 
+              />
+              {formErrors.name && (
+                <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', fontWeight: 'normal', display: 'block', marginTop: '2px' }}>{formErrors.name}</span>
+              )}
+            </label>
+            <label>
+              Email *
+              <input 
+                type="email" 
+                id="user-email"
+                value={form.email} 
+                onChange={(event) => {
+                  setForm({ ...form, email: event.target.value })
+                  if (formErrors.email) setFormErrors({ ...formErrors, email: '' })
+                }} 
+                style={formErrors.email ? { borderColor: '#ef4444' } : {}}
+                required 
+              />
+              {formErrors.email && (
+                <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', fontWeight: 'normal', display: 'block', marginTop: '2px' }}>{formErrors.email}</span>
+              )}
+            </label>
+            <label>
+              Phone
+              <input 
+                id="user-phone"
+                value={form.phone} 
+                onChange={(event) => {
+                  setForm({ ...form, phone: event.target.value })
+                  if (formErrors.phone) setFormErrors({ ...formErrors, phone: '' })
+                }} 
+                style={formErrors.phone ? { borderColor: '#ef4444' } : {}}
+              />
+              {formErrors.phone && (
+                <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', fontWeight: 'normal', display: 'block', marginTop: '2px' }}>{formErrors.phone}</span>
+              )}
+            </label>
+            <label>
+              Password {editing ? '' : '*'}
+              <input 
+                type="password" 
+                id="user-password"
+                value={form.password} 
+                onChange={(event) => {
+                  setForm({ ...form, password: event.target.value })
+                  if (formErrors.password) setFormErrors({ ...formErrors, password: '' })
+                }} 
+                style={formErrors.password ? { borderColor: '#ef4444' } : {}}
+                required={!editing} 
+              />
+              {formErrors.password && (
+                <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', fontWeight: 'normal', display: 'block', marginTop: '2px' }}>{formErrors.password}</span>
+              )}
+            </label>
             <button className="admin-modal-save" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
           </form>
         </div>

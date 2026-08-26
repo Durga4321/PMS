@@ -338,20 +338,67 @@ export default function Stock() {
   // Badge Status Class
   const getStatusBadge = (item) => {
     const status = String(item?.status || 'In Stock').toLowerCase()
-    if (status.includes('out') || status.includes('expired')) return <span className="branch-status expired">{item?.status || 'Out of Stock'}</span>
-    if (status.includes('low') || status.includes('near')) return <span className="branch-status near-expiry">{item?.status || 'Low Stock'}</span>
-    return <span className="branch-status active">In Stock</span>
+    if (status.includes('out') || status.includes('expired')) {
+      return (
+        <span className="branch-status expired" style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+          {item?.status || 'Out of Stock'}
+        </span>
+      )
+    }
+    if (status.includes('low') || status.includes('near')) {
+      return (
+        <span className="branch-status near-expiry" style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          {item?.status || 'Low Stock'}
+        </span>
+      )
+    }
+    return (
+      <span className="branch-status active" style={{ display: 'inline-flex', alignItems: 'center' }}>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+        In Stock
+      </span>
+    )
   }
 
   // Tab mapping configs
   const tabs = [
-    { key: 'inventory', label: 'Inventory' },
-    { key: 'low', label: 'Low Stock' },
-    { key: 'near', label: 'Near Expiry' },
-    { key: 'out', label: 'Out of Stock' },
-    { key: 'summary', label: 'Stock Summary' },
-    { key: 'transactions', label: 'Transactions' },
-    { key: 'valuation', label: 'Valuation' }
+    { 
+      key: 'inventory', 
+      label: 'Inventory',
+      icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
+    },
+    { 
+      key: 'low', 
+      label: 'Low Stock',
+      icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    },
+    { 
+      key: 'near', 
+      label: 'Near Expiry',
+      icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    },
+    { 
+      key: 'out', 
+      label: 'Out of Stock',
+      icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><line x1="12" y1="22" x2="12" y2="12"/><line x1="10" y1="8" x2="14" y2="12"/><line x1="14" y1="8" x2="10" y2="12"/></svg>
+    },
+    { 
+      key: 'summary', 
+      label: 'Stock Summary',
+      icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    },
+    { 
+      key: 'transactions', 
+      label: 'Transactions',
+      icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></svg>
+    },
+    { 
+      key: 'valuation', 
+      label: 'Valuation',
+      icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12M6 8h12M6 13h8.5a4.5 4.5 0 0 1 0 9H6M14.5 13l-9 9"/></svg>
+    }
   ]
 
   return (
@@ -375,7 +422,12 @@ export default function Stock() {
                 className="stock-btn stock-btn-secondary"
                 onClick={() => setAdjustOpen(true)}
               >
-                Adjust Stock
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Import
               </button>
             </div>
             <button 
@@ -391,24 +443,49 @@ export default function Stock() {
           {/* Summary Cards */}
           <div className="stock-summary-grid">
             <div className="stock-summary-card">
-              <label>Total Medicines</label>
-              <span>{metrics.totalMedicines}</span>
+              <div className="stock-summary-icon-container" style={{ background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10.5 11.5 5 5m-2.5-9L8 12.5a4.24 4.24 0 0 0 6 6l5-5a4.24 4.24 0 0 0-6-6Z"/></svg>
+              </div>
+              <div className="stock-summary-info">
+                <label>Total Medicines</label>
+                <span>{metrics.totalMedicines}</span>
+              </div>
             </div>
-            <div className="stock-summary-card" style={{ borderLeft: '3px solid #3b82f6' }}>
-              <label style={{ color: '#3b82f6' }}>Total Stock</label>
-              <span style={{ color: '#3b82f6' }}>{metrics.totalStock}</span>
+            <div className="stock-summary-card">
+              <div className="stock-summary-icon-container" style={{ background: 'rgba(14, 165, 233, 0.1)', color: '#0ea5e9' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
+              </div>
+              <div className="stock-summary-info">
+                <label style={{ color: '#0ea5e9' }}>Total Stock</label>
+                <span style={{ color: '#0ea5e9' }}>{metrics.totalStock}</span>
+              </div>
             </div>
-            <div className="stock-summary-card" style={{ borderLeft: '3px solid #f59e0b' }}>
-              <label style={{ color: '#f59e0b' }}>Low Stock</label>
-              <span style={{ color: '#f59e0b' }}>{metrics.lowStock}</span>
+            <div className="stock-summary-card">
+              <div className="stock-summary-icon-container" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div className="stock-summary-info">
+                <label style={{ color: '#f59e0b' }}>Low Stock</label>
+                <span style={{ color: '#f59e0b' }}>{metrics.lowStock}</span>
+              </div>
             </div>
-            <div className="stock-summary-card" style={{ borderLeft: '3px solid #f97316' }}>
-              <label style={{ color: '#f97316' }}>Near Expiry</label>
-              <span style={{ color: '#f97316' }}>{metrics.nearExpiry}</span>
+            <div className="stock-summary-card">
+              <div className="stock-summary-icon-container" style={{ background: 'rgba(249, 115, 22, 0.1)', color: '#f97316' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div className="stock-summary-info">
+                <label style={{ color: '#f97316' }}>Near Expiry</label>
+                <span style={{ color: '#f97316' }}>{metrics.nearExpiry}</span>
+              </div>
             </div>
-            <div className="stock-summary-card" style={{ borderLeft: '3px solid #ef4444' }}>
-              <label style={{ color: '#ef4444' }}>Expired</label>
-              <span style={{ color: '#ef4444' }}>{metrics.expired}</span>
+            <div className="stock-summary-card">
+              <div className="stock-summary-icon-container" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m14 14-4 4m0-4 4 4"/></svg>
+              </div>
+              <div className="stock-summary-info">
+                <label style={{ color: '#ef4444' }}>Expired</label>
+                <span style={{ color: '#ef4444' }}>{metrics.expired}</span>
+              </div>
             </div>
           </div>
 
@@ -420,8 +497,10 @@ export default function Stock() {
                 className={view === tab.key ? 'active' : ''} 
                 type="button" 
                 onClick={() => load(tab.key)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
               >
-                {tab.label}
+                {tab.icon}
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
@@ -465,6 +544,7 @@ export default function Stock() {
                     setExpiryFilter('all')
                   }}
                 >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px' }}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   Clear Filters
                 </button>
               </div>

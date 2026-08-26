@@ -78,6 +78,106 @@ export default function Suppliers() {
     notes: ''
   })
 
+  // Validation Error States
+  const [createErrors, setCreateErrors] = useState({})
+  const [editErrors, setEditErrors] = useState({})
+
+  function validateCreateForm() {
+    const errs = {}
+    const nameVal = (createForm.name || '').trim()
+    if (!nameVal) {
+      errs.name = 'Supplier Name is required.'
+    } else if (nameVal.length < 2) {
+      errs.name = 'Supplier Name must be at least 2 characters.'
+    }
+
+    const contactVal = (createForm.contactPerson || '').trim()
+    if (!contactVal) {
+      errs.contactPerson = 'Contact Person name is required.'
+    } else if (contactVal.length < 2) {
+      errs.contactPerson = 'Contact Person name must be at least 2 characters.'
+    }
+
+    const phoneVal = (createForm.phone || '').trim()
+    if (!phoneVal) {
+      errs.phone = 'Phone Number is required.'
+    } else {
+      const cleanPhone = phoneVal.replace(/[+\-\s()]/g, '')
+      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
+        errs.phone = 'Please enter a valid phone number (at least 8 digits).'
+      }
+    }
+
+    const emailVal = (createForm.email || '').trim()
+    if (emailVal) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(emailVal)) {
+        errs.email = 'Please enter a valid email address.'
+      }
+    }
+
+    const statusVal = (createForm.status || '').trim()
+    if (!statusVal) {
+      errs.status = 'Please select a status.'
+    }
+
+    setCreateErrors(errs)
+    const firstKey = Object.keys(errs)[0]
+    if (firstKey) {
+      const el = document.getElementById(`create-${firstKey}`)
+      if (el) el.focus()
+    }
+    return Object.keys(errs).length === 0
+  }
+
+  function validateEditForm() {
+    const errs = {}
+    const nameVal = (editForm.name || '').trim()
+    if (!nameVal) {
+      errs.name = 'Supplier Name is required.'
+    } else if (nameVal.length < 2) {
+      errs.name = 'Supplier Name must be at least 2 characters.'
+    }
+
+    const contactVal = (editForm.contactPerson || '').trim()
+    if (!contactVal) {
+      errs.contactPerson = 'Contact Person name is required.'
+    } else if (contactVal.length < 2) {
+      errs.contactPerson = 'Contact Person name must be at least 2 characters.'
+    }
+
+    const phoneVal = (editForm.phone || '').trim()
+    if (!phoneVal) {
+      errs.phone = 'Phone Number is required.'
+    } else {
+      const cleanPhone = phoneVal.replace(/[+\-\s()]/g, '')
+      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
+        errs.phone = 'Please enter a valid phone number (at least 8 digits).'
+      }
+    }
+
+    const emailVal = (editForm.email || '').trim()
+    if (emailVal) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(emailVal)) {
+        errs.email = 'Please enter a valid email address.'
+      }
+    }
+
+    const statusVal = (editForm.status || '').trim()
+    if (!statusVal) {
+      errs.status = 'Please select a status.'
+    }
+
+    setEditErrors(errs)
+    const firstKey = Object.keys(errs)[0]
+    if (firstKey) {
+      const el = document.getElementById(`edit-${firstKey}`)
+      if (el) el.focus()
+    }
+    return Object.keys(errs).length === 0
+  }
+
   async function loadSummaryMetrics() {
     try {
       const response = await getPharmacyAdminDashboard()
@@ -138,6 +238,7 @@ export default function Suppliers() {
   // Create Submit Action
   async function handleCreateSubmit(e) {
     e.preventDefault()
+    if (!validateCreateForm()) return
     setLoading(true)
     try {
       const body = {
@@ -167,6 +268,7 @@ export default function Suppliers() {
         status: 'Active',
         notes: ''
       })
+      setCreateErrors({})
       await refresh()
       loadSummaryMetrics()
     } catch (err) {
@@ -179,6 +281,7 @@ export default function Suppliers() {
   // Update Submit Action
   async function handleUpdateSubmit(e) {
     e.preventDefault()
+    if (!validateEditForm()) return
     setLoading(true)
     try {
       const body = {
@@ -196,6 +299,7 @@ export default function Suppliers() {
       await updateSupplier(editForm.id, body)
       showToast('Supplier updated successfully!')
       setEditItem(null)
+      setEditErrors({})
       await refresh()
       loadSummaryMetrics()
     } catch (err) {
@@ -330,7 +434,7 @@ export default function Suppliers() {
           </div>
 
           {/* Summary Cards */}
-          <div className="sup-summary-erid">
+          <div className="sup-summary-grid">
             <div className="sup-summary-card">
               <label>Total Suppliers</label>
               <span>{summary.total}</span>
@@ -420,7 +524,7 @@ export default function Suppliers() {
                         <td>{getLastPurchase(item)}</td>
                         <td>{getStatusBadge(item)}</td>
                         <td>
-                          <div className="admin-action-eroup">
+                          <div className="admin-action-group">
                             <button 
                               type="button" 
                               className="admin-action-button view" 
@@ -490,107 +594,149 @@ export default function Suppliers() {
           {/* Modal 1: Create Supplier */}
           {createOpen && (
             <div className="sup-modal-overlay">
-              <form onSubmit={handleCreateSubmit} className="sup-modal-container">
+              <form onSubmit={handleCreateSubmit} className="sup-modal-container" noValidate>
                 <div className="sup-modal-header">
                   <h2>Create New Supplier</h2>
                   <button type="button" className="sup-modal-close" onClick={() => setCreateOpen(false)}>&times;</button>
                 </div>
                 <div className="sup-modal-body">
-                  <div className="sup-detail-row">
-                    <div className="sup-form-eroup">
+                  <div className="sup-form-grid">
+                    <div className="sup-form-group">
                       <label>Supplier Name *</label>
                       <input 
                         type="text" 
+                        id="create-name"
                         value={createForm.name} 
-                        onChange={(e) => setCreateForm({...createForm, name: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, name: e.target.value})
+                          if (createErrors.name) setCreateErrors({...createErrors, name: ''})
+                        }} 
+                        style={createErrors.name ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.name && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.name}</span>
+                      )}
                     </div>
-                    <div className="sup-form-eroup">
-                      <label>Contact Person</label>
+                    <div className="sup-form-group">
+                      <label>Contact Person *</label>
                       <input 
                         type="text" 
+                        id="create-contactPerson"
                         value={createForm.contactPerson} 
-                        onChange={(e) => setCreateForm({...createForm, contactPerson: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, contactPerson: e.target.value})
+                          if (createErrors.contactPerson) setCreateErrors({...createErrors, contactPerson: ''})
+                        }} 
+                        style={createErrors.contactPerson ? { borderColor: '#ef4444' } : {}}
+                        required
                       />
+                      {createErrors.contactPerson && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.contactPerson}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="sup-detail-row">
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>Phone Number *</label>
                       <input 
                         type="text" 
+                        id="create-phone"
                         value={createForm.phone} 
-                        onChange={(e) => setCreateForm({...createForm, phone: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, phone: e.target.value})
+                          if (createErrors.phone) setCreateErrors({...createErrors, phone: ''})
+                        }} 
+                        style={createErrors.phone ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.phone && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.phone}</span>
+                      )}
                     </div>
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>Email Address</label>
                       <input 
                         type="email" 
+                        id="create-email"
                         value={createForm.email} 
-                        onChange={(e) => setCreateForm({...createForm, email: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, email: e.target.value})
+                          if (createErrors.email) setCreateErrors({...createErrors, email: ''})
+                        }} 
+                        style={createErrors.email ? { borderColor: '#ef4444' } : {}}
                       />
+                      {createErrors.email && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.email}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="sup-detail-row">
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>GST / Tax ID</label>
                       <input 
                         type="text" 
+                        id="create-estNumber"
                         value={createForm.estNumber} 
                         onChange={(e) => setCreateForm({...createForm, estNumber: e.target.value})} 
                       />
                     </div>
-                    <div className="sup-form-eroup">
-                      <label>Status</label>
+                    <div className="sup-form-group">
+                      <label>Status *</label>
                       <select 
+                        id="create-status"
                         value={createForm.status} 
-                        onChange={(e) => setCreateForm({...createForm, status: e.target.value})}
+                        onChange={(e) => {
+                          setCreateForm({...createForm, status: e.target.value})
+                          if (createErrors.status) setCreateErrors({...createErrors, status: ''})
+                        }}
+                        style={createErrors.status ? { borderColor: '#ef4444' } : {}}
                       >
                         <option value="Active">Active</option>
                         <option value="Pending">Pending</option>
                         <option value="Inactive">Inactive</option>
                       </select>
+                      {createErrors.status && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.status}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="sup-detail-row">
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>City</label>
                       <input 
                         type="text" 
+                        id="create-city"
                         value={createForm.city} 
                         onChange={(e) => setCreateForm({...createForm, city: e.target.value})} 
                       />
                     </div>
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>State</label>
                       <input 
                         type="text" 
+                        id="create-state"
                         value={createForm.state} 
                         onChange={(e) => setCreateForm({...createForm, state: e.target.value})} 
                       />
                     </div>
-                  </div>
-                  <div className="sup-form-eroup">
-                    <label>Address</label>
-                    <textarea 
-                      value={createForm.address} 
-                      onChange={(e) => setCreateForm({...createForm, address: e.target.value})} 
-                    />
-                  </div>
-                  <div className="sup-form-eroup">
-                    <label>Notes</label>
-                    <textarea 
-                      value={createForm.notes} 
-                      onChange={(e) => setCreateForm({...createForm, notes: e.target.value})} 
-                    />
+                    <div className="sup-form-group full-width">
+                      <label>Address</label>
+                      <textarea 
+                        id="create-address"
+                        value={createForm.address} 
+                        onChange={(e) => setCreateForm({...createForm, address: e.target.value})} 
+                      />
+                    </div>
+                    <div className="sup-form-group full-width">
+                      <label>Notes</label>
+                      <textarea 
+                        id="create-notes"
+                        value={createForm.notes} 
+                        onChange={(e) => setCreateForm({...createForm, notes: e.target.value})} 
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="sup-modal-footer">
-                  <button type="button" className="sup-btn sup-btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
-                  <button type="submit" className="sup-btn sup-btn-primary">Save Supplier</button>
+                  <button type="button" className="sup-btn sup-btn-secondary" onClick={() => setCreateOpen(false)} disabled={loading}>Cancel</button>
+                  <button type="submit" className="sup-btn sup-btn-primary" disabled={loading}>
+                    {loading ? 'Saving...' : 'Save Supplier'}
+                  </button>
                 </div>
               </form>
             </div>
@@ -599,107 +745,149 @@ export default function Suppliers() {
           {/* Modal 2: Edit Supplier */}
           {editItem && (
             <div className="sup-modal-overlay">
-              <form onSubmit={handleUpdateSubmit} className="sup-modal-container">
+              <form onSubmit={handleUpdateSubmit} className="sup-modal-container" noValidate>
                 <div className="sup-modal-header">
                   <h2>Update Supplier: {getSupplierName(editItem)}</h2>
                   <button type="button" className="sup-modal-close" onClick={() => setEditItem(null)}>&times;</button>
                 </div>
                 <div className="sup-modal-body">
-                  <div className="sup-detail-row">
-                    <div className="sup-form-eroup">
+                  <div className="sup-form-grid">
+                    <div className="sup-form-group">
                       <label>Supplier Name *</label>
                       <input 
                         type="text" 
+                        id="edit-name"
                         value={editForm.name} 
-                        onChange={(e) => setEditForm({...editForm, name: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, name: e.target.value})
+                          if (editErrors.name) setEditErrors({...editErrors, name: ''})
+                        }} 
+                        style={editErrors.name ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.name && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.name}</span>
+                      )}
                     </div>
-                    <div className="sup-form-eroup">
-                      <label>Contact Person</label>
+                    <div className="sup-form-group">
+                      <label>Contact Person *</label>
                       <input 
                         type="text" 
+                        id="edit-contactPerson"
                         value={editForm.contactPerson} 
-                        onChange={(e) => setEditForm({...editForm, contactPerson: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, contactPerson: e.target.value})
+                          if (editErrors.contactPerson) setEditErrors({...editErrors, contactPerson: ''})
+                        }} 
+                        style={editErrors.contactPerson ? { borderColor: '#ef4444' } : {}}
+                        required
                       />
+                      {editErrors.contactPerson && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.contactPerson}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="sup-detail-row">
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>Phone Number *</label>
                       <input 
                         type="text" 
+                        id="edit-phone"
                         value={editForm.phone} 
-                        onChange={(e) => setEditForm({...editForm, phone: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, phone: e.target.value})
+                          if (editErrors.phone) setEditErrors({...editErrors, phone: ''})
+                        }} 
+                        style={editErrors.phone ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.phone && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.phone}</span>
+                      )}
                     </div>
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>Email Address</label>
                       <input 
                         type="email" 
+                        id="edit-email"
                         value={editForm.email} 
-                        onChange={(e) => setEditForm({...editForm, email: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, email: e.target.value})
+                          if (editErrors.email) setEditErrors({...editErrors, email: ''})
+                        }} 
+                        style={editErrors.email ? { borderColor: '#ef4444' } : {}}
                       />
+                      {editErrors.email && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.email}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="sup-detail-row">
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>GST / Tax ID</label>
                       <input 
                         type="text" 
+                        id="edit-estNumber"
                         value={editForm.estNumber} 
                         onChange={(e) => setEditForm({...editForm, estNumber: e.target.value})} 
                       />
                     </div>
-                    <div className="sup-form-eroup">
-                      <label>Status</label>
+                    <div className="sup-form-group">
+                      <label>Status *</label>
                       <select 
+                        id="edit-status"
                         value={editForm.status} 
-                        onChange={(e) => setEditForm({...editForm, status: e.target.value})}
+                        onChange={(e) => {
+                          setEditForm({...editForm, status: e.target.value})
+                          if (editErrors.status) setEditErrors({...editErrors, status: ''})
+                        }}
+                        style={editErrors.status ? { borderColor: '#ef4444' } : {}}
                       >
                         <option value="Active">Active</option>
                         <option value="Pending">Pending</option>
                         <option value="Inactive">Inactive</option>
                       </select>
+                      {editErrors.status && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.status}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="sup-detail-row">
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>City</label>
                       <input 
                         type="text" 
+                        id="edit-city"
                         value={editForm.city} 
                         onChange={(e) => setEditForm({...editForm, city: e.target.value})} 
                       />
                     </div>
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>State</label>
                       <input 
                         type="text" 
+                        id="edit-state"
                         value={editForm.state} 
                         onChange={(e) => setEditForm({...editForm, state: e.target.value})} 
                       />
                     </div>
-                  </div>
-                  <div className="sup-form-eroup">
-                    <label>Address</label>
-                    <textarea 
-                      value={editForm.address} 
-                      onChange={(e) => setEditForm({...editForm, address: e.target.value})} 
-                    />
-                  </div>
-                  <div className="sup-form-eroup">
-                    <label>Notes</label>
-                    <textarea 
-                      value={editForm.notes} 
-                      onChange={(e) => setEditForm({...editForm, notes: e.target.value})} 
-                    />
+                    <div className="sup-form-group full-width">
+                      <label>Address</label>
+                      <textarea 
+                        id="edit-address"
+                        value={editForm.address} 
+                        onChange={(e) => setEditForm({...editForm, address: e.target.value})} 
+                      />
+                    </div>
+                    <div className="sup-form-group full-width">
+                      <label>Notes</label>
+                      <textarea 
+                        id="edit-notes"
+                        value={editForm.notes} 
+                        onChange={(e) => setEditForm({...editForm, notes: e.target.value})} 
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="sup-modal-footer">
-                  <button type="button" className="sup-btn sup-btn-secondary" onClick={() => setEditItem(null)}>Cancel</button>
-                  <button type="submit" className="sup-btn sup-btn-primary">Update Supplier</button>
+                  <button type="button" className="sup-btn sup-btn-secondary" onClick={() => setEditItem(null)} disabled={loading}>Cancel</button>
+                  <button type="submit" className="sup-btn sup-btn-primary" disabled={loading}>
+                    {loading ? 'Updating...' : 'Update Supplier'}
+                  </button>
                 </div>
               </form>
             </div>
@@ -754,12 +942,12 @@ export default function Suppliers() {
                       <span>{getLastPurchase(viewingItem)}</span>
                     </div>
                   </div>
-                  <div className="sup-form-eroup">
+                  <div className="sup-form-group">
                     <label>Full Address</label>
                     <span style={{ fontSize: '13px', color: '#475569' }}>{viewingItem?.address || '-'}</span>
                   </div>
                   {viewingItem?.notes && (
-                    <div className="sup-form-eroup">
+                    <div className="sup-form-group">
                       <label>Notes</label>
                       <span style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>&ldquo;{viewingItem.notes}&rdquo;</span>
                     </div>

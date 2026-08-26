@@ -69,6 +69,131 @@ export default function StockTransfers() {
     status: 'Pending'
   })
 
+  // Validation Error States
+  const [createErrors, setCreateErrors] = useState({})
+  const [editErrors, setEditErrors] = useState({})
+
+  function validateCreateForm() {
+    const errs = {}
+    const fromLoc = (createForm.fromLocation || '').trim()
+    if (!fromLoc) {
+      errs.fromLocation = 'From Location / Pharmacy is required.'
+    } else if (fromLoc.length < 2) {
+      errs.fromLocation = 'From Location must be at least 2 characters.'
+    }
+
+    const toLoc = (createForm.toLocation || '').trim()
+    if (!toLoc) {
+      errs.toLocation = 'To Location / Pharmacy is required.'
+    } else if (toLoc.length < 2) {
+      errs.toLocation = 'To Location must be at least 2 characters.'
+    } else if (fromLoc && toLoc && fromLoc.toLowerCase() === toLoc.toLowerCase()) {
+      errs.toLocation = 'Source and destination locations cannot be the same.'
+    }
+
+    const medName = (createForm.medicineName || '').trim()
+    if (!medName) {
+      errs.medicineName = 'Medicine Name is required.'
+    } else if (medName.length < 2) {
+      errs.medicineName = 'Medicine Name must be at least 2 characters.'
+    }
+
+    const batch = (createForm.batchNo || '').trim()
+    if (!batch) {
+      errs.batchNo = 'Batch Number is required.'
+    }
+
+    const qtyStr = String(createForm.quantity || '').trim()
+    if (!qtyStr) {
+      errs.quantity = 'Transfer Quantity is required.'
+    } else {
+      const qtyNum = Number(qtyStr)
+      if (isNaN(qtyNum) || qtyNum <= 0) {
+        errs.quantity = 'Transfer quantity must be greater than 0.'
+      } else if (!Number.isInteger(qtyNum)) {
+        errs.quantity = 'Transfer quantity must be a whole number.'
+      }
+    }
+
+    const reqBy = (createForm.requestedBy || '').trim()
+    if (!reqBy) {
+      errs.requestedBy = 'Requested By name is required.'
+    } else if (reqBy.length < 2) {
+      errs.requestedBy = 'Requested By name must be at least 2 characters.'
+    }
+
+    setCreateErrors(errs)
+    const firstKey = Object.keys(errs)[0]
+    if (firstKey) {
+      const el = document.getElementById(`create-${firstKey}`)
+      if (el) el.focus()
+    }
+    return Object.keys(errs).length === 0
+  }
+
+  function validateEditForm() {
+    const errs = {}
+    const fromLoc = (editForm.fromLocation || '').trim()
+    if (!fromLoc) {
+      errs.fromLocation = 'From Location / Pharmacy is required.'
+    } else if (fromLoc.length < 2) {
+      errs.fromLocation = 'From Location must be at least 2 characters.'
+    }
+
+    const toLoc = (editForm.toLocation || '').trim()
+    if (!toLoc) {
+      errs.toLocation = 'To Location / Pharmacy is required.'
+    } else if (toLoc.length < 2) {
+      errs.toLocation = 'To Location must be at least 2 characters.'
+    } else if (fromLoc && toLoc && fromLoc.toLowerCase() === toLoc.toLowerCase()) {
+      errs.toLocation = 'Source and destination locations cannot be the same.'
+    }
+
+    const medName = (editForm.medicineName || '').trim()
+    if (!medName) {
+      errs.medicineName = 'Medicine Name is required.'
+    } else if (medName.length < 2) {
+      errs.medicineName = 'Medicine Name must be at least 2 characters.'
+    }
+
+    const batch = (editForm.batchNo || '').trim()
+    if (!batch) {
+      errs.batchNo = 'Batch Number is required.'
+    }
+
+    const qtyStr = String(editForm.quantity || '').trim()
+    if (!qtyStr) {
+      errs.quantity = 'Transfer Quantity is required.'
+    } else {
+      const qtyNum = Number(qtyStr)
+      if (isNaN(qtyNum) || qtyNum <= 0) {
+        errs.quantity = 'Transfer quantity must be greater than 0.'
+      } else if (!Number.isInteger(qtyNum)) {
+        errs.quantity = 'Transfer quantity must be a whole number.'
+      }
+    }
+
+    const reqBy = (editForm.requestedBy || '').trim()
+    if (!reqBy) {
+      errs.requestedBy = 'Requested By name is required.'
+    } else if (reqBy.length < 2) {
+      errs.requestedBy = 'Requested By name must be at least 2 characters.'
+    }
+
+    const status = (editForm.status || '').trim()
+    if (!status) {
+      errs.status = 'Status selection is required.'
+    }
+
+    setEditErrors(errs)
+    const firstKey = Object.keys(errs)[0]
+    if (firstKey) {
+      const el = document.getElementById(`edit-${firstKey}`)
+      if (el) el.focus()
+    }
+    return Object.keys(errs).length === 0
+  }
+
   async function loadSummaryMetrics() {
     try {
       const response = await getPharmacyAdminDashboard()
@@ -131,6 +256,7 @@ export default function StockTransfers() {
   // Create Submit Action
   async function handleCreateSubmit(e) {
     e.preventDefault()
+    if (!validateCreateForm()) return
     setLoading(true)
     try {
       const body = {
@@ -154,6 +280,7 @@ export default function StockTransfers() {
         requestedBy: '',
         approvedBy: ''
       })
+      setCreateErrors({})
       await refresh()
       loadSummaryMetrics()
     } catch (err) {
@@ -166,6 +293,7 @@ export default function StockTransfers() {
   // Update Submit Action
   async function handleUpdateSubmit(e) {
     e.preventDefault()
+    if (!validateEditForm()) return
     setLoading(true)
     try {
       const body = {
@@ -181,6 +309,7 @@ export default function StockTransfers() {
       await changeStockTransferStatus(editForm.id, body)
       showToast('Stock transfer updated successfully!')
       setEditItem(null)
+      setEditErrors({})
       await refresh()
       loadSummaryMetrics()
     } catch (err) {
@@ -308,7 +437,7 @@ export default function StockTransfers() {
           </div>
 
           {/* Summary Cards */}
-          <div className="transfer-summary-erid">
+          <div className="transfer-summary-grid">
             <div className="transfer-summary-card">
               <label>Total Transfers</label>
               <span>{summary.total}</span>
@@ -381,7 +510,7 @@ export default function StockTransfers() {
                         <td>{getDate(item)}</td>
                         <td>{getStatusBadge(item)}</td>
                         <td>
-                          <div className="admin-action-eroup">
+                          <div className="admin-action-group">
                             <button 
                               type="button" 
                               className="admin-action-button view" 
@@ -450,74 +579,120 @@ export default function StockTransfers() {
           {/* Modal 1: Create Transfer */}
           {createOpen && (
             <div className="transfer-modal-overlay">
-              <form onSubmit={handleCreateSubmit} className="transfer-modal-container">
+              <form onSubmit={handleCreateSubmit} className="transfer-modal-container" noValidate>
                 <div className="transfer-modal-header">
                   <h2>Create Stock Transfer Request</h2>
                   <button type="button" className="transfer-modal-close" onClick={() => setCreateOpen(false)}>&times;</button>
                 </div>
                 <div className="transfer-modal-body">
-                  <div className="transfer-detail-row">
-                    <div className="transfer-form-eroup">
-                      <label>From Location / Pharmacy</label>
+                  <div className="transfer-form-grid">
+                    <div className="transfer-form-group">
+                      <label>From Location / Pharmacy *</label>
                       <input 
                         type="text" 
+                        id="create-fromLocation"
                         value={createForm.fromLocation} 
-                        onChange={(e) => setCreateForm({...createForm, fromLocation: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, fromLocation: e.target.value})
+                          if (createErrors.fromLocation) setCreateErrors({...createErrors, fromLocation: ''})
+                        }} 
+                        style={createErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.fromLocation && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.fromLocation}</span>
+                      )}
                     </div>
-                    <div className="transfer-form-eroup">
-                      <label>To Location / Pharmacy</label>
+                    <div className="transfer-form-group">
+                      <label>To Location / Pharmacy *</label>
                       <input 
                         type="text" 
+                        id="create-toLocation"
                         value={createForm.toLocation} 
-                        onChange={(e) => setCreateForm({...createForm, toLocation: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, toLocation: e.target.value})
+                          if (createErrors.toLocation) setCreateErrors({...createErrors, toLocation: ''})
+                        }} 
+                        style={createErrors.toLocation ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.toLocation && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.toLocation}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="transfer-detail-row">
-                    <div className="transfer-form-eroup">
-                      <label>Medicine Name</label>
+                    <div className="transfer-form-group">
+                      <label>Medicine Name *</label>
                       <input 
                         type="text" 
+                        id="create-medicineName"
                         value={createForm.medicineName} 
-                        onChange={(e) => setCreateForm({...createForm, medicineName: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, medicineName: e.target.value})
+                          if (createErrors.medicineName) setCreateErrors({...createErrors, medicineName: ''})
+                        }} 
+                        style={createErrors.medicineName ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.medicineName && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.medicineName}</span>
+                      )}
                     </div>
-                    <div className="transfer-form-eroup">
-                      <label>Batch Number</label>
+                    <div className="transfer-form-group">
+                      <label>Batch Number *</label>
                       <input 
                         type="text" 
+                        id="create-batchNo"
                         value={createForm.batchNo} 
-                        onChange={(e) => setCreateForm({...createForm, batchNo: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, batchNo: e.target.value})
+                          if (createErrors.batchNo) setCreateErrors({...createErrors, batchNo: ''})
+                        }} 
+                        style={createErrors.batchNo ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.batchNo && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.batchNo}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="transfer-form-eroup">
-                    <label>Transfer Quantity</label>
-                    <input 
-                      type="number" 
-                      value={createForm.quantity} 
-                      onChange={(e) => setCreateForm({...createForm, quantity: e.target.value})} 
-                      required 
-                    />
-                  </div>
-                  <div className="transfer-detail-row">
-                    <div className="transfer-form-eroup">
-                      <label>Requested By</label>
+                    <div className="transfer-form-group full-width">
+                      <label>Transfer Quantity *</label>
+                      <input 
+                        type="number" 
+                        id="create-quantity"
+                        value={createForm.quantity} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, quantity: e.target.value})
+                          if (createErrors.quantity) setCreateErrors({...createErrors, quantity: ''})
+                        }} 
+                        style={createErrors.quantity ? { borderColor: '#ef4444' } : {}}
+                        required 
+                      />
+                      {createErrors.quantity && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.quantity}</span>
+                      )}
+                    </div>
+                    <div className="transfer-form-group">
+                      <label>Requested By *</label>
                       <input 
                         type="text" 
+                        id="create-requestedBy"
                         value={createForm.requestedBy} 
-                        onChange={(e) => setCreateForm({...createForm, requestedBy: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, requestedBy: e.target.value})
+                          if (createErrors.requestedBy) setCreateErrors({...createErrors, requestedBy: ''})
+                        }} 
+                        style={createErrors.requestedBy ? { borderColor: '#ef4444' } : {}}
+                        required 
                       />
+                      {createErrors.requestedBy && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.requestedBy}</span>
+                      )}
                     </div>
-                    <div className="transfer-form-eroup">
+                    <div className="transfer-form-group">
                       <label>Approved By</label>
                       <input 
                         type="text" 
+                        id="create-approvedBy"
                         value={createForm.approvedBy} 
                         onChange={(e) => setCreateForm({...createForm, approvedBy: e.target.value})} 
                       />
@@ -525,8 +700,10 @@ export default function StockTransfers() {
                   </div>
                 </div>
                 <div className="transfer-modal-footer">
-                  <button type="button" className="transfer-btn transfer-btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
-                  <button type="submit" className="transfer-btn transfer-btn-primary">Request Transfer</button>
+                  <button type="button" className="transfer-btn transfer-btn-secondary" onClick={() => setCreateOpen(false)} disabled={loading}>Cancel</button>
+                  <button type="submit" className="transfer-btn transfer-btn-primary" disabled={loading}>
+                    {loading ? 'Requesting...' : 'Request Transfer'}
+                  </button>
                 </div>
               </form>
             </div>
@@ -535,67 +712,91 @@ export default function StockTransfers() {
           {/* Modal 2: Edit Transfer */}
           {editItem && (
             <div className="transfer-modal-overlay">
-              <form onSubmit={handleUpdateSubmit} className="transfer-modal-container">
+              <form onSubmit={handleUpdateSubmit} className="transfer-modal-container" noValidate>
                 <div className="transfer-modal-header">
                   <h2>Update Stock Transfer: {getTransferId(editItem)}</h2>
                   <button type="button" className="transfer-modal-close" onClick={() => setEditItem(null)}>&times;</button>
                 </div>
                 <div className="transfer-modal-body">
-                  <div className="transfer-detail-row">
-                    <div className="transfer-form-eroup">
-                      <label>From Location / Pharmacy</label>
+                  <div className="transfer-form-grid">
+                    <div className="transfer-form-group">
+                      <label>From Location / Pharmacy *</label>
                       <input 
                         type="text" 
+                        id="edit-fromLocation"
                         value={editForm.fromLocation} 
-                        onChange={(e) => setEditForm({...editForm, fromLocation: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, fromLocation: e.target.value})
+                          if (editErrors.fromLocation) setEditErrors({...editErrors, fromLocation: ''})
+                        }} 
+                        style={editErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.fromLocation && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.fromLocation}</span>
+                      )}
                     </div>
-                    <div className="transfer-form-eroup">
-                      <label>To Location / Pharmacy</label>
+                    <div className="transfer-form-group">
+                      <label>To Location / Pharmacy *</label>
                       <input 
                         type="text" 
+                        id="edit-toLocation"
                         value={editForm.toLocation} 
-                        onChange={(e) => setEditForm({...editForm, toLocation: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, toLocation: e.target.value})
+                          if (editErrors.toLocation) setEditErrors({...editErrors, toLocation: ''})
+                        }} 
+                        style={editErrors.toLocation ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.toLocation && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.toLocation}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="transfer-detail-row">
-                    <div className="transfer-form-eroup">
-                      <label>Medicine Name</label>
+                    <div className="transfer-form-group">
+                      <label>Medicine Name *</label>
                       <input 
                         type="text" 
+                        id="edit-medicineName"
                         value={editForm.medicineName} 
-                        onChange={(e) => setEditForm({...editForm, medicineName: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, medicineName: e.target.value})
+                          if (editErrors.medicineName) setEditErrors({...editErrors, medicineName: ''})
+                        }} 
+                        style={editErrors.medicineName ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.medicineName && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.medicineName}</span>
+                      )}
                     </div>
-                    <div className="transfer-form-eroup">
-                      <label>Batch Number</label>
+                    <div className="transfer-form-group">
+                      <label>Batch Number *</label>
                       <input 
                         type="text" 
+                        id="edit-batchNo"
                         value={editForm.batchNo} 
-                        onChange={(e) => setEditForm({...editForm, batchNo: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, batchNo: e.target.value})
+                          if (editErrors.batchNo) setEditErrors({...editErrors, batchNo: ''})
+                        }} 
+                        style={editErrors.batchNo ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.batchNo && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.batchNo}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="transfer-detail-row">
-                    <div className="transfer-form-eroup">
-                      <label>Transfer Quantity</label>
-                      <input 
-                        type="number" 
-                        value={editForm.quantity} 
-                        onChange={(e) => setEditForm({...editForm, quantity: e.target.value})} 
-                        required 
-                      />
-                    </div>
-                    <div className="transfer-form-eroup">
-                      <label>Status</label>
+                    <div className="transfer-form-group">
+                      <label>Status *</label>
                       <select 
+                        id="edit-status"
                         value={editForm.status} 
-                        onChange={(e) => setEditForm({...editForm, status: e.target.value})}
+                        onChange={(e) => {
+                          setEditForm({...editForm, status: e.target.value})
+                          if (editErrors.status) setEditErrors({...editErrors, status: ''})
+                        }}
+                        style={editErrors.status ? { borderColor: '#ef4444' } : {}}
                       >
                         <option value="Draft">Draft</option>
                         <option value="Pending">Pending</option>
@@ -603,21 +804,49 @@ export default function StockTransfers() {
                         <option value="Received">Received</option>
                         <option value="Cancelled">Cancelled</option>
                       </select>
+                      {editErrors.status && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.status}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="transfer-detail-row">
-                    <div className="transfer-form-eroup">
-                      <label>Requested By</label>
+                    <div className="transfer-form-group">
+                      <label>Transfer Quantity *</label>
+                      <input 
+                        type="number" 
+                        id="edit-quantity"
+                        value={editForm.quantity} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, quantity: e.target.value})
+                          if (editErrors.quantity) setEditErrors({...editErrors, quantity: ''})
+                        }} 
+                        style={editErrors.quantity ? { borderColor: '#ef4444' } : {}}
+                        required 
+                      />
+                      {editErrors.quantity && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.quantity}</span>
+                      )}
+                    </div>
+                    <div className="transfer-form-group">
+                      <label>Requested By *</label>
                       <input 
                         type="text" 
+                        id="edit-requestedBy"
                         value={editForm.requestedBy} 
-                        onChange={(e) => setEditForm({...editForm, requestedBy: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, requestedBy: e.target.value})
+                          if (editErrors.requestedBy) setEditErrors({...editErrors, requestedBy: ''})
+                        }} 
+                        style={editErrors.requestedBy ? { borderColor: '#ef4444' } : {}}
+                        required 
                       />
+                      {editErrors.requestedBy && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.requestedBy}</span>
+                      )}
                     </div>
-                    <div className="transfer-form-eroup">
+                    <div className="transfer-form-group">
                       <label>Approved By</label>
                       <input 
                         type="text" 
+                        id="edit-approvedBy"
                         value={editForm.approvedBy} 
                         onChange={(e) => setEditForm({...editForm, approvedBy: e.target.value})} 
                       />
@@ -625,8 +854,10 @@ export default function StockTransfers() {
                   </div>
                 </div>
                 <div className="transfer-modal-footer">
-                  <button type="button" className="transfer-btn transfer-btn-secondary" onClick={() => setEditItem(null)}>Cancel</button>
-                  <button type="submit" className="transfer-btn transfer-btn-primary">Update Transfer</button>
+                  <button type="button" className="transfer-btn transfer-btn-secondary" onClick={() => setEditItem(null)} disabled={loading}>Cancel</button>
+                  <button type="submit" className="transfer-btn transfer-btn-primary" disabled={loading}>
+                    {loading ? 'Updating...' : 'Update Transfer'}
+                  </button>
                 </div>
               </form>
             </div>
@@ -640,7 +871,7 @@ export default function StockTransfers() {
                   <h2>Stock Transfer Details: {getTransferId(viewingItem)}</h2>
                   <button type="button" className="transfer-modal-close" onClick={() => setViewineItem(null)}>&times;</button>
                 </div>
-                <div className="presc-modal-body">
+                <div className="transfer-modal-body">
                   <div className="transfer-detail-row">
                     <div className="transfer-detail-item">
                       <label>Source Location</label>

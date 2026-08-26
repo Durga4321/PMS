@@ -18,8 +18,8 @@
   border-radius: 12px;
   padding: 16px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 16px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
   transition: all 0.2s ease;
 }
@@ -27,6 +27,28 @@
 .stock-summary-card:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 12px -3px rgba(0, 0, 0, 0.04);
+}
+
+.stock-summary-icon-container {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stock-summary-icon-container svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2;
+}
+
+.stock-summary-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .stock-summary-card label {
@@ -106,15 +128,23 @@
   background: #ffffff;
 }
 
-.stock-btn {
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+.stock-action-btns {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stock-btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid transparent;
@@ -131,14 +161,15 @@
 }
 
 .stock-btn-secondary {
-  background: #eff6ff;
+  background: #ffffff;
   color: #2563eb;
-  border-color: #dbeafe;
+  border: 1px solid #bfdbfe;
 }
 
 .stock-btn-secondary:hover {
-  background: #dbeafe;
+  background: #eff6ff;
   color: #1d4ed8;
+  border-color: #93c5fd;
 }
 
 .stock-btn svg {

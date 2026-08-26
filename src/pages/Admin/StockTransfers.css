@@ -255,29 +255,50 @@
   font-weight: 500;
 }
 
+.transfer-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
 /* Form input spacing inside modal */
 .transfer-form-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+}
+
+.transfer-form-group.full-width {
+  grid-column: 1 / -1;
 }
 
 .transfer-form-group label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: #475569;
 }
 
 .transfer-form-group input,
 .transfer-form-group select,
 .transfer-form-group textarea {
-  height: 38px;
+  width: 100%;
+  height: 40px;
   padding: 0 12px;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 13px;
   outline: none;
   background: #ffffff;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.transfer-form-group input:focus,
+.transfer-form-group select:focus,
+.transfer-form-group textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 /* Responsive adjustments */
@@ -297,5 +318,19 @@
   }
   .transfer-search-wrap {
     max-width: 100%;
+  }
+  .transfer-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .transfer-form-group.full-width {
+    grid-column: auto;
+  }
+  .transfer-modal-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .transfer-modal-footer button {
+    width: 100%;
   }
 }

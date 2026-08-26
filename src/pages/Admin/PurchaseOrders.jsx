@@ -72,6 +72,134 @@ export default function PurchaseOrders() {
     status: 'Pending'
   })
 
+  // Validation Error States
+  const [createErrors, setCreateErrors] = useState({})
+  const [editErrors, setEditErrors] = useState({})
+
+  function validateCreateForm() {
+    const errs = {}
+    const sName = (createForm.supplierName || '').trim()
+    if (!sName) {
+      errs.supplierName = 'Supplier Name is required.'
+    } else if (sName.length < 2) {
+      errs.supplierName = 'Supplier Name must be at least 2 characters.'
+    }
+
+    const sContact = (createForm.supplierContact || '').trim()
+    if (!sContact) {
+      errs.supplierContact = 'Supplier Contact phone number is required.'
+    } else {
+      const cleanPhone = sContact.replace(/[+\-\s()]/g, '')
+      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
+        errs.supplierContact = 'Please enter a valid contact phone number (at least 8 digits).'
+      }
+    }
+
+    const mName = (createForm.medicineName || '').trim()
+    if (!mName) {
+      errs.medicineName = 'Medicine Name is required.'
+    } else if (mName.length < 2) {
+      errs.medicineName = 'Medicine Name must be at least 2 characters.'
+    }
+
+    const batch = (createForm.batchNo || '').trim()
+    if (!batch) {
+      errs.batchNo = 'Batch Number is required.'
+    }
+
+    const qtyStr = String(createForm.quantity || '').trim()
+    if (!qtyStr) {
+      errs.quantity = 'Purchase Quantity is required.'
+    } else {
+      const qtyNum = Number(qtyStr)
+      if (isNaN(qtyNum) || qtyNum <= 0) {
+        errs.quantity = 'Purchase quantity must be greater than 0.'
+      } else if (!Number.isInteger(qtyNum)) {
+        errs.quantity = 'Purchase quantity must be a whole number.'
+      }
+    }
+
+    const priceStr = String(createForm.unitPrice || '').trim()
+    if (!priceStr) {
+      errs.unitPrice = 'Unit Price is required.'
+    } else {
+      const priceNum = Number(priceStr)
+      if (isNaN(priceNum) || priceNum <= 0) {
+        errs.unitPrice = 'Unit price must be greater than 0.'
+      }
+    }
+
+    setCreateErrors(errs)
+    const firstKey = Object.keys(errs)[0]
+    if (firstKey) {
+      const el = document.getElementById(`create-${firstKey}`)
+      if (el) el.focus()
+    }
+    return Object.keys(errs).length === 0
+  }
+
+  function validateEditForm() {
+    const errs = {}
+    const sName = (editForm.supplierName || '').trim()
+    if (!sName) {
+      errs.supplierName = 'Supplier Name is required.'
+    } else if (sName.length < 2) {
+      errs.supplierName = 'Supplier Name must be at least 2 characters.'
+    }
+
+    const sContact = (editForm.supplierContact || '').trim()
+    if (!sContact) {
+      errs.supplierContact = 'Supplier Contact phone number is required.'
+    } else {
+      const cleanPhone = sContact.replace(/[+\-\s()]/g, '')
+      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
+        errs.supplierContact = 'Please enter a valid contact phone number (at least 8 digits).'
+      }
+    }
+
+    const mName = (editForm.medicineName || '').trim()
+    if (!mName) {
+      errs.medicineName = 'Medicine Name is required.'
+    } else if (mName.length < 2) {
+      errs.medicineName = 'Medicine Name must be at least 2 characters.'
+    }
+
+    const batch = (editForm.batchNo || '').trim()
+    if (!batch) {
+      errs.batchNo = 'Batch Number is required.'
+    }
+
+    const qtyStr = String(editForm.quantity || '').trim()
+    if (!qtyStr) {
+      errs.quantity = 'Purchase Quantity is required.'
+    } else {
+      const qtyNum = Number(qtyStr)
+      if (isNaN(qtyNum) || qtyNum <= 0) {
+        errs.quantity = 'Purchase quantity must be greater than 0.'
+      } else if (!Number.isInteger(qtyNum)) {
+        errs.quantity = 'Purchase quantity must be a whole number.'
+      }
+    }
+
+    const priceStr = String(editForm.unitPrice || '').trim()
+    if (!priceStr) {
+      errs.unitPrice = 'Unit Price is required.'
+    } else {
+      const priceNum = Number(priceStr)
+      if (isNaN(priceNum) || priceNum <= 0) {
+        errs.unitPrice = 'Unit price must be greater than 0.'
+      }
+    }
+
+    setEditErrors(errs)
+    const firstKey = Object.keys(errs)[0]
+    if (firstKey) {
+      const el = document.getElementById(`edit-${firstKey}`)
+      if (el) el.focus()
+    }
+    return Object.keys(errs).length === 0
+  }
+
   async function loadSummaryMetrics() {
     try {
       const response = await getPharmacyAdminDashboard()
@@ -150,6 +278,7 @@ export default function PurchaseOrders() {
   // Create Submit Action
   async function handleCreateSubmit(e) {
     e.preventDefault()
+    if (!validateCreateForm()) return
     setLoading(true)
     try {
       const uPrice = Number(createForm.unitPrice || 0)
@@ -178,6 +307,7 @@ export default function PurchaseOrders() {
         paymentStatus: 'Unpaid',
         status: 'Pending'
       })
+      setCreateErrors({})
       await refresh()
       loadSummaryMetrics()
     } catch (err) {
@@ -190,6 +320,7 @@ export default function PurchaseOrders() {
   // Update Submit Action
   async function handleUpdateSubmit(e) {
     e.preventDefault()
+    if (!validateEditForm()) return
     setLoading(true)
     try {
       const uPrice = Number(editForm.unitPrice || 0)
@@ -208,6 +339,7 @@ export default function PurchaseOrders() {
       await updatePurchaseOrder(editForm.id, body)
       showToast('Purchase order updated successfully!')
       setEditItem(null)
+      setEditErrors({})
       await refresh()
       loadSummaryMetrics()
     } catch (err) {
@@ -361,7 +493,7 @@ export default function PurchaseOrders() {
           </div>
 
           {/* Summary Cards */}
-          <div className="po-summary-erid">
+          <div className="po-summary-grid">
             <div className="po-summary-card">
               <label>Total POs</label>
               <span>{summary.total}</span>
@@ -441,7 +573,7 @@ export default function PurchaseOrders() {
                         <td>{getPaymentBadge(item)}</td>
                         <td>{getOrderStatusBadge(item)}</td>
                         <td>
-                          <div className="admin-action-eroup">
+                          <div className="admin-action-group">
                             <button 
                               type="button" 
                               className="admin-action-button view" 
@@ -501,73 +633,122 @@ export default function PurchaseOrders() {
           {/* Modal 1: Create PO */}
           {createOpen && (
             <div className="po-modal-overlay">
-              <form onSubmit={handleCreateSubmit} className="po-modal-container">
+              <form onSubmit={handleCreateSubmit} className="po-modal-container" noValidate>
                 <div className="po-modal-header">
                   <h2>Create New Purchase Order</h2>
                   <button type="button" className="po-modal-close" onClick={() => setCreateOpen(false)}>&times;</button>
                 </div>
                 <div className="po-modal-body">
                   <div className="po-detail-row">
-                    <div className="po-form-eroup">
-                      <label>Supplier Name</label>
+                    <div className="po-form-group">
+                      <label>Supplier Name *</label>
                       <input 
                         type="text" 
+                        id="create-supplierName"
                         value={createForm.supplierName} 
-                        onChange={(e) => setCreateForm({...createForm, supplierName: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, supplierName: e.target.value})
+                          if (createErrors.supplierName) setCreateErrors({...createErrors, supplierName: ''})
+                        }} 
+                        style={createErrors.supplierName ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.supplierName && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.supplierName}</span>
+                      )}
                     </div>
-                    <div className="po-form-eroup">
-                      <label>Supplier Contact Phone</label>
+                    <div className="po-form-group">
+                      <label>Supplier Contact Phone *</label>
                       <input 
                         type="text" 
+                        id="create-supplierContact"
                         value={createForm.supplierContact} 
-                        onChange={(e) => setCreateForm({...createForm, supplierContact: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, supplierContact: e.target.value})
+                          if (createErrors.supplierContact) setCreateErrors({...createErrors, supplierContact: ''})
+                        }} 
+                        style={createErrors.supplierContact ? { borderColor: '#ef4444' } : {}}
+                        required 
                       />
+                      {createErrors.supplierContact && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.supplierContact}</span>
+                      )}
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-eroup">
-                      <label>Medicine Name</label>
+                    <div className="po-form-group">
+                      <label>Medicine Name *</label>
                       <input 
                         type="text" 
+                        id="create-medicineName"
                         value={createForm.medicineName} 
-                        onChange={(e) => setCreateForm({...createForm, medicineName: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, medicineName: e.target.value})
+                          if (createErrors.medicineName) setCreateErrors({...createErrors, medicineName: ''})
+                        }} 
+                        style={createErrors.medicineName ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.medicineName && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.medicineName}</span>
+                      )}
                     </div>
-                    <div className="po-form-eroup">
-                      <label>Batch Number</label>
+                    <div className="po-form-group">
+                      <label>Batch Number *</label>
                       <input 
                         type="text" 
+                        id="create-batchNo"
                         value={createForm.batchNo} 
-                        onChange={(e) => setCreateForm({...createForm, batchNo: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, batchNo: e.target.value})
+                          if (createErrors.batchNo) setCreateErrors({...createErrors, batchNo: ''})
+                        }} 
+                        style={createErrors.batchNo ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.batchNo && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.batchNo}</span>
+                      )}
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-eroup">
-                      <label>Order Quantity</label>
+                    <div className="po-form-group">
+                      <label>Order Quantity *</label>
                       <input 
                         type="number" 
+                        id="create-quantity"
                         value={createForm.quantity} 
-                        onChange={(e) => setCreateForm({...createForm, quantity: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, quantity: e.target.value})
+                          if (createErrors.quantity) setCreateErrors({...createErrors, quantity: ''})
+                        }} 
+                        style={createErrors.quantity ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.quantity && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.quantity}</span>
+                      )}
                     </div>
-                    <div className="po-form-eroup">
-                      <label>Unit Price (₹)</label>
+                    <div className="po-form-group">
+                      <label>Unit Price (₹) *</label>
                       <input 
                         type="number" 
+                        id="create-unitPrice"
                         value={createForm.unitPrice} 
-                        onChange={(e) => setCreateForm({...createForm, unitPrice: e.target.value})} 
+                        onChange={(e) => {
+                          setCreateForm({...createForm, unitPrice: e.target.value})
+                          if (createErrors.unitPrice) setCreateErrors({...createErrors, unitPrice: ''})
+                        }} 
+                        style={createErrors.unitPrice ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {createErrors.unitPrice && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.unitPrice}</span>
+                      )}
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-eroup">
+                    <div className="po-form-group">
                       <label>Payment Status</label>
                       <select 
                         value={createForm.paymentStatus} 
@@ -577,7 +758,7 @@ export default function PurchaseOrders() {
                         <option value="Paid">Paid</option>
                       </select>
                     </div>
-                    <div className="po-form-eroup">
+                    <div className="po-form-group">
                       <label>Order Status</label>
                       <select 
                         value={createForm.status} 
@@ -590,8 +771,10 @@ export default function PurchaseOrders() {
                   </div>
                 </div>
                 <div className="po-modal-footer">
-                  <button type="button" className="po-btn po-btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
-                  <button type="submit" className="po-btn po-btn-primary">Save Purchase Order</button>
+                  <button type="button" className="po-btn po-btn-secondary" onClick={() => setCreateOpen(false)} disabled={loading}>Cancel</button>
+                  <button type="submit" className="po-btn po-btn-primary" disabled={loading}>
+                    {loading ? 'Saving...' : 'Save Purchase Order'}
+                  </button>
                 </div>
               </form>
             </div>
@@ -600,73 +783,122 @@ export default function PurchaseOrders() {
           {/* Modal 2: Edit PO */}
           {editItem && (
             <div className="po-modal-overlay">
-              <form onSubmit={handleUpdateSubmit} className="po-modal-container">
+              <form onSubmit={handleUpdateSubmit} className="po-modal-container" noValidate>
                 <div className="po-modal-header">
                   <h2>Update Purchase Order: {getPoNum(editItem)}</h2>
                   <button type="button" className="po-modal-close" onClick={() => setEditItem(null)}>&times;</button>
                 </div>
                 <div className="po-modal-body">
                   <div className="po-detail-row">
-                    <div className="po-form-eroup">
-                      <label>Supplier Name</label>
+                    <div className="po-form-group">
+                      <label>Supplier Name *</label>
                       <input 
                         type="text" 
+                        id="edit-supplierName"
                         value={editForm.supplierName} 
-                        onChange={(e) => setEditForm({...editForm, supplierName: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, supplierName: e.target.value})
+                          if (editErrors.supplierName) setEditErrors({...editErrors, supplierName: ''})
+                        }} 
+                        style={editErrors.supplierName ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.supplierName && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.supplierName}</span>
+                      )}
                     </div>
-                    <div className="po-form-eroup">
-                      <label>Supplier Contact Phone</label>
+                    <div className="po-form-group">
+                      <label>Supplier Contact Phone *</label>
                       <input 
                         type="text" 
+                        id="edit-supplierContact"
                         value={editForm.supplierContact} 
-                        onChange={(e) => setEditForm({...editForm, supplierContact: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, supplierContact: e.target.value})
+                          if (editErrors.supplierContact) setEditErrors({...editErrors, supplierContact: ''})
+                        }} 
+                        style={editErrors.supplierContact ? { borderColor: '#ef4444' } : {}}
+                        required 
                       />
+                      {editErrors.supplierContact && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.supplierContact}</span>
+                      )}
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-eroup">
-                      <label>Medicine Name</label>
+                    <div className="po-form-group">
+                      <label>Medicine Name *</label>
                       <input 
                         type="text" 
+                        id="edit-medicineName"
                         value={editForm.medicineName} 
-                        onChange={(e) => setEditForm({...editForm, medicineName: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, medicineName: e.target.value})
+                          if (editErrors.medicineName) setEditErrors({...editErrors, medicineName: ''})
+                        }} 
+                        style={editErrors.medicineName ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.medicineName && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.medicineName}</span>
+                      )}
                     </div>
-                    <div className="po-form-eroup">
-                      <label>Batch Number</label>
+                    <div className="po-form-group">
+                      <label>Batch Number *</label>
                       <input 
                         type="text" 
+                        id="edit-batchNo"
                         value={editForm.batchNo} 
-                        onChange={(e) => setEditForm({...editForm, batchNo: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, batchNo: e.target.value})
+                          if (editErrors.batchNo) setEditErrors({...editErrors, batchNo: ''})
+                        }} 
+                        style={editErrors.batchNo ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.batchNo && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.batchNo}</span>
+                      )}
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-eroup">
-                      <label>Order Quantity</label>
+                    <div className="po-form-group">
+                      <label>Order Quantity *</label>
                       <input 
                         type="number" 
+                        id="edit-quantity"
                         value={editForm.quantity} 
-                        onChange={(e) => setEditForm({...editForm, quantity: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, quantity: e.target.value})
+                          if (editErrors.quantity) setEditErrors({...editErrors, quantity: ''})
+                        }} 
+                        style={editErrors.quantity ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.quantity && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.quantity}</span>
+                      )}
                     </div>
-                    <div className="po-form-eroup">
-                      <label>Unit Price (₹)</label>
+                    <div className="po-form-group">
+                      <label>Unit Price (₹) *</label>
                       <input 
                         type="number" 
+                        id="edit-unitPrice"
                         value={editForm.unitPrice} 
-                        onChange={(e) => setEditForm({...editForm, unitPrice: e.target.value})} 
+                        onChange={(e) => {
+                          setEditForm({...editForm, unitPrice: e.target.value})
+                          if (editErrors.unitPrice) setEditErrors({...editErrors, unitPrice: ''})
+                        }} 
+                        style={editErrors.unitPrice ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {editErrors.unitPrice && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.unitPrice}</span>
+                      )}
                     </div>
                   </div>
                   <div className="po-detail-row">
-                    <div className="po-form-eroup">
+                    <div className="po-form-group">
                       <label>Payment Status</label>
                       <select 
                         value={editForm.paymentStatus} 
@@ -676,7 +908,7 @@ export default function PurchaseOrders() {
                         <option value="Paid">Paid</option>
                       </select>
                     </div>
-                    <div className="po-form-eroup">
+                    <div className="po-form-group">
                       <label>Order Status</label>
                       <select 
                         value={editForm.status} 
@@ -692,8 +924,10 @@ export default function PurchaseOrders() {
                   </div>
                 </div>
                 <div className="po-modal-footer">
-                  <button type="button" className="po-btn po-btn-secondary" onClick={() => setEditItem(null)}>Cancel</button>
-                  <button type="submit" className="po-btn po-btn-primary">Update Order</button>
+                  <button type="button" className="po-btn po-btn-secondary" onClick={() => setEditItem(null)} disabled={loading}>Cancel</button>
+                  <button type="submit" className="po-btn po-btn-primary" disabled={loading}>
+                    {loading ? 'Updating...' : 'Update Order'}
+                  </button>
                 </div>
               </form>
             </div>

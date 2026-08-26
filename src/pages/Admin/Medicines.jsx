@@ -98,6 +98,76 @@ export default function Medicines() {
   const [importOpen, setImportOpen] = useState(false)
   
   const [form, setForm] = useState(emptyForm)
+
+  // Validation Error State
+  const [formErrors, setFormErrors] = useState({})
+
+  function validateForm() {
+    const errs = {}
+    const nameVal = (form.name || '').trim()
+    if (!nameVal) {
+      errs.name = 'Medicine Name is required.'
+    } else if (nameVal.length < 2) {
+      errs.name = 'Medicine Name must be at least 2 characters.'
+    }
+
+    const genVal = (form.genericName || '').trim()
+    if (!genVal) {
+      errs.genericName = 'Generic Name is required.'
+    }
+
+    const catVal = (form.category || '').trim()
+    if (!catVal) {
+      errs.category = 'Category selection is required.'
+    }
+
+    const dosageVal = (form.dosageForm || '').trim()
+    if (!dosageVal) {
+      errs.dosageForm = 'Dosage Form selection is required.'
+    }
+
+    const priceStr = String(form.price || '').trim()
+    if (!priceStr) {
+      errs.price = 'Selling Price / MRP is required.'
+    } else {
+      const priceNum = Number(priceStr)
+      if (isNaN(priceNum) || priceNum <= 0) {
+        errs.price = 'Selling Price must be greater than 0.'
+      }
+    }
+
+    const stockStr = String(form.stock ?? '').trim()
+    if (stockStr) {
+      const stockNum = Number(stockStr)
+      if (isNaN(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
+        errs.stock = 'Stock must be a whole number (0 or greater).'
+      }
+    }
+
+    const minStr = String(form.minStock ?? '').trim()
+    if (minStr) {
+      const minNum = Number(minStr)
+      if (isNaN(minNum) || minNum < 0 || !Number.isInteger(minNum)) {
+        errs.minStock = 'Minimum stock must be a whole number (0 or greater).'
+      }
+    }
+
+    const reorderStr = String(form.reorderLevel ?? '').trim()
+    if (reorderStr) {
+      const reorderNum = Number(reorderStr)
+      if (isNaN(reorderNum) || reorderNum < 0 || !Number.isInteger(reorderNum)) {
+        errs.reorderLevel = 'Reorder level must be a whole number (0 or greater).'
+      }
+    }
+
+    setFormErrors(errs)
+    const firstKey = Object.keys(errs)[0]
+    if (firstKey) {
+      const el = document.getElementById(`med-${firstKey}`)
+      if (el) el.focus()
+    }
+    return Object.keys(errs).length === 0
+  }
   
   // Import state
   const [importFile, setImportFile] = useState(null)
@@ -226,6 +296,7 @@ export default function Medicines() {
 
   async function handleSave(event) {
     event.preventDefault()
+    if (!validateForm()) return
     setSavine(true)
     const payload = {
       name: form.name,
@@ -253,6 +324,7 @@ export default function Medicines() {
       setFormOpen(false)
       setEditine(null)
       setForm(emptyForm)
+      setFormErrors({})
       await loadMedicines()
       loadSummaryMetrics()
     } catch (error) {
@@ -355,10 +427,36 @@ export default function Medicines() {
     const qty = Number(medicine?.stock || medicine?.quantity || 0)
     const reorder = Number(medicine?.reorderLevel || 5)
 
-    if (qty === 0) return <span className="branch-status expired">Out of Stock</span>
-    if (qty > 0 && qty <= reorder) return <span className="branch-status near-expiry">Low Stock</span>
-    if (status.includes('inactive')) return <span className="branch-status" style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}>Inactive</span>
-    return <span className="branch-status active">Active</span>
+    if (qty === 0) {
+      return (
+        <span className="branch-status expired" style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+          Out of Stock
+        </span>
+      )
+    }
+    if (qty > 0 && qty <= reorder) {
+      return (
+        <span className="branch-status near-expiry" style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Low Stock
+        </span>
+      )
+    }
+    if (status.includes('inactive')) {
+      return (
+        <span className="branch-status" style={{ display: 'inline-flex', alignItems: 'center', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+          Inactive
+        </span>
+      )
+    }
+    return (
+      <span className="branch-status active" style={{ display: 'inline-flex', alignItems: 'center' }}>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+        Active
+      </span>
+    )
   }
 
   return (
@@ -382,7 +480,12 @@ export default function Medicines() {
                 className="med-btn med-btn-secondary"
                 onClick={() => setImportOpen(true)}
               >
-                Import Medicines
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Import
               </button>
             </div>
             <button 
@@ -396,26 +499,51 @@ export default function Medicines() {
           </div>
 
           {/* Summary Cards */}
-          <div className="med-summary-erid">
+          <div className="med-summary-grid">
             <div className="med-summary-card">
-              <label>Total Medicines</label>
-              <span>{metrics.total}</span>
+              <div className="med-summary-icon-container" style={{ background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10.5 11.5 5 5m-2.5-9L8 12.5a4.24 4.24 0 0 0 6 6l5-5a4.24 4.24 0 0 0-6-6Z"/></svg>
+              </div>
+              <div className="med-summary-info">
+                <label>Total Medicines</label>
+                <span>{metrics.total}</span>
+              </div>
             </div>
-            <div className="med-summary-card" style={{ borderLeft: '3px solid #10b981' }}>
-              <label style={{ color: '#10b981' }}>Active Medicines</label>
-              <span style={{ color: '#10b981' }}>{metrics.active}</span>
+            <div className="med-summary-card">
+              <div className="med-summary-icon-container" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              </div>
+              <div className="med-summary-info">
+                <label style={{ color: '#10b981' }}>Active Medicines</label>
+                <span style={{ color: '#10b981' }}>{metrics.active}</span>
+              </div>
             </div>
-            <div className="med-summary-card" style={{ borderLeft: '3px solid #f59e0b' }}>
-              <label style={{ color: '#f59e0b' }}>Low Stock</label>
-              <span style={{ color: '#f59e0b' }}>{metrics.lowStock}</span>
+            <div className="med-summary-card">
+              <div className="med-summary-icon-container" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div className="med-summary-info">
+                <label style={{ color: '#f59e0b' }}>Low Stock</label>
+                <span style={{ color: '#f59e0b' }}>{metrics.lowStock}</span>
+              </div>
             </div>
-            <div className="med-summary-card" style={{ borderLeft: '3px solid #ef4444' }}>
-              <label style={{ color: '#ef4444' }}>Out of Stock</label>
-              <span style={{ color: '#ef4444' }}>{metrics.outStock}</span>
+            <div className="med-summary-card">
+              <div className="med-summary-icon-container" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+              </div>
+              <div className="med-summary-info">
+                <label style={{ color: '#ef4444' }}>Out of Stock</label>
+                <span style={{ color: '#ef4444' }}>{metrics.outStock}</span>
+              </div>
             </div>
-            <div className="med-summary-card" style={{ borderLeft: '3px solid #3b82f6' }}>
-              <label style={{ color: '#3b82f6' }}>Categories</label>
-              <span style={{ color: '#3b82f6' }}>{metrics.categoriesCount}</span>
+            <div className="med-summary-card">
+              <div className="med-summary-icon-container" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              </div>
+              <div className="med-summary-info">
+                <label style={{ color: '#6366f1' }}>Categories</label>
+                <span style={{ color: '#6366f1' }}>{metrics.categoriesCount}</span>
+              </div>
             </div>
           </div>
 
@@ -464,6 +592,7 @@ export default function Medicines() {
                   setStatusFilter('all')
                 }}
               >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px' }}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 Clear Filters
               </button>
             </div>
@@ -511,7 +640,7 @@ export default function Medicines() {
                         <td>{medicine?.stock || medicine?.quantity || 0}</td>
                         <td>{getStatusBadge(medicine)}</td>
                         <td>
-                          <div className="admin-action-eroup">
+                          <div className="admin-action-group">
                             <button 
                               type="button" 
                               className="admin-action-button view" 
@@ -569,7 +698,7 @@ export default function Medicines() {
           {/* Modal 1: Add/Edit Medicine */}
           {formOpen && (
             <div className="med-modal-overlay">
-              <form onSubmit={handleSave} className="med-modal-container">
+              <form onSubmit={handleSave} className="med-modal-container" noValidate>
                 <div className="med-modal-header">
                   <h2>{editing ? 'Update Medicine Profile' : '+ Add New Medicine'}</h2>
                   <button type="button" className="med-modal-close" onClick={() => setFormOpen(false)}>&times;</button>
@@ -577,65 +706,100 @@ export default function Medicines() {
                 <div className="med-modal-body">
                   <h3 style={{ margin: '0 0 4px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>Basic Information</h3>
                   <div className="med-detail-row">
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Medicine Name *</label>
                       <input 
                         type="text" 
+                        id="med-name"
                         value={form.name} 
-                        onChange={(e) => setForm({...form, name: e.target.value})} 
+                        onChange={(e) => {
+                          setForm({...form, name: e.target.value})
+                          if (formErrors.name) setFormErrors({...formErrors, name: ''})
+                        }} 
+                        style={formErrors.name ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {formErrors.name && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{formErrors.name}</span>
+                      )}
                     </div>
-                    <div className="med-form-eroup">
-                      <label>Generic Name</label>
+                    <div className="med-form-group">
+                      <label>Generic Name *</label>
                       <input 
                         type="text" 
+                        id="med-genericName"
                         value={form.genericName} 
-                        onChange={(e) => setForm({...form, genericName: e.target.value})} 
+                        onChange={(e) => {
+                          setForm({...form, genericName: e.target.value})
+                          if (formErrors.genericName) setFormErrors({...formErrors, genericName: ''})
+                        }} 
+                        style={formErrors.genericName ? { borderColor: '#ef4444' } : {}}
+                        required
                       />
+                      {formErrors.genericName && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{formErrors.genericName}</span>
+                      )}
                     </div>
                   </div>
                   <div className="med-detail-row">
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Medicine Code</label>
                       <input 
                         type="text" 
+                        id="med-code"
                         value={form.code} 
                         onChange={(e) => setForm({...form, code: e.target.value})} 
                       />
                     </div>
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Category *</label>
                       <input 
                         list="med-categories-list" 
+                        id="med-category"
                         value={form.category} 
-                        onChange={(e) => setForm({...form, category: e.target.value})} 
+                        onChange={(e) => {
+                          setForm({...form, category: e.target.value})
+                          if (formErrors.category) setFormErrors({...formErrors, category: ''})
+                        }} 
+                        style={formErrors.category ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
                       <datalist id="med-categories-list">
                         {categories.map((item) => <option value={optionValue(item)} key={optionValue(item)} />)}
                       </datalist>
+                      {formErrors.category && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{formErrors.category}</span>
+                      )}
                     </div>
                   </div>
 
                   <h3 style={{ margin: '8px 0 4px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>Dosage & Packing</h3>
                   <div className="med-detail-row">
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Dosage Form *</label>
                       <input 
                         list="med-dosage-list" 
+                        id="med-dosageForm"
                         value={form.dosageForm} 
-                        onChange={(e) => setForm({...form, dosageForm: e.target.value})} 
+                        onChange={(e) => {
+                          setForm({...form, dosageForm: e.target.value})
+                          if (formErrors.dosageForm) setFormErrors({...formErrors, dosageForm: ''})
+                        }} 
+                        style={formErrors.dosageForm ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
                       <datalist id="med-dosage-list">
                         {dosageForms.map((item) => <option value={optionValue(item)} key={optionValue(item)} />)}
                       </datalist>
+                      {formErrors.dosageForm && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{formErrors.dosageForm}</span>
+                      )}
                     </div>
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Strength (e.g. 500mg)</label>
                       <input 
                         list="med-strengths-list" 
+                        id="med-strength"
                         value={form.strength} 
                         onChange={(e) => setForm({...form, strength: e.target.value})} 
                       />
@@ -645,66 +809,101 @@ export default function Medicines() {
                     </div>
                   </div>
                   <div className="med-detail-row">
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Unit (e.g. tablet, vial)</label>
                       <input 
                         type="text" 
+                        id="med-unit"
                         value={form.unit} 
                         onChange={(e) => setForm({...form, unit: e.target.value})} 
                       />
                     </div>
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Manufacturer</label>
                       <input 
                         type="text" 
+                        id="med-manufacturer"
                         value={form.manufacturer} 
                         onChange={(e) => setForm({...form, manufacturer: e.target.value})} 
                       />
                     </div>
                   </div>
 
-                  <h3 style={{ margin: '8px 0 4px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>Pricine & Thresholds</h3>
+                  <h3 style={{ margin: '8px 0 4px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>Pricing & Thresholds</h3>
                   <div className="med-detail-row">
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Selling Price (₹) *</label>
                       <input 
                         type="number" 
+                        id="med-price"
                         value={form.price} 
-                        onChange={(e) => setForm({...form, price: e.target.value})} 
+                        onChange={(e) => {
+                          setForm({...form, price: e.target.value})
+                          if (formErrors.price) setFormErrors({...formErrors, price: ''})
+                        }} 
+                        style={formErrors.price ? { borderColor: '#ef4444' } : {}}
                         required 
                       />
+                      {formErrors.price && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{formErrors.price}</span>
+                      )}
                     </div>
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Initial Stock Count</label>
                       <input 
                         type="number" 
+                        id="med-stock"
                         value={form.stock} 
-                        onChange={(e) => setForm({...form, stock: e.target.value})} 
+                        onChange={(e) => {
+                          setForm({...form, stock: e.target.value})
+                          if (formErrors.stock) setFormErrors({...formErrors, stock: ''})
+                        }} 
+                        style={formErrors.stock ? { borderColor: '#ef4444' } : {}}
                       />
+                      {formErrors.stock && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{formErrors.stock}</span>
+                      )}
                     </div>
                   </div>
                   <div className="med-detail-row">
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Minimum Stock Threshold</label>
                       <input 
                         type="number" 
+                        id="med-minStock"
                         value={form.minStock} 
-                        onChange={(e) => setForm({...form, minStock: e.target.value})} 
+                        onChange={(e) => {
+                          setForm({...form, minStock: e.target.value})
+                          if (formErrors.minStock) setFormErrors({...formErrors, minStock: ''})
+                        }} 
+                        style={formErrors.minStock ? { borderColor: '#ef4444' } : {}}
                       />
+                      {formErrors.minStock && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{formErrors.minStock}</span>
+                      )}
                     </div>
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Reorder Stock Level</label>
                       <input 
                         type="number" 
+                        id="med-reorderLevel"
                         value={form.reorderLevel} 
-                        onChange={(e) => setForm({...form, reorderLevel: e.target.value})} 
+                        onChange={(e) => {
+                          setForm({...form, reorderLevel: e.target.value})
+                          if (formErrors.reorderLevel) setFormErrors({...formErrors, reorderLevel: ''})
+                        }} 
+                        style={formErrors.reorderLevel ? { borderColor: '#ef4444' } : {}}
                       />
+                      {formErrors.reorderLevel && (
+                        <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{formErrors.reorderLevel}</span>
+                      )}
                     </div>
                   </div>
                   <div className="med-detail-row">
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Prescription Required</label>
                       <select 
+                        id="med-prescriptionRequired"
                         value={form.prescriptionRequired} 
                         onChange={(e) => setForm({...form, prescriptionRequired: e.target.value})}
                       >
@@ -712,9 +911,10 @@ export default function Medicines() {
                         <option value="Yes">Yes</option>
                       </select>
                     </div>
-                    <div className="med-form-eroup">
+                    <div className="med-form-group">
                       <label>Catalogue Status</label>
                       <select 
+                        id="med-status"
                         value={form.status} 
                         onChange={(e) => setForm({...form, status: e.target.value})}
                       >
@@ -723,18 +923,19 @@ export default function Medicines() {
                       </select>
                     </div>
                   </div>
-                  <div className="med-form-eroup">
-                    <label>Description / Usaee Notes</label>
+                  <div className="med-form-group">
+                    <label>Description / Usage Notes</label>
                     <textarea 
+                      id="med-notes"
                       value={form.notes} 
                       onChange={(e) => setForm({...form, notes: e.target.value})} 
                     />
                   </div>
                 </div>
                 <div className="med-modal-footer">
-                  <button type="button" className="med-btn med-btn-secondary" onClick={() => setFormOpen(false)}>Cancel</button>
+                  <button type="button" className="med-btn med-btn-secondary" onClick={() => setFormOpen(false)} disabled={savine}>Cancel</button>
                   <button type="submit" className="med-btn med-btn-primary" disabled={savine}>
-                    {savine ? 'Savine...' : editing ? 'Update Medicine' : 'Save Medicine'}
+                    {savine ? 'Saving...' : editing ? 'Update Medicine' : 'Save Medicine'}
                   </button>
                 </div>
               </form>
