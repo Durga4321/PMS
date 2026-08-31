@@ -31,7 +31,7 @@ function SuperAdminModulePage({ title, headers = [], rows = [], loading = false,
             <div className="super-admin-module-header">
               <div>
                 <h2>{title}</h2>
-                <p>{loading ? 'Loading data...' : error || 'Data from API will appear here.'}</p>
+                <p>{loading ? 'Loading data...' : error || ''}</p>
               </div>
               <label className="super-admin-module-filter">
                 <span aria-hidden="true">Search</span>
