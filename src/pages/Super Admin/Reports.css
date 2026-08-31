@@ -42,3 +42,105 @@
 @media print { .reports-actions, .reports-toolbar, .super-admin-sidebar, .super-admin-topbar { display: none !important; }.reports-page { padding: 0; }.reports-heading { padding-top: 0; } }
 @media (max-width: 800px) { .reports-heading { align-items: flex-start; flex-direction: column; }.reports-stat-grid, .reports-chart-grid { grid-template-columns: 1fr; }.reports-date-row { grid-template-columns: 1fr 1fr; }.reports-fetch { grid-column: 1 / -1; justify-self: start; } }
 @media (max-width: 520px) { .reports-toolbar { grid-template-columns: 1fr; }.reports-date-row { grid-template-columns: 1fr; }.branch-chart { align-items: flex-start; flex-direction: column; }.reports-actions { width: 100%; }.reports-actions button { flex: 1; } }
+
+/* Reference-style dashboard refinement */
+.reports-page {
+  background: linear-gradient(180deg, #f6f9fd 0%, #f3f7fb 100%);
+}
+
+.reports-heading {
+  align-items: center;
+  padding: 20px 0 16px;
+}
+
+.reports-heading h1 {
+  font-weight: 800;
+}
+
+.reports-actions button,
+.reports-fetch,
+.reports-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 8px;
+}
+
+.reports-actions button:first-child {
+  border-color: #f3caca;
+  background: #fff5f5;
+  color: #d26d6d;
+}
+
+.reports-actions button:first-child:hover {
+  border-color: #e9aaaa;
+  background: #ffeded;
+}
+
+.reports-actions .reports-primary {
+  background: #0f9d9d !important;
+  box-shadow: 0 7px 14px rgba(15, 157, 157, .16);
+}
+
+.reports-panel,
+.reports-stat {
+  border-radius: 11px;
+  box-shadow: 0 7px 18px rgba(15, 57, 84, .045);
+}
+
+.reports-toolbar {
+  padding: 13px;
+}
+
+.reports-search,
+.reports-date-row input,
+.reports-toolbar select {
+  border-radius: 8px;
+}
+
+.reports-stat {
+  border-left: 3px solid #17a99c;
+}
+
+.reports-stat:nth-child(2) { border-left-color: #8064d9; }
+.reports-stat:nth-child(3) { border-left-color: #eca82f; }
+
+.reports-stat .stat-mark {
+  border-radius: 9px;
+}
+
+.chart-panel h2,
+.reports-table-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 24px;
+  border-radius: 7px;
+}
+
+.panel-icon .reports-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.panel-icon.revenue-mark { color: #159b91; background: #e4f8f4; }
+.panel-icon.performance-mark { color: #8064d9; background: #f1eafe; }
+.panel-icon.branch-mark { color: #d49017; background: #fff0ce; }
+
+.reports-table-panel {
+  overflow: hidden;
+}
+
+@media (max-width: 800px) {
+  .reports-heading {
+    align-items: flex-start;
+  }
+}
