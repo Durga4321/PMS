@@ -3,20 +3,21 @@
 }
 
 .user-profile-chip {
-  width: 92px;
-  height: 50px;
-  border: 3px solid #93c5fd;
+  min-width: 112px;
+  height: 62px;
+  border: 4px solid #92c5ff;
   border-radius: 999px;
-  background: #dbeafe;
-  color: #082033;
+  background: #d7eaff;
+  color: #0d2745;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 3px 9px 3px 5px;
+  gap: 9px;
+  padding: 6px 16px 6px 10px;
   cursor: pointer;
-  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.24);
+  box-shadow: 0 0 0 5px rgba(147, 197, 253, 0.28);
   font-family: inherit;
+  box-sizing: border-box;
 }
 
 .user-profile-chip.open .user-profile-chevron {
@@ -25,37 +26,37 @@
 
 .user-profile-avatar-shell {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  flex: 0 0 38px;
+  flex: 0 0 46px;
 }
 
 .user-profile-avatar {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #5b8df7, #2f5fdf);
+  background: radial-gradient(circle at 35% 25%, #88b8ff 0, #527df2 44%, #3159db 100%);
   border: 3px solid rgba(255, 255, 255, 0.72);
   display: grid;
   place-items: center;
   color: #ffffff;
   font-weight: 800;
-  font-size: 13px;
-  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.28);
+  font-size: 16px;
+  box-shadow: 0 6px 16px rgba(49, 89, 219, 0.24), inset 0 1px 4px rgba(255, 255, 255, 0.38);
   box-sizing: border-box;
 }
 
 .user-profile-online-dot {
   position: absolute;
-  right: 0;
-  bottom: 1px;
-  width: 12px;
-  height: 12px;
+  right: -1px;
+  bottom: 2px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  border: 2px solid #ffffff;
+  border: 3px solid #ffffff;
   background: #18c77a;
 }
 
@@ -71,15 +72,16 @@
 }
 
 .user-profile-chevron {
-  color: #0f2f4f;
+  color: #0d2745;
   transition: transform 0.16s ease;
   flex: 0 0 auto;
+  stroke-width: 3;
 }
 
 .user-profile-dropdown {
   position: absolute;
   right: 0;
-  top: calc(100% + 10px);
+  top: calc(100% + 16px);
   width: 360px;
   max-width: calc(100vw - 28px);
   background: #fff;
@@ -108,11 +110,11 @@
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: linear-gradient(145deg, #14b8a6, #0f766e);
+  background: radial-gradient(circle at 35% 25%, #88b8ff 0, #527df2 44%, #3159db 100%);
   color: #ffffff;
   font-size: 21px;
   font-weight: 900;
-  box-shadow: 0 10px 22px rgba(20, 184, 166, 0.24);
+  box-shadow: 0 10px 22px rgba(49, 89, 219, 0.24);
 }
 
 .user-profile-head-copy {
@@ -266,8 +268,8 @@
 
 @media (max-width: 900px) {
   .user-profile-chip {
-    width: 84px;
-    height: 48px;
-    padding-right: 8px;
+    min-width: 104px;
+    height: 58px;
+    padding-right: 14px;
   }
 }

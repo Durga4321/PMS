@@ -541,3 +541,20 @@
     width: 100%;
   }
 }
+
+/* Hide bulky payload editor unless a body action is selected */
+.pharmacist-json-input-card {
+  background: #fbfdff;
+  display: block;
+}
+.pharmacist-json-input-card summary {
+  cursor: pointer;
+  list-style: none;
+}
+.pharmacist-json-input-card summary::-webkit-details-marker { display: none; }
+.pharmacist-json-input-card textarea { margin-top: 12px; }
+.pharmacist-action-btn.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #2563eb;
+}

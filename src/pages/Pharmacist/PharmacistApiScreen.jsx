@@ -246,6 +246,8 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
   const emptyStateTitle = loading ? 'Loading data...' : activeLabel === 'Pending' ? 'No pending prescriptions found' : 'No data found'
   const emptyStateDesc = loading ? 'Please wait while latest API data loads.' : 'No records were returned by the API for this module.'
   const isDashboard = activeLabel === 'Dashboard'
+  const selectedAction = actions.find((action) => action.label === activeTabLabel)
+  const showRequestBody = !isDashboard && selectedAction && /create|dispense|generate|record|cancel|refund|approve|pay/i.test(selectedAction.label)
 
   return (
     <PharmacistLayout activeLabel={activeLabel} title={title} subtitle={subtitle}>
@@ -296,11 +298,11 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
             </button>
           </div>
 
-          {!isDashboard ? (
-            <div className="pharmacist-json-input-card">
-              <div className="json-input-header-row"><div className="json-input-header"><span>Request Body</span></div></div>
-              <textarea value={bodyText} onChange={(event) => setBodyText(event.target.value)} rows={4} aria-label="Request Body JSON" placeholder="{}" />
-            </div>
+          {showRequestBody ? (
+            <details className="pharmacist-json-input-card">
+              <summary className="json-input-header"><span>Request Payload</span></summary>
+              <textarea value={bodyText} onChange={(event) => setBodyText(event.target.value)} rows={4} aria-label="Request Body JSON" placeholder="Enter JSON payload" />
+            </details>
           ) : null}
 
           {isDashboard && actions.length > 0 ? (
@@ -313,7 +315,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
             </div>
           ) : actions.length > 0 ? (
             <div className="pharmacist-action-buttons-row">
-              {actions.map((action) => <button type="button" className="pharmacist-btn pharmacist-action-btn" onClick={() => run(action)} key={action.label} disabled={actionLoading}><ActionIcon /><span>{actionLoading && activeTabLabel === action.label ? 'Processing...' : action.label}</span></button>)}
+              {actions.map((action) => <button type="button" className={`pharmacist-btn pharmacist-action-btn ${activeTabLabel === action.label ? 'active' : ''}`} onMouseEnter={() => setActiveTabLabel(action.label)} onFocus={() => setActiveTabLabel(action.label)} onClick={() => run(action)} key={action.label} disabled={actionLoading}><ActionIcon /><span>{actionLoading && activeTabLabel === action.label ? 'Processing...' : action.label}</span></button>)}
             </div>
           ) : null}
 
@@ -360,3 +362,4 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
 }
 
 export default PharmacistApiScreen
+

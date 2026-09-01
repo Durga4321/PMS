@@ -132,6 +132,57 @@
   font-size: 13px;
 }
 
+.super-admin-module-table th:last-child {
+  width: 170px;
+}
+
+.super-admin-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.super-admin-action-button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #dfeaf6;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.super-admin-action-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.super-admin-action-button.view,
+.super-admin-action-button.select {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.super-admin-action-button.edit {
+  color: #0f766e;
+  background: #edfdf9;
+}
+
+.super-admin-action-button.danger {
+  color: #ef4444;
+  background: #fff0f0;
+}
+
+.super-admin-action-button:hover {
+  background: #e5f0ff;
+}
+
+.super-admin-action-button.danger:hover {
+  background: #fff4f4;
+}
+
 @media (max-width: 900px) {
   .super-admin-shell {
     padding-left: 72px;

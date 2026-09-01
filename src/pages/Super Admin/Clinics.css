@@ -113,7 +113,7 @@
 .clinics-table th:nth-child(4) { width: 15%; }
 .clinics-table th:nth-child(5) { width: 18%; }
 .clinics-table th:nth-child(6) { width: 10%; }
-.clinics-table th:nth-child(7) { width: 72px; }
+.clinics-table th:nth-child(7) { width: 170px; }
 
 .clinic-name,
 .clinic-with-icon {
@@ -175,7 +175,13 @@
   color: #dc2626;
 }
 
-.clinic-view-button {
+.clinic-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clinic-action-button {
   width: 30px;
   height: 30px;
   display: grid;
@@ -187,8 +193,33 @@
   cursor: pointer;
 }
 
-.clinic-view-button:hover {
+.clinic-action-button.view,
+.clinic-action-button.select {
+  color: #2563eb;
   background: #eff6ff;
+}
+
+.clinic-action-button.edit {
+  color: #0f766e;
+  background: #edfdf9;
+}
+
+.clinic-action-button.danger {
+  color: #ef4444;
+  background: #fff0f0;
+}
+
+.clinic-action-button:hover {
+  background: #eff6ff;
+}
+
+.clinic-action-button.danger:hover {
+  background: #fff4f4;
+}
+
+.clinic-action-button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .clinics-error {

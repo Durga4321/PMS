@@ -30,30 +30,48 @@ export const replacePathParams = (path, params = {}) =>
     return value === undefined || value === null ? '' : encodeURIComponent(String(value))
   })
 
-function authTokenFor(path = '') {
+const tokenKeysByRole = {
+  superAdmin: 'superAdminToken',
+  pharmacyAdmin: 'pharmacyAdminToken',
+  pharmacist: 'pharmacistToken',
+}
+
+function readStoredToken(name) {
+  return sessionStorage.getItem(name) || localStorage.getItem(name)
+}
+
+function authTokenFor(path = '', authRole = '') {
   const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
   const route = typeof window !== 'undefined' ? window.location.pathname : ''
-  const read = (name) => sessionStorage.getItem(name) || localStorage.getItem(name)
 
-  if (cleanPath.startsWith('pharmacy-super-admin') || route.startsWith('/super-admin')) return read('superAdminToken')
-  if (cleanPath.startsWith('pharmacy-admin') || route.startsWith('/admin')) return read('pharmacyAdminToken')
-  if (cleanPath.startsWith('pharmacist') || cleanPath.startsWith('pharmacy-auth') || route.startsWith('/pharmacist')) return read('pharmacistToken')
-  if (cleanPath.startsWith('pharmacy/')) return read('pharmacistToken') || read('pharmacyAdminToken')
-  return read('superAdminToken') || read('pharmacyAdminToken') || read('pharmacistToken')
+  if (authRole && tokenKeysByRole[authRole]) return readStoredToken(tokenKeysByRole[authRole])
+  if (cleanPath.startsWith('pharmacy-super-admin')) return readStoredToken('superAdminToken')
+  if (cleanPath.startsWith('pharmacy-admin-auth') || cleanPath.startsWith('pharmacy-admin')) return readStoredToken('pharmacyAdminToken')
+  if (cleanPath.startsWith('pharmacist') || cleanPath.startsWith('pharmacy-auth')) return readStoredToken('pharmacistToken')
+  if (cleanPath.startsWith('pharmacy/')) {
+    if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken')
+    if (route.startsWith('/admin')) return readStoredToken('pharmacyAdminToken')
+    return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken')
+  }
+  if (route.startsWith('/super-admin')) return readStoredToken('superAdminToken')
+  if (route.startsWith('/admin')) return readStoredToken('pharmacyAdminToken')
+  if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken')
+  return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
 }
 
 async function request(path, options = {}) {
-  const token = authTokenFor(path)
+  const { authRole, ...fetchOptions } = options
+  const token = authTokenFor(path, authRole)
 
-  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+  const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
   const response = await fetch(apiUrl(path), {
     headers: {
       'ngrok-skip-browser-warning': 'true',
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
+      ...fetchOptions.headers,
     },
-    ...options,
+    ...fetchOptions,
   })
 
   const contentType = response.headers.get('content-type')
@@ -133,6 +151,7 @@ export function resetForgottenSuperAdminPassword(payload) {
 
 export function logoutPharmacyAdmin(token) {
   return request('pharmacy-admin-auth/logout', {
+    authRole: 'pharmacyAdmin',
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
@@ -444,24 +463,24 @@ export const updateDoctorPrescription = (id, payload) => request(replacePathPara
 export const cancelDoctorPrescription = (id, payload = {}) => request(replacePathParams('doctor/prescriptions/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(payload) })
 export const completeDoctorPrescription = (id, payload = {}) => request(replacePathParams('doctor/prescriptions/{id}/complete', { id }), { method: 'POST', body: JSON.stringify(payload) })
 
-export const dispensePrescription = (payload) => request('pharmacy/dispense', { method: 'POST', body: JSON.stringify(payload) })
-export const generateBill = (payload) => request('pharmacy/generate-bill', { method: 'POST', body: JSON.stringify(payload) })
-export const getInvoice = (billId) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }))
-export const recordPayment = (payload) => request('pharmacy/payment', { method: 'POST', body: JSON.stringify(payload) })
-export const getPendingPharmacyPrescriptions = () => request('pharmacy/pending')
-export const getPharmacyPrescription = (id) => request(replacePathParams('pharmacy/prescriptions/{id}', { id }))
-export const getDailySalesReport = (params = {}) => request(`pharmacy/reports/daily-sales${queryString(params)}`)
+export const dispensePrescription = (payload) => request('pharmacy/dispense', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(payload) })
+export const generateBill = (payload) => request('pharmacy/generate-bill', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(payload) })
+export const getInvoice = (billId) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }), { authRole: 'pharmacist' })
+export const recordPayment = (payload) => request('pharmacy/payment', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(payload) })
+export const getPendingPharmacyPrescriptions = () => request('pharmacy/pending', { authRole: 'pharmacist' })
+export const getPharmacyPrescription = (id) => request(replacePathParams('pharmacy/prescriptions/{id}', { id }), { authRole: 'pharmacist' })
+export const getDailySalesReport = (params = {}) => request(`pharmacy/reports/daily-sales${queryString(params)}`, { authRole: 'pharmacist' })
 
-export const listBills = (params = {}) => request(`pharmacy/bills${queryString(params)}`)
-export const getBill = (id) => request(replacePathParams('pharmacy/bills/{id}', { id }))
-export const cancelBill = (id, payload = {}) => request(replacePathParams('pharmacy/bills/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(payload) })
-export const refundPayment = (id, payload = {}) => request(replacePathParams('pharmacy/payments/{id}/refund', { id }), { method: 'POST', body: JSON.stringify(payload) })
+export const listBills = (params = {}) => request(`pharmacy/bills${queryString(params)}`, { authRole: 'pharmacist' })
+export const getBill = (id) => request(replacePathParams('pharmacy/bills/{id}', { id }), { authRole: 'pharmacist' })
+export const cancelBill = (id, payload = {}) => request(replacePathParams('pharmacy/bills/{id}/cancel', { id }), { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(payload) })
+export const refundPayment = (id, payload = {}) => request(replacePathParams('pharmacy/payments/{id}/refund', { id }), { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(payload) })
 
-export const listMedicineReturns = (params = {}) => request(`pharmacy/returns${queryString(params)}`)
-export const createMedicineReturn = (payload) => request('pharmacy/returns', { method: 'POST', body: JSON.stringify(payload) })
-export const getMedicineReturn = (id) => request(replacePathParams('pharmacy/returns/{id}', { id }))
-export const approveMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(payload) })
-export const cancelMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(payload) })
+export const listMedicineReturns = (params = {}) => request(`pharmacy/returns${queryString(params)}`, { authRole: 'pharmacist' })
+export const createMedicineReturn = (payload) => request('pharmacy/returns', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(payload) })
+export const getMedicineReturn = (id) => request(replacePathParams('pharmacy/returns/{id}', { id }), { authRole: 'pharmacist' })
+export const approveMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/approve', { id }), { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(payload) })
+export const cancelMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(payload) })
 
 export const listStockTransfers = (params = {}) => request(`inventory/transfers${queryString(params)}`)
 export const createStockTransfer = (payload) => request('inventory/transfers', { method: 'POST', body: JSON.stringify(payload) })
@@ -470,29 +489,30 @@ export const dispatchStockTransfer = (id, payload = {}) => request(replacePathPa
 export const receiveStockTransfer = (id, payload = {}) => request(replacePathParams('inventory/transfers/{id}/receive', { id }), { method: 'POST', body: JSON.stringify(payload) })
 export const changeStockTransferStatus = (id, payload) => request(replacePathParams('inventory/transfers/{id}/status', { id }), { method: 'POST', body: JSON.stringify(payload) })
 
-export const getPharmacyAlerts = () => request('pharmacy/alerts')
-export const getPharmacyAuditLogs = (params = {}) => request(`pharmacy/audit-logs${queryString(params)}`)
-export const getPharmacyDashboard = () => request('pharmacy/dashboard')
-export const getPharmacyPayments = (params = {}) => request(`pharmacy/payments${queryString(params)}`)
-export const getPharmacyExpiryReport = () => request('pharmacy/reports/expiry')
-export const getPharmacyPurchasesReport = () => request('pharmacy/reports/purchases')
-export const getPharmacySalesReport = () => request('pharmacy/reports/sales')
-export const getPharmacyStockMovementReport = () => request('pharmacy/reports/stock-movement')
-export const getPharmacyStockSummaryReport = () => request('pharmacy/reports/stock-summary')
-export const getPharmacyTopSellingReport = () => request('pharmacy/reports/top-selling')
+export const getPharmacyAlerts = () => request('pharmacy/alerts', { authRole: 'pharmacist' })
+export const getPharmacyAuditLogs = (params = {}) => request(`pharmacy/audit-logs${queryString(params)}`, { authRole: 'pharmacist' })
+export const getPharmacyDashboard = () => request('pharmacy/dashboard', { authRole: 'pharmacist' })
+export const getPharmacyPayments = (params = {}) => request(`pharmacy/payments${queryString(params)}`, { authRole: 'pharmacist' })
+export const getPharmacyExpiryReport = () => request('pharmacy/reports/expiry', { authRole: 'pharmacist' })
+export const getPharmacyPurchasesReport = () => request('pharmacy/reports/purchases', { authRole: 'pharmacist' })
+export const getPharmacySalesReport = () => request('pharmacy/reports/sales', { authRole: 'pharmacist' })
+export const getPharmacyStockMovementReport = () => request('pharmacy/reports/stock-movement', { authRole: 'pharmacist' })
+export const getPharmacyStockSummaryReport = () => request('pharmacy/reports/stock-summary', { authRole: 'pharmacist' })
+export const getPharmacyTopSellingReport = () => request('pharmacy/reports/top-selling', { authRole: 'pharmacist' })
 export const getPharmacyAdminDashboard = () => request('pharmacy-admin/dashboard')
-export const getPharmacistDashboard = () => request('pharmacist/dashboard')
-export const getPharmacistInventory = (params = {}) => request(`pharmacist/inventory${queryString(params)}`)
-export const getPharmacistInventoryBatches = (medicineId) => request(replacePathParams('pharmacist/inventory/{medicineId}/batches', { medicineId }))
-export const getPharmacistInventoryAlerts = () => request('pharmacist/inventory/alerts')
+export const getPharmacistDashboard = () => request('pharmacist/dashboard', { authRole: 'pharmacist' })
+export const getPharmacistInventory = (params = {}) => request(`pharmacist/inventory${queryString(params)}`, { authRole: 'pharmacist' })
+export const getPharmacistInventoryBatches = (medicineId) => request(replacePathParams('pharmacist/inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
+export const getPharmacistInventoryAlerts = () => request('pharmacist/inventory/alerts', { authRole: 'pharmacist' })
 
 export function getPharmacyAdminAssignmentStatus() {
-  return request('pharmacy-admin-auth/assignment-status')
+  return request('pharmacy-admin-auth/assignment-status', { authRole: 'pharmacyAdmin' })
 }
 
 export function changePharmacyAdminPassword(payload) {
   const token = sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken')
   return request('pharmacy-admin-auth/change-password', {
+    authRole: 'pharmacyAdmin',
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: JSON.stringify(payload),
@@ -732,14 +752,15 @@ export function updatePharmacyCmsIntegration(payload) {
 
 export function createManualPharmacyPrescription(payload) {
   return request('pharmacy/prescriptions/manual', {
+    authRole: 'pharmacist',
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
-export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-auth/permissions')
+export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-auth/permissions', { authRole: 'pharmacyAdmin' })
 export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
-export const getPharmacyPrescriptions = (params = {}) => request(`pharmacy/prescriptions${queryString(params)}`)
-export const getPharmacyDispensingOverview = (params = {}) => request(`pharmacy/dispensing${queryString(params)}`)
+export const getPharmacyPrescriptions = (params = {}) => request(`pharmacy/prescriptions${queryString(params)}`, { authRole: 'pharmacist' })
+export const getPharmacyDispensingOverview = (params = {}) => request(`pharmacy/dispensing${queryString(params)}`, { authRole: 'pharmacist' })
 export const getSuperAdminAuditLogs = (params = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`)
 export const getSuperAdminAuditLogSummary = () => request('pharmacy-super-admin/audit-logs/summary')
 export const getSuperAdminBranches = (params = {}) => request(`pharmacy-super-admin/branches${queryString(params)}`)
@@ -766,3 +787,6 @@ export const sendSuperAdminNotification = (payload) => request('pharmacy-super-a
 export const deleteSuperAdminNotification = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}', { id }), { method: 'DELETE' })
 export const markSuperAdminNotificationRead = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}/read', { id }), { method: 'PATCH' })
 export const markAllSuperAdminNotificationsRead = () => request('pharmacy-super-admin/notifications/mark-all-read', { method: 'PATCH' })
+
+
+
