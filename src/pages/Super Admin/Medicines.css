@@ -152,7 +152,7 @@
 .medicines-table th:nth-child(6) { width: 9%; }
 .medicines-table th:nth-child(7) { width: 11%; }
 .medicines-table th:nth-child(8) { width: 10%; }
-.medicines-table th:nth-child(9) { width: 85px; }
+.medicines-table th:nth-child(9) { width: 170px; }
 
 .medicine-name,
 .medicine-stock,
@@ -228,8 +228,28 @@
   cursor: pointer;
 }
 
+.medicine-actions button.view,
+.medicine-actions button.select {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.medicine-actions button.edit {
+  color: #0f766e;
+  background: #edfdf9;
+}
+
+.medicine-actions button.danger {
+  color: #ef4444;
+  background: #fff0f0;
+}
+
 .medicine-actions button:hover {
   background: #eff6ff;
+}
+
+.medicine-actions button.danger:hover {
+  background: #fff4f4;
 }
 
 .medicine-actions button svg {
