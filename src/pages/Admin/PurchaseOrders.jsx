@@ -23,6 +23,8 @@ const normalizeList = (response) => {
   return []
 }
 
+const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
+
 function getId(item, index) {
   return item?._id || item?.id || item?.poNumber || item?.poNo || `${index}`
 }
@@ -90,9 +92,9 @@ export default function PurchaseOrders() {
     if (!sContact) {
       errs.supplierContact = 'Supplier Contact phone number is required.'
     } else {
-      const cleanPhone = sContact.replace(/[+\-\s()]/g, '')
-      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
-        errs.supplierContact = 'Please enter a valid contact phone number (at least 8 digits).'
+      const cleanPhone = digitsOnly(sContact)
+      if (!/^\d{10}$/.test(cleanPhone)) {
+        errs.supplierContact = 'Supplier contact phone number must be exactly 10 digits.'
       }
     }
 
@@ -152,9 +154,9 @@ export default function PurchaseOrders() {
     if (!sContact) {
       errs.supplierContact = 'Supplier Contact phone number is required.'
     } else {
-      const cleanPhone = sContact.replace(/[+\-\s()]/g, '')
-      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
-        errs.supplierContact = 'Please enter a valid contact phone number (at least 8 digits).'
+      const cleanPhone = digitsOnly(sContact)
+      if (!/^\d{10}$/.test(cleanPhone)) {
+        errs.supplierContact = 'Supplier contact phone number must be exactly 10 digits.'
       }
     }
 
@@ -286,13 +288,17 @@ export default function PurchaseOrders() {
       const qtyVal = Number(createForm.quantity || 1)
       const body = {
         supplierName: createForm.supplierName,
+        supplierContactPhone: createForm.supplierContact,
         supplierContact: createForm.supplierContact,
         medicineName: createForm.medicineName,
+        batchNumber: createForm.batchNo,
         batchNo: createForm.batchNo,
+        orderQuantity: qtyVal,
         quantity: qtyVal,
         unitPrice: uPrice,
         totalAmount: uPrice * qtyVal,
         paymentStatus: createForm.paymentStatus,
+        orderStatus: createForm.status,
         status: createForm.status
       }
       await createPurchaseOrder(body)
@@ -328,13 +334,17 @@ export default function PurchaseOrders() {
       const qtyVal = Number(editForm.quantity || 1)
       const body = {
         supplierName: editForm.supplierName,
+        supplierContactPhone: editForm.supplierContact,
         supplierContact: editForm.supplierContact,
         medicineName: editForm.medicineName,
+        batchNumber: editForm.batchNo,
         batchNo: editForm.batchNo,
+        orderQuantity: qtyVal,
         quantity: qtyVal,
         unitPrice: uPrice,
         totalAmount: uPrice * qtyVal,
         paymentStatus: editForm.paymentStatus,
+        orderStatus: editForm.status,
         status: editForm.status
       }
       await updatePurchaseOrder(editForm.id, body)
@@ -354,7 +364,7 @@ export default function PurchaseOrders() {
   async function handleReceive(id) {
     setLoading(true)
     try {
-      await receivePurchaseOrder(id, {})
+      await receivePurchaseOrder(id, { supplierInvoiceNumber: '', items: [] })
       showToast('Stock received and inventory values updated!')
       await refresh()
       loadSummaryMetrics()
@@ -677,10 +687,10 @@ export default function PurchaseOrders() {
                       <label>Supplier Contact Phone *</label>
                       <input 
                         type="text" 
-                        id="create-supplierContact"
+                        inputMode="numeric" maxLength={10} pattern="[0-9]{10}" id="create-supplierContact"
                         value={createForm.supplierContact} 
                         onChange={(e) => {
-                          setCreateForm({...createForm, supplierContact: e.target.value})
+                          setCreateForm({...createForm, supplierContact: digitsOnly(e.target.value)})
                           if (createErrors.supplierContact) setCreateErrors({...createErrors, supplierContact: ''})
                         }} 
                         style={createErrors.supplierContact ? { borderColor: '#ef4444' } : {}}
@@ -827,10 +837,10 @@ export default function PurchaseOrders() {
                       <label>Supplier Contact Phone *</label>
                       <input 
                         type="text" 
-                        id="edit-supplierContact"
+                        inputMode="numeric" maxLength={10} pattern="[0-9]{10}" id="edit-supplierContact"
                         value={editForm.supplierContact} 
                         onChange={(e) => {
-                          setEditForm({...editForm, supplierContact: e.target.value})
+                          setEditForm({...editForm, supplierContact: digitsOnly(e.target.value)})
                           if (editErrors.supplierContact) setEditErrors({...editErrors, supplierContact: ''})
                         }} 
                         style={editErrors.supplierContact ? { borderColor: '#ef4444' } : {}}

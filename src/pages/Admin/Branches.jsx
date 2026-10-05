@@ -3,15 +3,18 @@ import RowActions from '../../components/RowActions'
 import {
   changePharmacyBranchStatus,
   createPharmacyBranch,
+  deletePharmacyBranch,
   getPharmacyBranch,
   listPharmacyBranches,
   updatePharmacyBranch,
+  getPharmacySettings,
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import '../Super Admin/Branches.css'
 
 const headers = ['S.No.', 'Branch', 'Contact', 'Location', 'Status', 'Actions']
 const emptyForm = { name: '', phone: '', email: '', address: '', city: '', state: '', district: '', country: '', postalCode: '', status: 'Active' }
+const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
 
 const listFrom = (response) => {
   if (Array.isArray(response)) return response
@@ -48,15 +51,16 @@ function payloadFrom(form) {
   return Object.fromEntries(Object.entries(form).filter(([, value]) => String(value || '').trim() !== ''))
 }
 
-function buildMainBranch() {
+function buildMainBranch(settings = {}) {
   const assignment = readStoredValue('pharmacyAdminAssignment') || {}
   const user = readStoredValue('pharmacyAdminUser') || {}
   const pharmacy = assignment.pharmacy || user.pharmacy || {}
   const branchId = assignment.branchId || assignment.BranchId || assignment.branch?.id || assignment.branch?.branchId || user.branchId || user.BranchId || user.branch?.id || user.branch?.branchId
-  const name = assignment.pharmacyName || pharmacy.name || user.pharmacyName || assignment.branchName || user.branchName
-  const address = assignment.pharmacyAddress || pharmacy.address || user.pharmacyAddress || assignment.address || user.address
-  const phone = assignment.pharmacyContactNumber || pharmacy.contactNumber || user.pharmacyContactNumber || assignment.mobileNumber || user.mobileNumber
-  const email = assignment.pharmacyEmail || pharmacy.email || user.pharmacyEmail || assignment.email || user.email
+  const pharmacyId = assignment.pharmacyId || assignment.PharmacyId || pharmacy.id || pharmacy.pharmacyId || user.pharmacyId || user.PharmacyId || user.pharmacy?.id || user.pharmacy?.pharmacyId
+  const name = settings.pharmacyName || settings.name || assignment.pharmacyName || pharmacy.name || user.pharmacyName || assignment.branchName || user.branchName
+  const address = settings.address || settings.pharmacyAddress || settings.branchLocation || assignment.pharmacyAddress || pharmacy.address || user.pharmacyAddress || assignment.address || user.address
+  const phone = settings.phoneNumber || settings.phone || assignment.pharmacyContactNumber || pharmacy.contactNumber || user.pharmacyContactNumber || assignment.mobileNumber || user.mobileNumber
+  const email = settings.emailAddress || settings.email || assignment.pharmacyEmail || pharmacy.email || user.pharmacyEmail || assignment.email || user.email
 
   if (!name && !address && !phone && !email) return null
 
@@ -68,11 +72,11 @@ function buildMainBranch() {
     phone,
     email,
     address,
-    city: assignment.city || pharmacy.city || user.city,
-    district: assignment.district || pharmacy.district || user.district,
-    state: assignment.state || pharmacy.state || user.state,
-    country: assignment.country || pharmacy.country || user.country,
-    postalCode: assignment.postalCode || pharmacy.postalCode || user.postalCode,
+    city: settings.city || assignment.city || pharmacy.city || user.city,
+    district: settings.district || assignment.district || pharmacy.district || user.district,
+    state: settings.state || assignment.state || pharmacy.state || user.state,
+    country: settings.country || assignment.country || pharmacy.country || user.country,
+    postalCode: settings.postalCode || settings.pincode || assignment.postalCode || pharmacy.postalCode || user.postalCode,
     status: 'Active',
     isMainBranch: true,
   }
@@ -99,8 +103,18 @@ export default function AdminBranches() {
   const [modal, setModal] = useState(null)
   const [currentBranch, setCurrentBranch] = useState(null)
   const [form, setForm] = useState(emptyForm)
-  const mainBranch = useMemo(() => buildMainBranch(), [])
+  const [mainBranch, setMainBranch] = useState(() => buildMainBranch())
   const displayBranches = useMemo(() => mainBranch ? [mainBranch, ...branches] : branches, [mainBranch, branches])
+
+  async function loadMainBranchDetails() {
+    try {
+      const response = await getPharmacySettings({ authRole: 'pharmacyAdmin' })
+      const settings = response?.settings || response?.data?.settings || response?.data || response || {}
+      setMainBranch(buildMainBranch(settings))
+    } catch (requestError) {
+      console.log('Unable to load pharmacy settings for main branch:', requestError.message)
+    }
+  }
 
   async function loadBranches() {
     setLoading(true)
@@ -109,13 +123,15 @@ export default function AdminBranches() {
       const response = await listPharmacyBranches()
       setBranches(listFrom(response))
     } catch (requestError) {
-      setError(requestError.message || 'Unable to load sub branches.')
+      setBranches([])
+      console.log('Branch list API failed:', requestError.message)
+      if (!mainBranch) setError(requestError.message || 'Unable to load sub branches.')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { loadBranches() }, [])
+  useEffect(() => { loadMainBranchDetails(); loadBranches() }, [])
 
   function openCreate() {
     setCurrentBranch(null)
@@ -161,6 +177,10 @@ export default function AdminBranches() {
 
   async function saveBranch(event) {
     event.preventDefault()
+    if (form.phone && !/^\d{10}$/.test(form.phone)) {
+      setError('Phone number must be exactly 10 digits.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -191,6 +211,19 @@ export default function AdminBranches() {
     }
   }
 
+
+  async function deleteBranch(branch) {
+    if (branch?.isMainBranch) return
+    const id = idOf(branch)
+    if (!id || !window.confirm(`Delete ${nameOf(branch)}?`)) return
+    setBranches((items) => items.filter((item) => idOf(item) !== id))
+    try {
+      await deletePharmacyBranch(id)
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to delete sub branch.')
+      loadBranches()
+    }
+  }
   function chooseBranch(branch) {
     const selected = { id: idOf(branch), name: nameOf(branch), type: branch?.isMainBranch ? 'main' : 'sub' }
     sessionStorage.setItem('workingBranchId', selected.id || '')
@@ -201,7 +234,7 @@ export default function AdminBranches() {
     const id = idOf(branch) || index
     const actions = branch?.isMainBranch
       ? <span className="row-actions" key={`actions-${id}`}><button className="row-action-button view" type="button" title={idOf(branch) ? 'Use main branch' : 'Create a sub branch first'} disabled={!idOf(branch)} onClick={() => chooseBranch(branch)}>Use</button><RowActions itemName={nameOf(branch)} isActive={true} onView={() => openView(branch)} /></span>
-      : <span className="row-actions" key={`actions-${id}`}><button className="row-action-button view" type="button" title="Use sub branch" onClick={() => chooseBranch(branch)}>Use</button><RowActions itemName={nameOf(branch)} isActive={isActive(branch)} onView={() => openView(branch)} onEdit={() => openEdit(branch)} onStatus={() => toggleStatus(branch)} /></span>
+      : <span className="row-actions" key={`actions-${id}`}><button className="row-action-button view" type="button" title="Use sub branch" onClick={() => chooseBranch(branch)}>Use</button><RowActions itemName={nameOf(branch)} isActive={isActive(branch)} onView={() => openView(branch)} onEdit={() => openEdit(branch)} onStatus={() => toggleStatus(branch)} onDelete={() => deleteBranch(branch)} /></span>
     return [
       <span className="branches-serial" key="serial">{index + 1}</span>,
       <BranchNameCell key="branch" branch={branch} index={index} />,
@@ -227,7 +260,7 @@ export default function AdminBranches() {
 
       {modal === 'view' && currentBranch ? <div className="sa-modal-backdrop" onClick={() => setModal(null)}><div className="sa-modal-card" onClick={(event) => event.stopPropagation()}><div className="sa-modal-header"><h2>{nameOf(currentBranch)}</h2><button type="button" className="sa-modal-close" onClick={() => setModal(null)}>&times;</button></div><div className="sa-modal-body"><div className="sa-modal-grid">{['phone', 'email', 'address', 'city', 'district', 'state', 'country', 'postalCode'].map((field) => <div className="sa-modal-field" key={field}><label>{field}</label><span>{text(currentBranch?.[field])}</span></div>)}</div></div><div className="sa-modal-footer"><button type="button" className="sa-btn-secondary" onClick={() => setModal(null)}>Close</button></div></div></div> : null}
 
-      {modal === 'form' ? <div className="sa-modal-backdrop" onClick={() => setModal(null)}><form className="sa-modal-card" onSubmit={saveBranch} onClick={(event) => event.stopPropagation()}><div className="sa-modal-header"><h2>{currentBranch ? 'Edit Sub Branch' : 'Create Sub Branch'}</h2><button type="button" className="sa-modal-close" onClick={() => setModal(null)}>&times;</button></div><div className="sa-modal-body"><div className="sa-modal-grid">{Object.keys(emptyForm).map((field) => <div className="sa-modal-field" key={field} style={field === 'address' ? { gridColumn: '1 / -1' } : undefined}><label>{field === 'name' ? 'Sub Branch Name *' : field}</label>{field === 'address' ? <textarea value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} /> : field === 'status' ? <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="Active">Active</option><option value="Inactive">Inactive</option></select> : <input required={field === 'name'} type={field === 'email' ? 'email' : 'text'} value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} />}</div>)}</div></div><div className="sa-modal-footer"><button type="button" className="sa-btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="sa-btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Sub Branch'}</button></div></form></div> : null}
+      {modal === 'form' ? <div className="sa-modal-backdrop" onClick={() => setModal(null)}><form className="sa-modal-card" onSubmit={saveBranch} onClick={(event) => event.stopPropagation()}><div className="sa-modal-header"><h2>{currentBranch ? 'Edit Sub Branch' : 'Create Sub Branch'}</h2><button type="button" className="sa-modal-close" onClick={() => setModal(null)}>&times;</button></div><div className="sa-modal-body"><div className="sa-modal-grid">{Object.keys(emptyForm).map((field) => <div className="sa-modal-field" key={field} style={field === 'address' ? { gridColumn: '1 / -1' } : undefined}><label>{field === 'name' ? 'Sub Branch Name *' : field}</label>{field === 'address' ? <textarea value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} /> : field === 'status' ? <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="Active">Active</option><option value="Inactive">Inactive</option></select> : <input required={field === 'name'} type={field === 'email' ? 'email' : 'text'} inputMode={field === 'phone' || field === 'postalCode' ? 'numeric' : undefined} maxLength={field === 'phone' ? 10 : field === 'postalCode' ? 6 : undefined} pattern={field === 'phone' ? '[0-9]{10}' : undefined} value={form[field]} onChange={(event) => setForm({ ...form, [field]: field === 'phone' ? digitsOnly(event.target.value) : field === 'postalCode' ? digitsOnly(event.target.value, 6) : event.target.value })} />}</div>)}</div></div><div className="sa-modal-footer"><button type="button" className="sa-btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="sa-btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Sub Branch'}</button></div></form></div> : null}
     </AdminLayout>
   )
 }

@@ -11,19 +11,19 @@ import './SuperAdminTopbar.css'
 import './SuperAdminProfile.css'
 
 import {
-  LuActivity,
-  LuArrowLeft,
-  LuBell,
-  LuCircle,
-  LuEyeOff,
-  LuKeyRound,
-  LuLock,
-  LuLogOut,
-  LuMail,
-  LuShieldCheck,
-  LuStethoscope,
-  LuUserRound,
-} from 'react-icons/lu'
+  FaHeartbeat as LuActivity,
+  FaArrowLeft as LuArrowLeft,
+  FaBell as LuBell,
+  FaCircle as LuCircle,
+  FaEyeSlash as LuEyeOff,
+  FaKey as LuKeyRound,
+  FaLock as LuLock,
+  FaSignOutAlt as LuLogOut,
+  FaEnvelope as LuMail,
+  FaShieldAlt as LuShieldCheck,
+  FaStethoscope as LuStethoscope,
+  FaUserCircle as LuUserRound,
+} from 'react-icons/fa'
 
 function Icon({ children }) {
   return <svg className="profile-topbar-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{children}</svg>

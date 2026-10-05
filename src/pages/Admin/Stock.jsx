@@ -165,6 +165,32 @@ const NAV_TABS = [
   }
 ]
 
+function normalizeList(response) {
+  if (Array.isArray(response)) return response
+
+  const data = response?.data ?? response?.Data ?? response
+  if (Array.isArray(data)) return data
+
+  const candidates = [
+    data?.items,
+    data?.Items,
+    data?.inventory,
+    data?.Inventory,
+    data?.batches,
+    data?.Batches,
+    data?.transactions,
+    data?.Transactions,
+    data?.medicines,
+    data?.Medicines,
+    data?.results,
+    data?.Results,
+    data?.records,
+    data?.Records,
+  ]
+
+  return candidates.find(Array.isArray) || []
+}
+
 export default function Stock({ initialView }) {
   const navigate = useNavigate()
   const location = useLocation()

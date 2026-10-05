@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listPharmacyAdmins } from '../../config/api'
+import { createSuperAdminPharmacy, getAddressByPincode, getSuperAdminPharmacies } from '../../config/api'
 import SuperAdminModulePage from './SuperAdminModulePage'
 import RowActions from '../../components/RowActions'
 import './Branches.css'
 
 const headers = ['S.No.', 'Pharmacy Name', 'Contact Number', 'Address', 'Email ID', 'Status', 'Actions']
-
+const emptyForm = { name: '', phone: '', email: '', address: '', city: '', district: '', state: '', country: '', postalCode: '' }
+const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
 function listFrom(response) {
   if (Array.isArray(response)) return response
   if (Array.isArray(response?.data)) return response.data
+  if (Array.isArray(response?.data?.pharmacies)) return response.data.pharmacies
+  if (Array.isArray(response?.pharmacies)) return response.pharmacies
   if (Array.isArray(response?.data?.admins)) return response.data.admins
   if (Array.isArray(response?.admins)) return response.admins
   if (Array.isArray(response?.items)) return response.items
@@ -33,22 +36,22 @@ function idOf(item) {
 
 function pharmacyName(item) {
   const admin = unwrapAdmin(item)
-  return text(admin.pharmacyName || admin.PharmacyName || admin.pharmacy?.name || admin.pharmacy?.pharmacyName)
+  return text(admin.pharmacyName || admin.PharmacyName || admin.name || admin.Name || admin.pharmacy?.name || admin.pharmacy?.pharmacyName)
 }
 
 function contactNumber(item) {
   const admin = unwrapAdmin(item)
-  return text(admin.pharmacyContactNumber || admin.PharmacyContactNumber || admin.mobileNumber || admin.MobileNumber || admin.phone || admin.mobile)
+  return text(admin.pharmacyContactNumber || admin.PharmacyContactNumber || admin.contactNumber || admin.ContactNumber || admin.phoneNumber || admin.mobileNumber || admin.MobileNumber || admin.phone || admin.mobile)
 }
 
 function emailOf(item) {
   const admin = unwrapAdmin(item)
-  return text(admin.pharmacyEmail || admin.PharmacyEmail || admin.email)
+  return text(admin.pharmacyEmail || admin.PharmacyEmail || admin.email || admin.Email)
 }
 
 function addressOf(item) {
   const admin = unwrapAdmin(item)
-  const address = admin.pharmacyAddress || admin.PharmacyAddress || admin.address || admin.pharmacy?.address
+  const address = admin.pharmacyAddress || admin.PharmacyAddress || admin.address || admin.Address || admin.location || admin.pharmacy?.address
   const location = [admin.city || admin.City, admin.state || admin.State, admin.country || admin.Country, admin.postalCode || admin.PostalCode].filter(Boolean).join(', ')
   return text([address, location].filter((part) => text(part, '')).join(', '))
 }
@@ -79,7 +82,10 @@ export default function Pharmacies() {
   const [pharmacies, setPharmacies] = useState([])
   const [viewingPharmacy, setViewingPharmacy] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [form, setForm] = useState(emptyForm)
 
   useEffect(() => {
     let active = true
@@ -88,16 +94,10 @@ export default function Pharmacies() {
       setLoading(true)
       setError('')
       try {
-        const response = await listPharmacyAdmins()
+        const response = await getSuperAdminPharmacies({ page: 1, pageSize: 100 })
         if (!active) return
-        const admins = listFrom(response).map(unwrapAdmin)
-        const unique = new Map()
-        admins.forEach((admin) => {
-          const key = admin.pharmacyId || admin.PharmacyId || admin.pharmacyName || admin.email || admin.id
-          if (!key) return
-          if (!unique.has(String(key))) unique.set(String(key), admin)
-        })
-        setPharmacies([...unique.values()])
+        const items = listFrom(response).map(unwrapAdmin)
+        setPharmacies(items)
       } catch (requestError) {
         if (active) setError(requestError.message || 'Unable to load pharmacies.')
       } finally {
@@ -109,6 +109,51 @@ export default function Pharmacies() {
     return () => { active = false }
   }, [])
 
+
+  async function createPharmacy(event) {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      const payload = Object.fromEntries(Object.entries(form).map(([key, value]) => [key, String(value || '').trim()]).filter(([, value]) => value !== ''))
+      const response = await createSuperAdminPharmacy(payload)
+      const created = response?.data?.pharmacy || response?.pharmacy || response?.data || response
+      const mainBranch = response?.data?.mainBranch || response?.mainBranch
+      if (created?.id || created?.pharmacyId) sessionStorage.setItem('lastCreatedPharmacyId', String(created.id || created.pharmacyId))
+      if (mainBranch?.id || mainBranch?.branchId) sessionStorage.setItem('lastCreatedMainBranchId', String(mainBranch.id || mainBranch.branchId))
+      setCreateOpen(false)
+      setForm(emptyForm)
+      const listResponse = await getSuperAdminPharmacies({ page: 1, pageSize: 100 })
+      const items = listFrom(listResponse).map(unwrapAdmin)
+      setPharmacies(items)
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to create pharmacy.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handlePostalCodeChange(value) {
+    setForm((current) => ({ ...current, postalCode: value }))
+    const pincode = String(value || '').replace(/\D/g, '')
+    if (pincode.length !== 6) return
+
+    try {
+      const response = await getAddressByPincode(pincode)
+      const source = response?.data?.address || response?.data || response?.address || response?.result || response || {}
+      const address = Array.isArray(source) ? source[0] || {} : source
+      setForm((current) => ({
+        ...current,
+        postalCode: value,
+        city: address.area || address.Area || address.city || address.City || current.city,
+        district: address.district || address.District || current.district,
+        state: address.state || address.State || current.state,
+        country: address.country || address.Country || current.country || 'India',
+      }))
+    } catch {
+      // Pincode lookup is optional; users can still fill the address manually.
+    }
+  }
   const rows = useMemo(() => pharmacies.map((pharmacy, index) => {
     const status = statusOf(pharmacy)
     return [
@@ -124,14 +169,25 @@ export default function Pharmacies() {
 
   return (
     <SuperAdminModulePage
-      title="Pharmacies"
+      title="Pharmacy Management"
       headers={headers}
       rows={rows}
       loading={loading}
       error={error}
-      action={null}
+      action={<button type="button" className="sa-btn-primary" onClick={() => setCreateOpen(true)}>+ Create Pharmacy</button>}
       emptyText="No pharmacies available."
     >
+      {createOpen ? (
+        <div className="sa-modal-backdrop" onClick={() => setCreateOpen(false)}>
+          <form className="sa-modal-card" onSubmit={createPharmacy} onClick={(event) => event.stopPropagation()}>
+            <div className="sa-modal-header"><h2>Create Pharmacy</h2><button type="button" className="sa-modal-close" onClick={() => setCreateOpen(false)}>&times;</button></div>
+            <div className="sa-modal-body"><div className="sa-modal-grid">
+              {Object.keys(emptyForm).map((field) => <div className="sa-modal-field" key={field} style={field === 'address' ? { gridColumn: '1 / -1' } : undefined}><label>{field === 'name' ? 'Pharmacy Name *' : field === 'postalCode' ? 'Pincode' : field.replace(/([A-Z])/g, ' $1')}</label>{field === 'address' ? <textarea value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} /> : <input required={field === 'name'} type={field === 'email' ? 'email' : 'text'} inputMode={field === 'phone' || field === 'postalCode' ? 'numeric' : undefined} maxLength={field === 'phone' ? 10 : field === 'postalCode' ? 6 : undefined} pattern={field === 'phone' ? '[0-9]{10}' : undefined} value={form[field]} onChange={(event) => field === 'postalCode' ? handlePostalCodeChange(digitsOnly(event.target.value, 6)) : setForm({ ...form, [field]: field === 'phone' ? digitsOnly(event.target.value) : event.target.value })} />}</div>)}
+            </div></div>
+            <div className="sa-modal-footer"><button type="button" className="sa-btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button><button type="submit" className="sa-btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Pharmacy'}</button></div>
+          </form>
+        </div>
+      ) : null}
       {viewingPharmacy ? (
         <div className="sa-modal-backdrop" onClick={() => setViewingPharmacy(null)}>
           <div className="sa-modal-card" onClick={(event) => event.stopPropagation()}>
@@ -155,3 +211,5 @@ export default function Pharmacies() {
     </SuperAdminModulePage>
   )
 }
+
+

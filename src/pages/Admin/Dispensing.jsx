@@ -127,7 +127,8 @@ export default function Dispensing() {
     setLoading(true)
     try {
       const id = item?.prescriptionId || item?._id
-      const response = await dispensePrescription({ prescriptionId: id })
+      const meds = Array.isArray(item?.medicines) ? item.medicines : []
+      const response = await dispensePrescription({ prescriptionId: Number(id), medicines: meds.map((medicine) => ({ prescriptionItemId: Number(medicine.prescriptionItemId || medicine.id || medicine.prescriptionItem?.id), quantity: Number(medicine.quantity || 1) })).filter((medicine) => medicine.prescriptionItemId) })
       showToast(response?.message || 'Medicine dispensed successfully!')
       await loadActiveTab()
       loadSummary()
@@ -142,7 +143,7 @@ export default function Dispensing() {
     setLoading(true)
     try {
       const id = item?.prescriptionId || item?._id
-      const response = await generateBill({ prescriptionId: id })
+      const response = await generateBill({ prescriptionId: Number(id), discount: 0 })
       showToast(response?.message || 'Bill generated successfully!')
       await loadActiveTab('invoices')
       loadSummary()
@@ -168,7 +169,7 @@ export default function Dispensing() {
     setLoading(true)
     try {
       const id = item?._id || item?.id
-      const response = await recordPayment({ billId: id, paidAmount: item?.amount || item?.totalPrice || item?.total || 100, paymentMode: 'Cash', transactionId: item?.transactionId || '' })
+      const response = await recordPayment({ billId: Number(id), paymentMode: 'Cash', transactionId: item?.transactionId || '', paidAmount: Number(item?.amount || item?.totalPrice || item?.total || 0) })
       showToast(response?.message || 'Payment recorded successfully!')
       await loadActiveTab('payments')
       loadSummary()

@@ -144,7 +144,9 @@ export default function Prescriptions() {
         advice: '',
         notes: '',
         medicines: [{
+          medicineId: Number(createForm.medicineName) || undefined,
           medicineName: createForm.medicineName,
+          days: Number(String(createForm.duration || '1').match(/\\d+/)?.[0] || 1),
           dosage: createForm.dosage,
           frequency: createForm.frequency,
           duration: createForm.duration,
@@ -190,7 +192,9 @@ export default function Prescriptions() {
         patientName: editForm.patientName,
         doctorName: editForm.doctorName,
         medicines: [{
+          medicineId: Number(editForm.medicineName) || undefined,
           medicineName: editForm.medicineName,
+          days: Number(String(editForm.duration || '1').match(/\\d+/)?.[0] || 1),
           dosage: editForm.dosage,
           frequency: editForm.frequency,
           duration: editForm.duration,

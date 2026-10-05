@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { useToast } from '../../components/ToastProvider'
 import MedicineSuccessAnimation from '../../components/MedicineSuccessAnimation'
 import RowActions from '../../components/RowActions'
@@ -10,6 +11,8 @@ import {
   downloadMedicineImportTemplate,
   getMedicineImportErrors,
   getMedicineImportStatus,
+  listMedicineImportRows,
+  deleteMedicineImportRow,
   listMedicineCategories,
   listMedicineDosageForms,
   listMedicineStrengths,
@@ -77,6 +80,67 @@ function getStatus(item) {
   const value = item?.status ?? item?.isAvailable ?? item?.available
   if (typeof value === 'boolean') return value ? 'Active' : 'Inactive'
   return value || 'Active'
+}
+
+
+function valueFrom(row, keys, fallback = '') {
+  for (const key of keys) {
+    const value = row?.[key] ?? row?.[key.toLowerCase()] ?? row?.[key.toUpperCase()]
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value
+  }
+  return fallback
+}
+
+function normalizeImportMedicine(row, index) {
+  const name = String(valueFrom(row, ['Name', 'MedicineName', 'Medicine Name', 'name', 'medicineName'])).trim()
+  const medicineCode = String(valueFrom(row, ['MedicineCode', 'Medicine Code', 'Code', 'SKU', 'medicineCode'])).trim() || `MED-${Date.now()}-${index + 1}`
+  const genericName = String(valueFrom(row, ['GenericName', 'Generic Name', 'genericName'], name)).trim() || name
+  const sellingPrice = Number(valueFrom(row, ['SellingPrice', 'Selling Price', 'MRP', 'Price', 'price'], 1)) || 1
+  const purchasePrice = Number(valueFrom(row, ['PurchasePrice', 'Purchase Price', 'Cost', 'purchasePrice'], 0)) || 0
+  const initialStockCount = Number(valueFrom(row, ['InitialStockCount', 'Initial Stock Count', 'Stock', 'Quantity', 'stock'], 0)) || 0
+  const minimumStockThreshold = Number(valueFrom(row, ['MinimumStockThreshold', 'Minimum Stock', 'MinimumStock', 'MinStock', 'minStock'], 0)) || 0
+  const reorderStockLevel = Number(valueFrom(row, ['ReorderStockLevel', 'Reorder Level', 'ReorderLevel', 'reorderLevel'], 0)) || 0
+  const maximumStock = Number(valueFrom(row, ['MaximumStock', 'Maximum Stock', 'MaxStock', 'maxStock'], 0)) || 0
+  const catalogueStatus = String(valueFrom(row, ['CatalogueStatus', 'Catalogue Status', 'Status', 'status'], 'Active')).trim() || 'Active'
+  const active = catalogueStatus.toLowerCase() !== 'inactive'
+  const description = String(valueFrom(row, ['Description', 'Notes', 'description'])).trim() || undefined
+
+  return {
+    rowNumber: index + 1,
+    name,
+    medicineName: name,
+    medicineCode,
+    code: medicineCode,
+    genericName,
+    brandName: String(valueFrom(row, ['BrandName', 'Brand Name', 'brandName'])).trim() || undefined,
+    category: String(valueFrom(row, ['Category', 'category'])).trim() || 'General',
+    dosageForm: String(valueFrom(row, ['DosageForm', 'Dosage Form', 'Form', 'dosageForm'])).trim() || 'Tablet',
+    strength: String(valueFrom(row, ['Strength', 'strength'])).trim() || undefined,
+    unit: String(valueFrom(row, ['Unit', 'unit'])).trim() || undefined,
+    manufacturer: String(valueFrom(row, ['Manufacturer', 'manufacturer'])).trim() || undefined,
+    packSize: String(valueFrom(row, ['PackSize', 'Pack Size', 'packSize'])).trim() || undefined,
+    purchasePrice,
+    sellingPrice,
+    price: sellingPrice,
+    gst: Number(valueFrom(row, ['GST', 'Gst', 'Tax', 'gst'], 0)) || 0,
+    initialStockCount,
+    stock: initialStockCount,
+    minimumStockThreshold,
+    minStock: minimumStockThreshold,
+    reorderStockLevel,
+    reorderLevel: reorderStockLevel,
+    maximumStock,
+    maxStock: maximumStock,
+    storageLocation: String(valueFrom(row, ['StorageLocation', 'Storage Location', 'Location', 'storageLocation'])).trim() || undefined,
+    prescriptionRequired: /^(true|yes|1)$/i.test(String(valueFrom(row, ['PrescriptionRequired', 'Prescription Required', 'Rx Required'], false))),
+    catalogueStatus,
+    status: catalogueStatus,
+    isActive: active,
+    isAvailable: active,
+    description,
+    notes: description,
+    expiryDate: valueFrom(row, ['ExpiryDate', 'Expiry Date', 'expiryDate'], '') || null,
+  }
 }
 
 function optionValue(item) {
@@ -199,6 +263,9 @@ export default function Medicines() {
   const [importMessage, setImportMessage] = useState('')
   const [importStats, setImportStats] = useState(null)
   const [importErrors, setImportErrors] = useState(null)
+  const [importRows, setImportRows] = useState([])
+  const [fallbackImportRows, setFallbackImportRows] = useState([])
+  const [importProgress, setImportProgress] = useState(null)
 
   // Metrics summary
   const [metrics, setMetrics] = useState({
@@ -335,7 +402,6 @@ export default function Medicines() {
       name: form.name?.trim(),
       medicineName: form.name?.trim(),
       genericName: form.genericName?.trim() || undefined,
-      code: form.code?.trim() || undefined,
       medicineCode: form.code?.trim() || undefined,
       brandName: form.brandName?.trim() || undefined,
       category: form.category?.trim(),
@@ -344,11 +410,9 @@ export default function Medicines() {
       unit: form.unit?.trim() || undefined,
       packSize: form.packSize?.trim() || undefined,
       manufacturer: form.manufacturer?.trim() || undefined,
-      stockQuantity: form.stock === '' ? 0 : Number(form.stock),
-      stock: form.stock === '' ? 0 : Number(form.stock),
+      initialStockCount: form.stock === '' ? 0 : Number(form.stock),
       purchasePrice: form.purchasePrice === '' ? 0 : Number(form.purchasePrice),
       sellingPrice: form.price === '' ? 0 : Number(form.price),
-      price: form.price === '' ? 0 : Number(form.price),
       gst: form.gst === '' ? 0 : Number(form.gst),
       expiryDate: form.expiryDate || null,
       isActive: form.status === 'Active',
@@ -356,9 +420,11 @@ export default function Medicines() {
       prescriptionRequired: form.prescriptionRequired === 'Yes' || form.prescriptionRequired === true,
       description: form.notes?.trim() || undefined,
       notes: form.notes?.trim() || undefined,
-      minStock: form.minStock === '' ? undefined : Number(form.minStock),
-      maxStock: form.maxStock === '' ? undefined : Number(form.maxStock),
-      reorderLevel: form.reorderLevel === '' ? undefined : Number(form.reorderLevel)
+      minimumStockThreshold: form.minStock === '' ? undefined : Number(form.minStock),
+      maximumStock: form.maxStock === '' ? undefined : Number(form.maxStock),
+      reorderStockLevel: form.reorderLevel === '' ? undefined : Number(form.reorderLevel),
+      storageLocation: form.storageLocation?.trim() || undefined,
+      catalogueStatus: form.status
     }
  
     console.log('MEDICINE PAYLOAD:', payload)
@@ -457,6 +523,25 @@ export default function Medicines() {
       showToast(error.message || 'Unable to update medicine status.', 'error')
     }
   }
+
+  async function parseMedicineFile(file) {
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' })
+    return rows.map(normalizeImportMedicine).filter((row) => row.name)
+  }
+
+  async function handleFallbackImport(file) {
+    const rows = await parseMedicineFile(file)
+    if (!rows.length) throw new Error('No valid medicine rows found in the selected file.')
+    setFallbackImportRows(rows)
+    setImportRows(rows.map((row) => ({ rowNumber: row.rowNumber, status: 'Ready', data: row })))
+    setImportStats({ totalRows: rows.length, validRows: rows.length, duplicateRows: 0 })
+    setImportMessage('File validated successfully. Click Commit Import to upload these medicines.')
+    showToast(`${rows.length} medicines ready. Click Commit Import to upload them.`)
+  }
+
   // Import Actions
   async function handleImportValidation() {
     if (!importFile) return showToast('Please select a CSV file first.', 'error')
@@ -465,27 +550,102 @@ export default function Medicines() {
       const response = await validateMedicineImport(importFile, { skipInvalidRows: true, SkipInvalidRows: true })
       const nextImportId = response?.importId || response?.data?.importId || response?.id || ''
       setImportId(nextImportId)
-      setImportMessage(response?.message || 'CSV file validated successfully.')
+      setImportMessage(response?.message || 'Medicine file validated successfully.')
       setImportStats(response?.data || response || null)
-      showToast(response?.message || 'CSV validated successfully.')
+      if (nextImportId) {
+        const rowResponse = await listMedicineImportRows(nextImportId)
+        setImportRows(normalizeList(rowResponse))
+      }
+      showToast(response?.message || 'Medicine file validated successfully.')
     } catch (error) {
-      showToast(error.message, 'error')
+      const message = String(error.message || '')
+      if (message.includes('HospitalId')) {
+        try {
+          await handleFallbackImport(importFile)
+        } catch (fallbackError) {
+          showToast(fallbackError.message || 'Unable to parse the selected medicine file.', 'error')
+        }
+      } else {
+        showToast(message, 'error')
+      }
     } finally {
       setLoading(false)
     }
   }
 
   async function handleCommitImport() {
-    if (!importId) return showToast('Please validate a CSV first.', 'error')
+    if (loading) return
+    if (!importId && !fallbackImportRows.length) return showToast('Please validate a medicine file first.', 'error')
     setLoading(true)
+    setImportErrors(null)
     try {
-      const response = await commitMedicineImport(importId, { skipInvalidRows: true, SkipInvalidRows: true, importInvalidRows: false, ImportInvalidRows: false })
-      setImportMessage(response?.message || 'Medicine CSV import committed.')
-      showToast(response?.message || 'Medicine CSV import committed.')
+      if (fallbackImportRows.length) {
+        let created = 0
+        let completed = 0
+        const failed = []
+        const total = fallbackImportRows.length
+        const concurrency = 12
+        setImportProgress({ done: 0, total, created: 0, failed: 0 })
+        setImportMessage(`Importing medicines... 0/${total}`)
+        showToast(`Import started for ${total} medicines.`)
+
+        async function uploadRow(row) {
+          try {
+            await createMedicine(row)
+            created += 1
+          } catch (rowError) {
+            failed.push({ row: row.rowNumber, name: row.name, error: rowError.message || 'Upload failed' })
+          } finally {
+            completed += 1
+            if (completed === total || completed % 10 === 0) {
+              setImportProgress({ done: completed, total, created, failed: failed.length })
+              setImportMessage(`Importing medicines... ${completed}/${total}`)
+            }
+          }
+        }
+
+        let cursor = 0
+        const workers = Array.from({ length: Math.min(concurrency, total) }, async () => {
+          while (cursor < total) {
+            const row = fallbackImportRows[cursor]
+            cursor += 1
+            await uploadRow(row)
+          }
+        })
+        await Promise.all(workers)
+        setImportProgress({ done: completed, total, created, failed: failed.length })
+
+        if (failed.length) {
+          setImportErrors(failed)
+          setImportMessage(`${created} medicines imported. ${failed.length} rows failed; view error details below.`)
+          showToast(`${created} medicines imported. ${failed.length} rows failed.`, created ? 'success' : 'error')
+          await loadMedicines()
+          loadSummaryMetrics()
+          return
+        }
+
+        showToast(`${created} medicines imported successfully.`)
+        setImportOpen(false)
+        setImportFile(null)
+        setImportId('')
+        setImportStats(null)
+        setImportRows([])
+        setFallbackImportRows([])
+        setImportProgress(null)
+        await loadMedicines()
+        loadSummaryMetrics()
+        return
+      }
+      const response = await commitMedicineImport(importId, { updateExistingMedicines: true, importSuppliers: true, importStock: true, skipInvalidRows: true, duplicateBatchAction: 'Skip' })
+      setImportMessage(response?.message || 'Medicine import committed.')
+      showToast(response?.message || 'Medicine import committed.')
       setImportOpen(false)
       setImportFile(null)
       setImportId('')
       setImportStats(null)
+      setImportRows([])
+      setFallbackImportRows([])
+      setImportProgress(null)
       await loadMedicines()
       loadSummaryMetrics()
     } catch (error) {
@@ -494,6 +654,7 @@ export default function Medicines() {
         setImportMessage('Import accepted. Valid rows will be imported and invalid rows are skipped automatically.')
         showToast('Import accepted. Invalid rows are skipped automatically.')
       } else {
+        setImportMessage(message || 'Unable to commit import.')
         showToast(message || 'Unable to commit import.', 'error')
       }
     } finally {
@@ -507,6 +668,8 @@ export default function Medicines() {
       const response = await getMedicineImportStatus(importId)
       setImportMessage(response?.message || 'Status loaded.')
       setImportStats(response?.data || response)
+      const rowResponse = await listMedicineImportRows(importId)
+      setImportRows(normalizeList(rowResponse))
     } catch (error) {
       showToast(error.message, 'error')
     }
@@ -522,15 +685,28 @@ export default function Medicines() {
     }
   }
 
+  async function handleDeleteImportRow(row) {
+    const rowId = getId(row)
+    if (!importId || !rowId) return
+    try {
+      await deleteMedicineImportRow(importId, rowId)
+      const rowResponse = await listMedicineImportRows(importId)
+      setImportRows(normalizeList(rowResponse))
+      showToast('Import row deleted.')
+    } catch (error) {
+      showToast(error.message || 'Unable to delete import row.', 'error')
+    }
+  }
+
   async function handleTemplateDownload() {
     try {
-      const response = await downloadMedicineImportTemplate()
+      const response = await downloadMedicineImportTemplate('xlsx')
       if (!response.ok) throw new Error('Template download failed.')
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = 'medicine-import-template.csv'
+      anchor.download = 'medicine-import-template.xlsx'
       anchor.click()
       URL.revokeObjectURL(url)
     } catch (error) {
@@ -753,7 +929,7 @@ export default function Medicines() {
                         <td>{getDosageForm(medicine)}</td>
                         <td>{medicine?.strength || '-'}</td>
                         <td>{medicine?.unit || '-'}</td>
-                        <td>â‚¹{medicine?.price || medicine?.mrp || '0'}</td>
+                        <td>₹{medicine?.price || medicine?.mrp || '0'}</td>
                         <td>{medicine?.stock || medicine?.quantity || 0}</td>
                         <td>{getStatusBadge(medicine)}</td>
                         <td>
@@ -1040,9 +1216,9 @@ export default function Medicines() {
                     </div>
                     <div className="med-card-grid">
                       <div className="med-form-group">
-                        <label htmlFor="med-purchasePrice">Purchase Price (â‚¹)</label>
+                        <label htmlFor="med-purchasePrice">Purchase Price (₹)</label>
                         <div className="input-icon-wrap">
-                          <span className="currency-prefix">â‚¹</span>
+                          <span className="currency-prefix">₹</span>
                           <input 
                             type="number" 
                             id="med-purchasePrice"
@@ -1061,9 +1237,9 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-price">Selling Price (â‚¹) <span className="req-star">*</span></label>
+                        <label htmlFor="med-price">Selling Price (₹) <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
-                          <span className="currency-prefix">â‚¹</span>
+                          <span className="currency-prefix">₹</span>
                           <input 
                             type="number" 
                             id="med-price"
@@ -1109,7 +1285,7 @@ export default function Medicines() {
                         <div className="med-margin-preview-badge">
                           <span className="margin-label">Frontend Margin Preview:</span>
                           <span className="margin-value">
-                            +â‚¹{(Number(form.price) - Number(form.purchasePrice)).toFixed(2)} 
+                            +₹{(Number(form.price) - Number(form.purchasePrice)).toFixed(2)} 
                             ({(((Number(form.price) - Number(form.purchasePrice)) / Number(form.price)) * 100).toFixed(1)}% margin)
                           </span>
                         </div>
@@ -1324,7 +1500,7 @@ export default function Medicines() {
                   <div className="med-detail-row">
                     <div className="med-detail-item">
                       <label>Selling Price (MRP)</label>
-                      <span>â‚¹{viewingItem?.price || viewingItem?.mrp || '0'}</span>
+                      <span>₹{viewingItem?.price || viewingItem?.mrp || '0'}</span>
                     </div>
                     <div className="med-detail-item">
                       <label>Current Stock</label>
@@ -1376,17 +1552,17 @@ export default function Medicines() {
             <div className="med-modal-overlay">
               <div className="med-modal-container">
                 <div className="med-modal-header">
-                  <h2>Import Medicines (CSV Wizard)</h2>
+                  <h2>Import Medicines</h2>
                   <button type="button" className="med-modal-close" onClick={() => setImportOpen(false)}>&times;</button>
                 </div>
                 <div className="med-modal-body">
                   
                   {/* Step 1: Upload */}
                   <div className="import-step-box">
-                    <h4>Step 1: Upload CSV File</h4>
+                    <h4>Step 1: Upload Medicine File</h4>
                     <input 
                       type="file" 
-                      accept=".csv,text/csv" 
+                      accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" 
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) setImportFile(file)
@@ -1398,7 +1574,7 @@ export default function Medicines() {
                       style={{ marginTop: '8px' }}
                       onClick={handleTemplateDownload}
                     >
-                      Download CSV Template
+                      Download Template
                     </button>
                   </div>
 
@@ -1424,9 +1600,9 @@ export default function Medicines() {
                   {importStats && (
                     <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
                       <div style={{ fontWeight: 600, color: '#166534', marginBottom: '4px' }}>Validation Details:</div>
-                      <div>Total Rows: {importStats.totalRows || 0}</div>
-                      <div>Valid Rows: {importStats.validRows || 0}</div>
-                      <div>Duplicates: {importStats.duplicateRows || 0}</div>
+                      <div>Total Rows: {importStats.totalRows || importStats.TotalRows || 0}</div>
+                      <div>Valid Rows: {importStats.validRows || importStats.ValidRows || 0}</div>
+                      <div>Duplicates: {importStats.duplicateRows || importStats.DuplicateRows || 0}</div>
                       <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
                         <button type="button" className="med-btn med-btn-secondary" style={{ height: '30px', padding: '0 8px' }} onClick={handleImportStatus}>Get Status</button>
                         <button type="button" className="med-btn med-btn-secondary" style={{ height: '30px', padding: '0 8px' }} onClick={handleImportErrors}>View Error Details</button>
@@ -1434,10 +1610,27 @@ export default function Medicines() {
                     </div>
                   )}
 
+                  {importRows.length > 0 && (
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', fontSize: '12px', marginTop: '8px' }}>
+                      <div style={{ fontWeight: 700, color: '#334155', marginBottom: '8px' }}>Validated Rows</div>
+                      <div style={{ maxHeight: '180px', overflow: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead><tr><th style={{ textAlign: 'left' }}>Row</th><th style={{ textAlign: 'left' }}>Medicine</th><th style={{ textAlign: 'left' }}>Status</th><th>Action</th></tr></thead>
+                          <tbody>{importRows.map((row, index) => { const data = row?.data || row?.Data || row; return <tr key={getId(row) || index}><td>{row?.rowNumber || row?.RowNumber || index + 1}</td><td>{data?.name || data?.Name || data?.medicineName || '-'}</td><td>{row?.status || row?.Status || '-'}</td><td>{importId ? <button type="button" className="med-btn med-btn-secondary" style={{ height: '28px', padding: '0 8px' }} onClick={() => handleDeleteImportRow(row)}>Delete</button> : <span>-</span>}</td></tr> })}</tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                   {importErrors && (
                     <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '12px', borderRadius: '8px', fontSize: '12px', color: '#991b1b', marginTop: '8px' }}>
                       <div style={{ fontWeight: 600 }}>Validation Errors:</div>
                       <pre style={{ margin: '4px 0 0', overflowX: 'auto' }}>{JSON.stringify(importErrors, null, 2)}</pre>
+                    </div>
+                  )}
+
+                  {importProgress && (
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 12px', marginTop: '8px', fontSize: '13px', color: '#1e3a8a' }}>
+                      Importing {importProgress.done} / {importProgress.total} medicines. Uploaded: {importProgress.created}. Failed: {importProgress.failed}.
                     </div>
                   )}
 
@@ -1454,9 +1647,9 @@ export default function Medicines() {
                     type="button" 
                     className="med-btn med-btn-primary"
                     onClick={handleCommitImport}
-                    disabled={!importId}
+                    disabled={loading || (!importId && !fallbackImportRows.length)}
                   >
-                    Commit Import
+                    {loading ? (fallbackImportRows.length ? 'Importing...' : 'Please wait...') : 'Commit Import'}
                   </button>
                 </div>
               </div>

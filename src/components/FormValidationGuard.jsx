@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-const phoneWords = ['phone', 'mobile', 'contact number', 'contact no', 'whatsapp']
+const phoneWords = ['phone', 'mobile', 'mobile number', 'mbl', 'contact number', 'contact no', 'contact phone', 'supplier contact', 'whatsapp']
 const numberWords = ['quantity', 'qty', 'price', 'amount', 'cost', 'stock', 'gst', 'tax', 'port', 'level', 'reorder', 'minimum', 'maximum', 'duration']
 const personNameWords = ['full name', 'patient name', 'doctor name', 'pharmacist name', 'admin name', 'sender name']
 
@@ -50,6 +50,32 @@ function capitalizeStartingLetters(value) {
   return String(value || '').replace(/\b([a-z])/g, (letter) => letter.toUpperCase())
 }
 
+
+function validatePhoneField(input) {
+  if (!(input instanceof HTMLInputElement)) return true
+  if (!isPhone(fieldText(input))) return true
+
+  const digits = onlyDigits(input.value).slice(0, 10)
+  if (digits !== input.value) {
+    input.value = digits
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  const valid = digits.length === 0 || digits.length === 10
+  input.setCustomValidity(valid ? '' : 'Phone or mobile number must be exactly 10 digits.')
+  return valid
+}
+
+function validateForm(form) {
+  const phoneInputs = [...form.querySelectorAll('input')].filter((input) => isPhone(fieldText(input)))
+  const invalidInput = phoneInputs.find((input) => !validatePhoneField(input))
+  if (invalidInput) {
+    invalidInput.reportValidity()
+    invalidInput.focus()
+    return false
+  }
+  return true
+}
 function sanitize(input) {
   if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) return
   const text = fieldText(input)
@@ -57,7 +83,12 @@ function sanitize(input) {
   const current = input.value
   let next = current
 
-  if (input instanceof HTMLInputElement && isPhone(text)) next = onlyDigits(current).slice(0, 10)
+  if (input instanceof HTMLInputElement && isPhone(text)) {
+    next = onlyDigits(current).slice(0, 10)
+    input.maxLength = 10
+    input.inputMode = 'numeric'
+    input.pattern = '[0-9]{10}'
+  }
   else if (input instanceof HTMLInputElement && isPersonName(text)) next = onlyLetters(current)
   else if (shouldCapitalize(input, text)) next = capitalizeStartingLetters(current)
 
@@ -74,11 +105,17 @@ export default function FormValidationGuard() {
       sanitize(event.target)
     }
 
+    function onSubmit(event) {
+      if (!validateForm(event.target)) event.preventDefault()
+    }
+
     document.addEventListener('input', onInput, true)
     document.addEventListener('change', onInput, true)
+    document.addEventListener('submit', onSubmit, true)
     return () => {
       document.removeEventListener('input', onInput, true)
       document.removeEventListener('change', onInput, true)
+      document.removeEventListener('submit', onSubmit, true)
     }
   }, [])
 

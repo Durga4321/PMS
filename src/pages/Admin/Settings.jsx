@@ -4,6 +4,8 @@ import AdminLayout from './AdminLayout'
 import { getPharmacySettings, updatePharmacySettings, getPharmacyAdminAssignmentStatus } from '../../config/api'
 import './Settings.css'
 
+const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
+
 function readStoredValue(key) {
   const value = sessionStorage.getItem(key) || localStorage.getItem(key)
   if (!value) return null
@@ -11,6 +13,28 @@ function readStoredValue(key) {
     return JSON.parse(value)
   } catch {
     return value
+  }
+}
+
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && String(value) !== '')
+}
+
+function normalizeBackendSettings(response = {}) {
+  const source = response?.settings || response?.Settings || response?.data?.settings || response?.data?.Settings || response?.data || response
+  return {
+    raw: source,
+    mapped: {
+      pharmacyName: firstValue(source?.pharmacyName, source?.PharmacyName, source?.name, source?.Name),
+      branchName: firstValue(source?.branchLocation, source?.BranchLocation, source?.branchName, source?.BranchName, source?.location, source?.Location),
+      address: firstValue(source?.address, source?.Address),
+      phone: firstValue(source?.phoneNumber, source?.PhoneNumber, source?.phone, source?.Phone, source?.mobileNumber, source?.MobileNumber),
+      email: firstValue(source?.emailAddress, source?.EmailAddress, source?.email, source?.Email),
+      licenseNumber: firstValue(source?.licenseNumber, source?.LicenseNumber),
+      gstNumber: firstValue(source?.gstNumber, source?.GstNumber, source?.GSTNumber),
+      status: firstValue(source?.pharmacyStatus, source?.PharmacyStatus, source?.status, source?.Status),
+      currency: firstValue(source?.currency, source?.Currency),
+    },
   }
 }
 
@@ -63,11 +87,12 @@ export default function Settings() {
     setLoading(true)
     try {
       const response = await getPharmacySettings()
-      if (response?.data) {
-        setSettings((prev) => ({ ...prev, ...response.data }))
-      } else if (response) {
-        setSettings((prev) => ({ ...prev, ...response }))
-      }
+      const { raw, mapped } = normalizeBackendSettings(response)
+      setSettings((prev) => ({
+        ...prev,
+        ...raw,
+        ...Object.fromEntries(Object.entries(mapped).filter(([, value]) => value !== undefined)),
+      }))
       showToast('Settings loaded from backend.')
     } catch (apiError) {
       console.log('Backend settings API failed/unavailable, trying local fallback:', apiError.message)
@@ -79,13 +104,13 @@ export default function Settings() {
       setSettings((prev) => ({
         ...prev,
         pharmacyName: savedLocal.pharmacyName || assignment?.pharmacyName || assignment?.pharmacy?.name || assignment?.hospitalName || assignment?.hospital?.name || prev.pharmacyName,
-        branchName: savedLocal.branchName || assignment?.branchName || assignment?.branch?.name || prev.branchName,
+        branchName: savedLocal.branchName || savedLocal.branchLocation || assignment?.branchLocation || assignment?.branchName || assignment?.branch?.name || prev.branchName,
         address: savedLocal.address || assignment?.address || assignment?.location || prev.address,
-        phone: savedLocal.phone || user?.phone || user?.mobile || assignment?.phone || prev.phone,
-        email: savedLocal.email || user?.email || assignment?.email || prev.email,
+        phone: savedLocal.phone || savedLocal.phoneNumber || user?.phone || user?.mobile || assignment?.phone || assignment?.phoneNumber || prev.phone,
+        email: savedLocal.email || savedLocal.emailAddress || user?.email || assignment?.email || assignment?.emailAddress || prev.email,
         licenseNumber: savedLocal.licenseNumber || prev.licenseNumber,
         gstNumber: savedLocal.gstNumber || prev.gstNumber,
-        status: savedLocal.status || assignment?.status || prev.status,
+        status: savedLocal.status || savedLocal.pharmacyStatus || assignment?.status || prev.status,
         ...savedLocal
       }))
 
@@ -96,7 +121,7 @@ export default function Settings() {
           setSettings((prev) => ({
             ...prev,
             pharmacyName: freshData.pharmacyName || freshData.pharmacy?.name || prev.pharmacyName,
-            branchName: freshData.branchName || freshData.branch?.name || prev.branchName,
+            branchName: freshData.branchLocation || freshData.branchName || freshData.branch?.name || prev.branchName,
             status: freshData.status || prev.status
           }))
         }
@@ -112,7 +137,16 @@ export default function Settings() {
     event.preventDefault()
     setSaving(true)
     try {
-      await updatePharmacySettings(settings)
+      await updatePharmacySettings({
+        ...settings,
+        pharmacyName: settings.pharmacyName,
+        branchLocation: settings.branchName,
+        phoneNumber: settings.phone,
+        emailAddress: settings.email,
+        licenseNumber: settings.licenseNumber,
+        gstNumber: settings.gstNumber,
+        pharmacyStatus: settings.status,
+      })
       localStorage.setItem('pharmacySettings', JSON.stringify(settings))
       showToast('Settings saved successfully!')
     } catch (error) {
@@ -169,8 +203,8 @@ export default function Settings() {
                     <label>Phone Number</label>
                     <input 
                       type="text" 
-                      value={settings.phone} 
-                      onChange={(e) => handleChange('phone', e.target.value)} 
+                      value={settings.phone} inputMode="numeric" maxLength={10} pattern="[0-9]{10}" 
+                      onChange={(e) => handleChange('phone', digitsOnly(e.target.value))} 
                     />
                   </div>
                   <div className="settings-form-group">

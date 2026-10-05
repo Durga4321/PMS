@@ -51,16 +51,29 @@ function readStoredJson(name) {
   }
 }
 
+function pharmacyTenantContext() {
+  const assignment = readStoredJson('pharmacyAdminAssignment') || {}
+  const user = readStoredJson('pharmacyAdminUser') || {}
+  const pharmacyId = assignment.pharmacyId || assignment.PharmacyId || assignment.pharmacy?.id || assignment.pharmacy?.pharmacyId || user.pharmacyId || user.PharmacyId || user.pharmacy?.id || user.pharmacy?.pharmacyId || ''
+  const branchId = assignment.branchId || assignment.BranchId || assignment.mainBranchId || assignment.MainBranchId || assignment.branch?.id || assignment.branch?.branchId || user.branchId || user.BranchId || user.mainBranchId || user.MainBranchId || user.branch?.id || user.branch?.branchId || ''
+  const hospitalId = assignment.hospitalId || assignment.HospitalId || assignment.cmsHospitalId || assignment.CmsHospitalId || assignment.pharmacy?.hospitalId || assignment.pharmacy?.HospitalId || user.hospitalId || user.HospitalId || user.cmsHospitalId || user.CmsHospitalId || user.pharmacy?.hospitalId || user.pharmacy?.HospitalId || pharmacyId
+  const cmsBranchId = assignment.cmsBranchId || assignment.CmsBranchId || assignment.hospitalBranchId || assignment.HospitalBranchId || user.cmsBranchId || user.CmsBranchId || user.hospitalBranchId || user.HospitalBranchId || branchId
+  return { pharmacyId, branchId, hospitalId, cmsBranchId }
+}
+
 function pharmacyTenantHeaders(path = '', authRole = '') {
   const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
   const route = typeof window !== 'undefined' ? window.location.pathname : ''
   const isPharmacyAdminRequest = authRole === 'pharmacyAdmin' || route.startsWith('/admin') || cleanPath.startsWith('pharmacy-admin') || cleanPath.startsWith('medicine') || cleanPath.startsWith('inventory') || cleanPath.startsWith('pharmacy/')
   if (!isPharmacyAdminRequest) return {}
 
-  const assignment = readStoredJson('pharmacyAdminAssignment') || {}
-  const user = readStoredJson('pharmacyAdminUser') || {}
-  const pharmacyId = assignment.pharmacyId || assignment.PharmacyId || assignment.pharmacy?.id || assignment.pharmacy?.pharmacyId || user.pharmacyId || user.PharmacyId || user.pharmacy?.id || user.pharmacy?.pharmacyId
-  return pharmacyId ? { 'X-Pharmacy-Id': String(pharmacyId), 'x-pharmacy-id': String(pharmacyId) } : {}
+  const { pharmacyId, branchId, hospitalId, cmsBranchId } = pharmacyTenantContext()
+  return {
+    ...(pharmacyId ? { 'X-Pharmacy-Id': String(pharmacyId), 'x-pharmacy-id': String(pharmacyId), PharmacyId: String(pharmacyId) } : {}),
+    ...(branchId ? { 'X-Branch-Id': String(branchId), 'x-branch-id': String(branchId), BranchId: String(branchId) } : {}),
+    ...(hospitalId ? { 'X-Hospital-Id': String(hospitalId), 'x-hospital-id': String(hospitalId), HospitalId: String(hospitalId), CmsHospitalId: String(hospitalId) } : {}),
+    ...(cmsBranchId ? { 'X-Cms-Branch-Id': String(cmsBranchId), 'x-cms-branch-id': String(cmsBranchId), CmsBranchId: String(cmsBranchId) } : {}),
+  }
 }
 
 function authTokenFor(path = '', authRole = '') {
@@ -155,7 +168,10 @@ async function request(path, options = {}) {
   const data = contentType?.includes('application/json') ? await response.json() : null
 
   if (!response.ok) {
-    throw new Error(data?.message || data?.error || 'Request failed. Please try again.')
+    const error = new Error(data?.message || data?.error || response.statusText || 'Request failed. Please try again.')
+    error.status = response.status
+    error.data = data
+    throw error
   }
 
   return data
@@ -204,21 +220,21 @@ export function changeSuperAdminPassword(payload) {
 }
 
 export function forgotSuperAdminPassword(payload) {
-  return request('pharmacy-super-admin-auth/forgot-password', {
+  return request('pharmacy-auth/forgot-password', {
     method: 'POST',
     body: JSON.stringify(apiPayload(payload)),
   })
 }
 
 export function verifySuperAdminResetOtp(payload) {
-  return request('pharmacy-super-admin-auth/verify-reset-otp', {
+  return request('pharmacy-auth/verify-reset-otp', {
     method: 'POST',
     body: JSON.stringify(apiPayload(payload)),
   })
 }
 
 export function resetForgottenSuperAdminPassword(payload) {
-  return request('pharmacy-super-admin-auth/reset-password', {
+  return request('pharmacy-auth/reset-password', {
     method: 'POST',
     body: JSON.stringify(apiPayload(payload)),
   })
@@ -234,21 +250,21 @@ export function logoutPharmacyAdmin(token) {
 }
 
 export function forgotPharmacyAdminPassword(payload) {
-  return request('pharmacy-admin-auth/forgot-password', {
+  return request('pharmacy-auth/forgot-password', {
     method: 'POST',
     body: JSON.stringify(apiPayload(payload)),
   })
 }
 
 export function verifyPharmacyAdminResetOtp(payload) {
-  return request('pharmacy-admin-auth/verify-reset-otp', {
+  return request('pharmacy-auth/verify-reset-otp', {
     method: 'POST',
     body: JSON.stringify(apiPayload(payload)),
   })
 }
 
 export function resetForgottenPharmacyAdminPassword(payload) {
-  return request('pharmacy-admin-auth/reset-password', {
+  return request('pharmacy-auth/reset-password', {
     method: 'POST',
     body: JSON.stringify(apiPayload(payload)),
   })
@@ -362,11 +378,29 @@ export function listMedicineStrengths() {
 
 export function validateMedicineImport(file, options = {}) {
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('File', file)
+  const { pharmacyId, branchId, hospitalId, cmsBranchId } = pharmacyTenantContext()
+  if (pharmacyId) {
+    formData.append('pharmacyId', String(pharmacyId))
+    formData.append('PharmacyId', String(pharmacyId))
+  }
+  if (branchId) {
+    formData.append('branchId', String(branchId))
+    formData.append('BranchId', String(branchId))
+  }
+  if (hospitalId) {
+    formData.append('hospitalId', String(hospitalId))
+    formData.append('HospitalId', String(hospitalId))
+  }
+  if (cmsBranchId) {
+    formData.append('cmsBranchId', String(cmsBranchId))
+    formData.append('CmsBranchId', String(cmsBranchId))
+  }
   Object.entries(options).forEach(([key, value]) => {
     if (value !== undefined && value !== null) formData.append(key, String(value))
   })
   return request('medicine-import/validate', {
+    authRole: 'pharmacyAdmin',
     method: 'POST',
     body: formData,
   })
@@ -381,26 +415,29 @@ export function commitMedicineImport(importId, payload = {}) {
     ...payload,
   }
   return request(replacePathParams('medicine-import/{importId}/commit', { importId }), {
+    authRole: 'pharmacyAdmin',
     method: 'POST',
     body: JSON.stringify(apiPayload(importPayload)),
   })
 }
 
 export function getMedicineImportErrors(importId) {
-  return request(replacePathParams('medicine-import/{importId}/errors', { importId }))
+  return request(replacePathParams('medicine-import/{importId}/errors', { importId }), { authRole: 'pharmacyAdmin' })
 }
 
 export function getMedicineImportStatus(importId) {
-  return request(replacePathParams('medicine-import/{importId}/status', { importId }))
+  return request(replacePathParams('medicine-import/{importId}/status', { importId }), { authRole: 'pharmacyAdmin' })
 }
 
-export function downloadMedicineImportTemplate() {
-  return fetch(apiUrl('medicine-import/template'), {
+export function downloadMedicineImportTemplate(format = 'xlsx') {
+  const query = format ? '?format=' + encodeURIComponent(format) : ''
+  return fetch(apiUrl('medicine-import/template' + query), {
     headers: {
       'ngrok-skip-browser-warning': 'true',
       ...(sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken')
         ? { Authorization: `Bearer ${sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken')}` }
         : {}),
+      ...pharmacyTenantHeaders('medicine-import/template', 'pharmacyAdmin'),
     },
   })
 }
@@ -658,6 +695,8 @@ export function assignPharmacistToAdminPharmacy(id, payload = {}) {
   })
 }
 
+export const transferPharmacistBranch = assignPharmacistToAdminPharmacy
+
 export function resetPharmacistPassword(id, payload) {
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/reset-password', { id }), {
     method: 'POST',
@@ -737,6 +776,13 @@ export function listPharmacyAdmins(params = {}) {
 export function createPharmacyAdmin(payload) {
   return request('pharmacy-super-admin/admins', {
     method: 'POST',
+    body: JSON.stringify(apiPayload(payload)),
+  })
+}
+
+export function assignPharmacyToAdmin(id, payload) {
+  return request(replacePathParams('pharmacy-super-admin/admins/{id}/pharmacy-assignment', { id }), {
+    method: 'PUT',
     body: JSON.stringify(apiPayload(payload)),
   })
 }
@@ -834,9 +880,16 @@ export const listPharmacyBranches = (params = {}, options = {}) => request('phar
 export const createPharmacyBranch = (payload) => request('pharmacy/branches', { authRole: 'pharmacyAdmin', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const getPharmacyBranch = (id, options = {}) => request(replacePathParams('pharmacy/branches/{id}', { id }), { authRole: 'pharmacyAdmin', ...options })
 export const updatePharmacyBranch = (id, payload) => request(replacePathParams('pharmacy/branches/{id}', { id }), { authRole: 'pharmacyAdmin', method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+export const deletePharmacyBranch = (id) => request(replacePathParams('pharmacy/branches/{id}', { id }), { authRole: 'pharmacyAdmin', method: 'DELETE' })
 export const changePharmacyBranchStatus = (id, payload) => request(replacePathParams('pharmacy/branches/{id}/status', { id }), { authRole: 'pharmacyAdmin', method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
-export const getSuperAdminBranches = (params = {}) => request('pharmacy/branches' + queryString(params))
-export const getSuperAdminBranch = (id) => request(replacePathParams('pharmacy/branches/{id}', { id }))
+export const getSuperAdminPharmacies = (params = {}) => request('pharmacy-super-admin/pharmacies' + queryString(params))
+export const createSuperAdminPharmacy = (payload) => request('pharmacy-super-admin/pharmacies', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const getSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }))
+export const updateSuperAdminPharmacy = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+export const changeSuperAdminPharmacyStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
+export const deleteSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'DELETE' })
+export const getSuperAdminBranches = (params = {}) => request('pharmacy-super-admin/branches' + queryString(params))
+export const getSuperAdminBranch = (id) => request(replacePathParams('pharmacy-super-admin/branches/{id}', { id }))
 export const changeSuperAdminHospitalStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/hospitals/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
 export const getSuperAdminMedicines = (params = {}) => request(`pharmacy-super-admin/medicines${queryString(params)}`)
 export const changeSuperAdminMedicineStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/medicines/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
@@ -845,17 +898,29 @@ export const exportSuperAdminRevenueExcel = (params = {}) => downloadRequest(`ph
 export const exportSuperAdminRevenuePdf = (params = {}) => downloadRequest(`pharmacy-super-admin/reports/revenue/export-pdf${queryString(params)}`, 'revenue-report.pdf')
 export const getSuperAdminSettings = () => request('pharmacy-super-admin/settings')
 export const updateSuperAdminSettings = (payload) => request('pharmacy-super-admin/settings', { method: 'PUT', body: JSON.stringify(apiPayload({ ...payload, isEnabled: payload.isEnabled ?? payload.IsEnabled ?? String(payload.status || '').toLowerCase() !== 'disabled' })) })
-export const listSuperAdminRoles = (params = {}) => request(`pharmacy-super-admin/roles${queryString(params)}`)
-export const createSuperAdminRole = (payload) => request('pharmacy-super-admin/roles', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const updateSuperAdminRole = (id, payload) => request(replacePathParams('pharmacy-super-admin/roles/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
-export const deleteSuperAdminRole = (id) => request(replacePathParams('pharmacy-super-admin/roles/{id}', { id }), { method: 'DELETE' })
-export const getSuperAdminRolePermissions = (roleId) => request(replacePathParams('pharmacy-super-admin/roles/{roleId}/permissions', { roleId }))
-export const updateSuperAdminRolePermissions = (roleId, payload) => request(replacePathParams('pharmacy-super-admin/roles/{roleId}/permissions', { roleId }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
-export const listSuperAdminRoleDropdown = () => request('pharmacy-super-admin/roles/dropdown')
-export const getPharmacyAdminPermissionsForSuperAdmin = (adminId) => getPharmacyAdmin(adminId)
-export const updatePharmacyAdminPermissionsForSuperAdmin = (adminId, payload) => updatePharmacyAdmin(adminId, payload)
-export const getPharmacyAdminRole = (adminId) => request(replacePathParams('pharmacy-super-admin/admins/{adminId}/role', { adminId }))
-export const assignPharmacyAdminRole = (adminId, payload) => request(replacePathParams('pharmacy-super-admin/admins/{adminId}/role', { adminId }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+export const listSuperAdminRoles = async (params = {}) => {
+  const response = await listPharmacyAdmins(params)
+  const admins = Array.isArray(response) ? response : response?.data?.admins || response?.admins || response?.data || response?.items || []
+  return {
+    data: Array.isArray(admins)
+      ? admins.map((admin) => ({
+          ...admin,
+          roleId: admin?.id || admin?.adminId || admin?.adminUserId || admin?.userId,
+          roleName: admin?.name || admin?.fullName || admin?.adminName || admin?.email || 'Admin Permissions',
+        }))
+      : [],
+  }
+}
+export const createSuperAdminRole = (payload) => request('pharmacy-super-admin/admins', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const updateSuperAdminRole = (id, payload) => updatePharmacyAdmin(id, payload)
+export const deleteSuperAdminRole = (id) => request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), { method: 'DELETE' })
+export const getSuperAdminRolePermissions = (roleId) => request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }))
+export const updateSuperAdminRolePermissions = (roleId, payload) => request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }), { method: 'PUT', body: JSON.stringify(apiPayload(payload?.permissions || payload?.Permissions || payload)) })
+export const listSuperAdminRoleDropdown = () => Promise.resolve({ data: [] })
+export const getPharmacyAdminPermissionsForSuperAdmin = (adminId) => getSuperAdminRolePermissions(adminId)
+export const updatePharmacyAdminPermissionsForSuperAdmin = (adminId, payload) => updateSuperAdminRolePermissions(adminId, payload)
+export const getPharmacyAdminRole = (adminId) => Promise.resolve({ data: { role: { id: adminId, roleId: adminId } } })
+export const assignPharmacyAdminRole = (adminId) => Promise.resolve({ data: { id: adminId, roleId: adminId } })
 export const listSuperAdminNotifications = (params = {}) => request(`pharmacy-super-admin/notifications${queryString(params)}`)
 export const sendSuperAdminNotification = (payload) => request('pharmacy-super-admin/notifications', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const deleteSuperAdminNotification = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}', { id }), { method: 'DELETE' })
@@ -876,10 +941,13 @@ export const splitBillPayment = (billId, payload) => request(replacePathParams('
 
 export const getInventoryStockDetails = (params = {}) => request(`inventory/stock-details${queryString(params)}`)
 
-export const createMedicineImportRow = (importId, payload) => request(replacePathParams('medicine-import/{importId}/rows', { importId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const listMedicineImportRows = (importId) => request(replacePathParams('medicine-import/{importId}/rows', { importId }))
-export const updateMedicineImportRow = (importId, rowId, payload) => request(replacePathParams('medicine-import/{importId}/rows/{rowId}', { importId, rowId }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
-export const deleteMedicineImportRow = (importId, rowId) => request(replacePathParams('medicine-import/{importId}/rows/{rowId}', { importId, rowId }), { method: 'DELETE' })
+export const createMedicineImportRow = (importId, payload) => request(replacePathParams('medicine-import/{importId}/rows', { importId }), { authRole: 'pharmacyAdmin', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const listMedicineImportRows = (importId) => request(replacePathParams('medicine-import/{importId}/rows', { importId }), { authRole: 'pharmacyAdmin' })
+export const updateMedicineImportRow = (importId, rowId, payload) => request(replacePathParams('medicine-import/{importId}/rows/{rowId}', { importId, rowId }), { authRole: 'pharmacyAdmin', method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+export const deleteMedicineImportRow = (importId, rowId) => request(replacePathParams('medicine-import/{importId}/rows/{rowId}', { importId, rowId }), { authRole: 'pharmacyAdmin', method: 'DELETE' })
+
+
+
 
 
 

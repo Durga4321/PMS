@@ -54,8 +54,8 @@
 
 .settings-form-group label {
   font-size: 13px;
-  font-weight: 500;
-  color: #475569;
+  font-weight: 700;
+  color: #020617;
 }
 
 .settings-form-group input[type="text"],
@@ -64,26 +64,33 @@
 .settings-form-group select {
   height: 42px;
   padding: 0 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #bfdbfe;
   border-radius: 10px;
   font-size: 14px;
-  color: #334155;
+  font-weight: 600;
+  color: #2563eb;
   outline: none;
-  background: #ffffff;
+  background: #eff6ff;
   transition: all 0.2s ease;
+}
+
+.settings-form-group input::placeholder {
+  color: #64748b;
+  font-weight: 500;
 }
 
 .settings-form-group input:focus,
 .settings-form-group select:focus {
   border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  background: #dbeafe;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
 .settings-form-group input:disabled,
 .settings-form-group select:disabled {
-  background: #f8fafc;
-  color: #94a3b8;
-  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
   cursor: not-allowed;
 }
 

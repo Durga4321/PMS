@@ -3,8 +3,9 @@ import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
-import {  changePharmacyAdminStatus,
-  createPharmacyAdmin,  getAddressByPincode,  getPharmacyAdmin,  listPharmacyAdmins,
+import {  assignPharmacyToAdmin,
+  changePharmacyAdminStatus,
+  createPharmacyAdmin,  getPharmacyAdmin,  getSuperAdminPharmacy,  getSuperAdminPharmacies,  listPharmacyAdmins,
   listSuperAdminRoleDropdown,
   resetPharmacyAdminPassword,
   updatePharmacyAdmin,
@@ -13,18 +14,20 @@ import './AdminsModern.css'
 
 const emptyForm = {
   name: '',
-  pharmacyName: '',
   email: '',
   mobileNumber: '',
-  pharmacyAddress: '',
-  pharmacyContactNumber: '',
-  pharmacyEmail: '',
-  city: '',
-  state: '',
-  country: '',
-  postalCode: '',
   pharmacyPermissionRoleId: '',
   isActive: true,
+}
+const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
+
+function mergeAdmins(current, incoming) {
+  const map = new Map()
+  ;[...current, ...incoming].forEach((admin) => {
+    const key = getId(admin) || admin?.email || admin?.mobileNumber || JSON.stringify(admin)
+    if (key) map.set(String(key), admin)
+  })
+  return [...map.values()]
 }
 
 function unwrapAdmin(response) {
@@ -35,17 +38,20 @@ function normalizeList(response) {
   if (Array.isArray(response)) return response.map(unwrapAdmin)
   if (Array.isArray(response?.data)) return response.data.map(unwrapAdmin)
   if (Array.isArray(response?.data?.admins)) return response.data.admins.map(unwrapAdmin)
+  if (Array.isArray(response?.data?.pharmacies)) return response.data.pharmacies.map(unwrapAdmin)
   if (Array.isArray(response?.data?.hospitals)) return response.data.hospitals
   if (Array.isArray(response?.data?.branches)) return response.data.branches
   if (Array.isArray(response?.admins)) return response.admins.map(unwrapAdmin)
+  if (Array.isArray(response?.pharmacies)) return response.pharmacies.map(unwrapAdmin)
   if (Array.isArray(response?.hospitals)) return response.hospitals
   if (Array.isArray(response?.branches)) return response.branches
-  if (Array.isArray(response?.results)) return response.results
+  if (Array.isArray(response?.items)) return response.items.map(unwrapAdmin)
+  if (Array.isArray(response?.results)) return response.results.map(unwrapAdmin)
   return []
 }
 
 function getId(item) {
-  return item?._id || item?.id || item?.adminId || item?.hospitalId || item?.branchId || item?.uuid
+  return item?._id || item?.id || item?.pharmacyId || item?.PharmacyId || item?.adminId || item?.hospitalId || item?.branchId || item?.uuid
 }
 
 function getName(item) {
@@ -69,9 +75,14 @@ function displayValue(value, fallback = '-') {
   return value
 }
 
-function getPharmacyName(item) {
+function getAssignedPharmacyName(item) {
   const admin = unwrapAdmin(item)
-  return displayValue(getNestedValue(admin, ['pharmacyName', 'PharmacyName', 'pharmacy.name', 'pharmacy.pharmacyName', 'hospitalName']))
+  return displayValue(getNestedValue(admin, ['pharmacyName', 'PharmacyName', 'pharmacy.name', 'pharmacy.pharmacyName', 'assignedPharmacy.name', 'assignedPharmacy.pharmacyName', 'hospitalName']))
+}
+
+function getPharmacyOptionName(item) {
+  const pharmacy = unwrapAdmin(item)
+  return displayValue(getNestedValue(pharmacy, ['pharmacyName', 'PharmacyName', 'name', 'Name', 'pharmacy.name', 'pharmacy.pharmacyName']))
 }
 
 function getPharmacyAddress(item) {
@@ -108,28 +119,13 @@ function getStatus(item) {
   if (typeof value === 'boolean') return value ? 'Active' : 'Inactive'
   return value || 'Active'
 }
-function firstAddressValue(source, keys) {
-  for (const key of keys) {
-    const value = source?.[key]
-    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim()
-  }
-  return ''
-}
-
-function normalizePincodeAddress(response) {
-  const source = response?.data?.address || response?.data || response?.address || response?.result || response || {}
-  const first = Array.isArray(source) ? source[0] || {} : source
-  return {
-    city: firstAddressValue(first, ['area', 'Area', 'city', 'City', 'taluk', 'Taluk', 'name', 'Name']),
-    district: firstAddressValue(first, ['district', 'District']),
-    state: firstAddressValue(first, ['state', 'State', 'province', 'Province']),
-    country: firstAddressValue(first, ['country', 'Country']),
-  }
-}
 function Admins() {
   const { showToast } = useToast()
   const [admins, setAdmins] = useState([])
   const [roleOptions, setRoleOptions] = useState([])
+  const [pharmacyOptions, setPharmacyOptions] = useState([])
+  const [assigningAdminId, setAssigningAdminId] = useState('')
+  const [assignmentPharmacyId, setAssignmentPharmacyId] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
@@ -163,6 +159,18 @@ function Admins() {
   const pageCount = Math.max(1, Math.ceil(filteredAdmins.length / pageSize))
   const visibleAdmins = filteredAdmins.slice((page - 1) * pageSize, page * pageSize)
 
+  async function loadPharmacyOptions() {
+    try {
+      const response = await getSuperAdminPharmacies({ page: 1, pageSize: 100 })
+      const options = normalizeList(response)
+      setPharmacyOptions(options)
+      if (!assignmentPharmacyId && options[0]) setAssignmentPharmacyId(String(getId(options[0]) || ''))
+    } catch (error) {
+      setPharmacyOptions([])
+      showToast(error.message || 'Unable to load pharmacies for assignment.', 'error')
+    }
+  }
+
   async function loadRoleOptions() {
     try {
       const response = await listSuperAdminRoleDropdown()
@@ -175,10 +183,11 @@ function Admins() {
   async function loadAdmins() {
     setLoading(true)
     try {
-      const data = await listPharmacyAdmins({ search: query })
-      setAdmins(normalizeList(data))
+      const response = await listPharmacyAdmins({ page: 1, pageSize: 100 })
+      setAdmins(normalizeList(response))
     } catch (error) {
-      showToast(error.message, 'error')
+      setAdmins([])
+      showToast(error.message || 'Unable to load pharmacy admins.', 'error')
     } finally {
       setLoading(false)
     }
@@ -189,6 +198,7 @@ function Admins() {
 
     loadAdmins()
     loadRoleOptions()
+    loadPharmacyOptions()
   }, [])
 
   function openCreate() {
@@ -222,55 +232,31 @@ function Admins() {
       isActive: String(getStatus(admin)).toLowerCase() === 'active',
     })
   }
-  async function handlePostalCodeChange(value) {
-    setForm((current) => ({ ...current, postalCode: value }))
-    const pincode = String(value || '').replace(/\D/g, '')
-    if (pincode.length !== 6) return
-
-    try {
-      const response = await getAddressByPincode(pincode)
-      const address = normalizePincodeAddress(response)
-      setForm((current) => ({
-        ...current,
-        postalCode: value,
-        city: address.city || address.district || current.city,
-        state: address.state || current.state,
-        country: address.country || current.country,
-      }))
-    } catch (error) {
-      showToast(error.message || 'Unable to fetch address for this pincode.', 'error')
-    }
-  }
   async function handleSubmit(event) {
     event.preventDefault()
     setSaving(true)
 
     const payload = {
       name: form.name,
-      pharmacyName: form.pharmacyName,
       email: form.email,
       mobileNumber: form.mobileNumber,
-      pharmacyAddress: form.pharmacyAddress,
-      pharmacyContactNumber: form.pharmacyContactNumber,
-      pharmacyEmail: form.pharmacyEmail,
-      city: form.city,
-      state: form.state,
-      country: form.country,
-      postalCode: form.postalCode,
       pharmacyPermissionRoleId: rolePayloadValue(form.pharmacyPermissionRoleId),
       ...(editingAdmin ? { isActive: form.isActive } : {}),
     }
     try {
       if (editingAdmin) {
         const data = await updatePharmacyAdmin(getId(editingAdmin), payload)
+        const updatedAdmin = unwrapAdmin(data) || { ...editingAdmin, ...payload }
+        setAdmins((current) => mergeAdmins(current.filter((admin) => String(getId(admin)) !== String(getId(editingAdmin))), [updatedAdmin]))
         showToast(data?.message || 'Admin updated successfully.')
       } else {
         const data = await createPharmacyAdmin(payload)
+        const createdAdmin = unwrapAdmin(data) || data?.data?.admin || data?.admin || { ...payload, id: data?.id || data?.adminId || Date.now() }
+        setAdmins((current) => mergeAdmins(current, [createdAdmin]))
         showToast(data?.message || 'Admin created successfully.')
       }
 
       closeEditor()
-      await loadAdmins()
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
@@ -293,6 +279,28 @@ function Admins() {
       setViewingAdmin(unwrapAdmin(admin))
     }
   }
+  async function handleAssignPharmacy(admin) {
+    const adminId = getId(admin)
+    const pharmacyId = Number(assignmentPharmacyId)
+    if (!adminId || !pharmacyId) return showToast('Select a pharmacy before assignment.', 'error')
+    setAssigningAdminId(String(adminId))
+    try {
+      const pharmacyResponse = await getSuperAdminPharmacy(pharmacyId)
+      const pharmacy = pharmacyResponse?.data?.pharmacy || pharmacyResponse?.pharmacy || pharmacyResponse?.data || pharmacyResponse || {}
+      const branches = pharmacyResponse?.data?.branches || pharmacyResponse?.branches || pharmacy?.branches || []
+      const mainBranch = branches.find((branch) => branch?.isMainBranch || branch?.IsMainBranch) || branches[0]
+      const branchId = Number(mainBranch?.id || mainBranch?.branchId || mainBranch?.BranchId || sessionStorage.getItem('lastCreatedMainBranchId'))
+      if (!branchId) throw new Error('Main branch not found for the selected pharmacy.')
+      const response = await assignPharmacyToAdmin(adminId, { pharmacyId, branchId })
+      showToast(response?.message || 'Pharmacy and main branch assigned to admin.')
+      await loadAdmins()
+    } catch (error) {
+      showToast(error.message || 'Unable to assign pharmacy to admin.', 'error')
+    } finally {
+      setAssigningAdminId('')
+    }
+  }
+
   async function handleStatus(admin) {
     const nextStatus = String(getStatus(admin)).toLowerCase() === 'active' ? 'inactive' : 'active'
 
@@ -345,7 +353,6 @@ function Admins() {
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="M16 16L21 21" /></svg>
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search admins, pharmacy, city, or email..." />
             </label>
-
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
@@ -407,7 +414,7 @@ function Admins() {
             <div className="admins-create-panel" aria-label={editingAdmin ? 'Edit admin form' : 'Create admin form'}>
               <div className="admins-form-header">
                 <h2>{editingAdmin ? 'Edit Admin' : 'Create new admin'}</h2>
-                <p>Create pharmacy and pharmacy admin access together.</p>
+                <p>Create pharmacy admin access. Assign pharmacy and main branch after creation.</p>
               </div>
 
               <form className="admins-form" onSubmit={handleSubmit}>
@@ -416,12 +423,6 @@ function Admins() {
                     <span>Name</span>
                     <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Admin name" required />
                   </label>
-
-                  <label className="admins-field">
-                    <span>Pharmacy Name</span>
-                    <input value={form.pharmacyName} onChange={(event) => setForm({ ...form, pharmacyName: event.target.value })} placeholder="Pharmacy name" required />
-                  </label>
-
                   <label className="admins-field">
                     <span>Email</span>
                     <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="admin@example.com" required />
@@ -429,45 +430,11 @@ function Admins() {
 
                   <label className="admins-field">
                     <span>Mobile Number</span>
-                    <input value={form.mobileNumber} onChange={(event) => setForm({ ...form, mobileNumber: event.target.value })} placeholder="Mobile number" />
+                    <input inputMode="numeric" maxLength={10} pattern="[0-9]{10}" value={form.mobileNumber} onChange={(event) => setForm({ ...form, mobileNumber: digitsOnly(event.target.value) })} placeholder="Mobile number" />
                   </label>
 
                   <label className="admins-field">
-                    <span>Pharmacy Contact Number</span>
-                    <input value={form.pharmacyContactNumber} onChange={(event) => setForm({ ...form, pharmacyContactNumber: event.target.value })} placeholder="Contact number" />
-                  </label>
-
-                  <label className="admins-field">
-                    <span>Pharmacy Email</span>
-                    <input type="email" value={form.pharmacyEmail} onChange={(event) => setForm({ ...form, pharmacyEmail: event.target.value })} placeholder="pharmacy@example.com" />
-                  </label>
-
-                  <label className="admins-field admins-field-wide">
-                    <span>Pharmacy Address</span>
-                    <input value={form.pharmacyAddress} onChange={(event) => setForm({ ...form, pharmacyAddress: event.target.value })} placeholder="Pharmacy address" />
-                  </label>
-
-                  <label className="admins-field">
-                    <span>City</span>
-                    <input value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} placeholder="City" />
-                  </label>
-
-                  <label className="admins-field">
-                    <span>State</span>
-                    <input value={form.state} onChange={(event) => setForm({ ...form, state: event.target.value })} placeholder="State" />
-                  </label>
-
-                  <label className="admins-field">
-                    <span>Country</span>
-                    <input value={form.country} onChange={(event) => setForm({ ...form, country: event.target.value })} placeholder="Country" />
-                  </label>
-
-                  <label className="admins-field">
-                    <span>Postal Code</span>
-                    <input value={form.postalCode} onChange={(event) => handlePostalCodeChange(event.target.value)} placeholder="Postal code" />
-                  </label>
-                  <label className="admins-field">
-                    <span>Permission Role ID</span>
+                    <span>Permission Role</span>
                     <select value={form.pharmacyPermissionRoleId} onChange={(event) => setForm({ ...form, pharmacyPermissionRoleId: event.target.value })}><option value="">Select role</option>{roleOptions.map((role) => <option key={role._id || role.id || role.roleId} value={role._id || role.id || role.roleId}>{role.name || role.roleName || role.label}</option>)}</select>
                   </label>
 
@@ -492,6 +459,19 @@ function Admins() {
             </div>
           ) : null}
 
+          <div className="admins-create-panel" style={{ padding: '18px 26px', marginBottom: '18px' }}>
+            <div className="admins-form-header" style={{ marginBottom: '12px' }}>
+              <h2>Assign Pharmacy to Admin</h2>
+              <p>Select a pharmacy, then use Assign on the admin row. Main Branch is fetched and sent automatically.</p>
+            </div>
+            <label className="admins-field" style={{ maxWidth: '420px' }}>
+              <span>Pharmacy</span>
+              <select value={assignmentPharmacyId} onChange={(event) => setAssignmentPharmacyId(event.target.value)}>
+                <option value="">Select pharmacy to assign</option>
+                {pharmacyOptions.map((pharmacy) => <option key={getId(pharmacy)} value={getId(pharmacy)}>{getPharmacyOptionName(pharmacy)}</option>)}
+              </select>
+            </label>
+          </div>
           <div className="admins-table-card">
             <table className="admins-table">
               <thead>
@@ -515,12 +495,12 @@ function Admins() {
                       <span className="admin-avatar">{getName(admin).split(' ').slice(0,2).map((part) => part.charAt(0)).join('').slice(0,2).toUpperCase() || 'A'}</span>
                       {getName(admin)}
                     </td>
-                    <td>{getPharmacyName(admin)}</td>
+                    <td>{getAssignedPharmacyName(admin)}</td>
                     <td>{admin?.email || '-'}</td>
                     <td>{getMobileNumber(admin)}</td>
                     <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
                     <td>
-                      <RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onStatus={() => handleStatus(admin)} />
+                      <span className="row-actions"><button type="button" className="row-action-button view" title="Assign selected pharmacy" disabled={assigningAdminId === String(getId(admin)) || !assignmentPharmacyId} onClick={() => handleAssignPharmacy(admin)}>Assign</button><RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onStatus={() => handleStatus(admin)} /></span>
                     </td>
                   </tr>
                 )) : (
@@ -581,7 +561,7 @@ function Admins() {
                 </div>
                 <div className="sa-modal-field">
                   <label>Pharmacy Name</label>
-                  <span>{getPharmacyName(viewingAdmin)}</span>
+                  <span>{getAssignedPharmacyName(viewingAdmin)}</span>
                 </div>
                 <div className="sa-modal-field">
                   <label>Pharmacy Address</label>
@@ -651,6 +631,11 @@ function Admins() {
 }
 
 export default Admins
+
+
+
+
+
 
 
 

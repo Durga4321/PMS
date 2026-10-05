@@ -24,6 +24,8 @@ const normalizeList = (response) => {
   return []
 }
 
+const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
+
 function getId(item, index) {
   return item?._id || item?.id || `${index}`
 }
@@ -112,9 +114,9 @@ export default function Suppliers() {
     if (!phoneVal) {
       errs.phone = 'Phone Number is required.'
     } else {
-      const cleanPhone = phoneVal.replace(/[+\-\s()]/g, '')
-      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
-        errs.phone = 'Please enter a valid phone number (at least 8 digits).'
+      const cleanPhone = digitsOnly(phoneVal)
+      if (!/^\d{10}$/.test(cleanPhone)) {
+        errs.phone = 'Phone number must be exactly 10 digits.'
       }
     }
 
@@ -160,9 +162,9 @@ export default function Suppliers() {
     if (!phoneVal) {
       errs.phone = 'Phone Number is required.'
     } else {
-      const cleanPhone = phoneVal.replace(/[+\-\s()]/g, '')
-      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
-        errs.phone = 'Please enter a valid phone number (at least 8 digits).'
+      const cleanPhone = digitsOnly(phoneVal)
+      if (!/^\d{10}$/.test(cleanPhone)) {
+        errs.phone = 'Phone number must be exactly 10 digits.'
       }
     }
 
@@ -306,7 +308,7 @@ export default function Suppliers() {
         city: createForm.city,
         state: createForm.state,
         country: createForm.country,
-        estNumber: createForm.estNumber,
+        taxNumber: createForm.estNumber,
         status: createForm.status,
         notes: createForm.notes
       }
@@ -354,7 +356,7 @@ export default function Suppliers() {
         city: editForm.city,
         state: editForm.state,
         country: editForm.country,
-        estNumber: editForm.estNumber,
+        taxNumber: editForm.estNumber,
         status: editForm.status,
         notes: editForm.notes
       }
@@ -694,10 +696,10 @@ export default function Suppliers() {
                       <label>Phone Number *</label>
                       <input 
                         type="text" 
-                        id="create-phone"
+                        inputMode="numeric" maxLength={10} pattern="[0-9]{10}" id="create-phone"
                         value={createForm.phone} 
                         onChange={(e) => {
-                          setCreateForm({...createForm, phone: e.target.value})
+                          setCreateForm({...createForm, phone: digitsOnly(e.target.value)})
                           if (createErrors.phone) setCreateErrors({...createErrors, phone: ''})
                         }} 
                         style={createErrors.phone ? { borderColor: '#ef4444' } : {}}
@@ -859,10 +861,10 @@ export default function Suppliers() {
                       <label>Phone Number *</label>
                       <input 
                         type="text" 
-                        id="edit-phone"
+                        inputMode="numeric" maxLength={10} pattern="[0-9]{10}" id="edit-phone"
                         value={editForm.phone} 
                         onChange={(e) => {
-                          setEditForm({...editForm, phone: e.target.value})
+                          setEditForm({...editForm, phone: digitsOnly(e.target.value)})
                           if (editErrors.phone) setEditErrors({...editErrors, phone: ''})
                         }} 
                         style={editErrors.phone ? { borderColor: '#ef4444' } : {}}

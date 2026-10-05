@@ -17,6 +17,7 @@ import {
 import AdminLayout from './AdminLayout'
 
 const emptyForm = { name: '', email: '', phone: '', password: '', branchId: '' }
+const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
 const permissionKeys = ['prescriptions', 'dispensing', 'stock', 'reports']
 
 function normalizeList(response) {
@@ -313,9 +314,9 @@ function Users({ initialAdd = false }) {
 
     const phoneVal = (form.phone || '').trim()
     if (phoneVal) {
-      const cleanPhone = phoneVal.replace(/[+\-\s()]/g, '')
-      if (isNaN(Number(cleanPhone)) || cleanPhone.length < 8) {
-        errs.phone = 'Please enter a valid phone number (at least 8 digits).'
+      const cleanPhone = digitsOnly(phoneVal)
+      if (!/^\d{10}$/.test(cleanPhone)) {
+        errs.phone = 'Phone number must be exactly 10 digits.'
       }
     }
 
@@ -425,6 +426,9 @@ function Users({ initialAdd = false }) {
 
     try {
       const response = editing ? await updatePharmacist(getId(editing), payload) : await createPharmacist(payload)
+      if (editing && form.branchId) {
+        await assignPharmacistToAdminPharmacy(getId(editing), { branchId: Number(form.branchId), BranchId: Number(form.branchId) })
+      }
       const targetId = editing ? getId(editing) : getId(response?.data || response?.pharmacist || response)
       if (targetId && phoneVal) {
         saveLocalPhone(targetId, phoneVal)
@@ -542,8 +546,9 @@ function Users({ initialAdd = false }) {
 
   async function handleAssign(pharmacist) {
     try {
-      const response = await assignPharmacistToAdminPharmacy(getId(pharmacist))
-      showToast(response?.message || 'Admin pharmacy assigned to pharmacist.')
+      const branchId = pharmacist?.branchId || pharmacist?.BranchId || storedBranchId()
+      const response = await assignPharmacistToAdminPharmacy(getId(pharmacist), branchId ? { branchId: Number(branchId), BranchId: Number(branchId) } : {})
+      showToast(response?.message || 'Pharmacist branch updated successfully.')
       await loadPharmacists()
     } catch (error) {
       showToast(error.message, 'error')
@@ -669,12 +674,12 @@ function Users({ initialAdd = false }) {
               <div className="pharmacist-form-field">
                 <label htmlFor="user-phone">Phone Number</label>
                 <input
-                  id="user-phone"
+                  id="user-phone" inputMode="numeric" maxLength={10} pattern="[0-9]{10}"
                   name="pharmacist_new_phone"
                   autoComplete="off"
                   value={form.phone}
                   onChange={(event) => {
-                    setForm({ ...form, phone: event.target.value })
+                    setForm({ ...form, phone: digitsOnly(event.target.value) })
                     if (formErrors.phone) setFormErrors({ ...formErrors, phone: '' })
                   }}
                   className={formErrors.phone ? 'has-error' : ''}

@@ -19,12 +19,22 @@ function Icon({ name }) {
 
 function normalizeList(response) {
   if (Array.isArray(response)) return response
-  if (Array.isArray(response?.data)) return response.data
-  if (Array.isArray(response?.data?.medicines)) return response.data.medicines
-  if (Array.isArray(response?.medicines)) return response.medicines
-  if (Array.isArray(response?.items)) return response.items
-  if (Array.isArray(response?.results)) return response.results
-  return []
+  const data = response?.data ?? response?.Data ?? response
+  if (Array.isArray(data)) return data
+  const candidates = [
+    data?.medicines,
+    data?.Medicines,
+    data?.items,
+    data?.Items,
+    data?.results,
+    data?.Results,
+    data?.records,
+    data?.Records,
+    response?.medicines,
+    response?.items,
+    response?.results,
+  ]
+  return candidates.find(Array.isArray) || []
 }
 
 function medicineName(item) {
@@ -82,7 +92,7 @@ function Medicines() {
       setLoading(true)
       setError('')
       try {
-        const response = await getSuperAdminMedicines()
+        const response = await getSuperAdminMedicines({ page: 1, pageSize: 1000, limit: 1000, size: 1000, take: 1000 })
         if (active) setMedicines(normalizeList(response))
       } catch (requestError) {
         if (active) setError(requestError.message || 'Unable to load medicines.')
