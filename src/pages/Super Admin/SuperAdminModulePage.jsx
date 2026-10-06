@@ -1,7 +1,14 @@
-import { useMemo, useState } from 'react'
+import { isValidElement, useMemo, useState } from 'react'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './SuperAdminModulePage.css'
+
+function searchableText(value) {
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  if (Array.isArray(value)) return value.map(searchableText).join(' ')
+  if (isValidElement(value)) return searchableText(value.props.children)
+  return ''
+}
 
 function SuperAdminModulePage({ title, headers = [], rows = [], loading = false, error = '', action = null, children = null }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -11,7 +18,7 @@ function SuperAdminModulePage({ title, headers = [], rows = [], loading = false,
   const filteredRows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return rows
-    return rows.filter((row) => row.map((cell) => String(cell ?? '')).join(' ').toLowerCase().includes(normalizedQuery))
+    return rows.filter((row) => row.map(searchableText).join(' ').toLowerCase().includes(normalizedQuery))
   }, [query, rows])
 
   return (
@@ -71,4 +78,3 @@ function SuperAdminModulePage({ title, headers = [], rows = [], loading = false,
 }
 
 export default SuperAdminModulePage
-

@@ -96,6 +96,12 @@ export default function UsersPermissions() {
   const [success, setSuccess] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  useEffect(() => {
+    if (!success) return undefined
+    const timeoutId = window.setTimeout(() => setSuccess(''), 3000)
+    return () => window.clearTimeout(timeoutId)
+  }, [success])
+
   async function loadRolePermissions(roleId) {
     if (!roleId) {
       setPermissions(EMPTY_PERMISSIONS)
@@ -252,15 +258,59 @@ export default function UsersPermissions() {
       {success ? <p className="permissions-success">{success}</p> : null}
 
       <section className="permissions-panel permissions-summary-panel">
-        <div className="permissions-role-table permissions-admin-summary"><table><thead><tr><th>S.NO.</th><th>ROLE</th><th>MODULE</th><th>ASSIGNED USERS</th><th>PERMISSIONS</th></tr></thead><tbody>{loading ? <tr><td className="permissions-state" colSpan="5">Loading admins...</td></tr> : adminRows.length ? adminRows.map((admin, index) => <tr key={admin.id || index} className={String(admin.id) === String(selectedAdminId) ? 'is-selected' : ''} onClick={() => selectAdmin(admin.id)}><td>{index + 1}</td><td><div className="role-name-cell"><span className="role-mark"><Icon><path d="M12 3 5 6v5c0 4.2 2.8 8.1 7 10 4.2-1.9 7-5.8 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-5" /></Icon></span><span><strong>{admin.roleName}</strong><small className="role-badge">Assigned Role</small></span></div></td><td><strong>{MODULES.length} modules</strong><small>PMS admin sidebar modules</small></td><td><div className="permission-user-cell"><strong><Icon><circle cx="9" cy="8" r="4" /><path d="M3 21v-1a6 6 0 0 1 12 0v1" /><path d="M17 11a3 3 0 1 0 0-6" /><path d="M21 21v-1a5 5 0 0 0-3-4.6" /></Icon>1 admin</strong><small>{admin.name} - ID {admin.id || '0'}</small></div></td><td><div className="permission-tags">{String(admin.id) === String(selectedAdminId) ? (hasAnyPermission(permissionState) ? MODULES.map((module) => { const allowed = ACTIONS.filter((action) => permissionState[module]?.[action]).map(actionLabel); return allowed.length ? <span key={module}>{module}: {allowed.join(', ')}</span> : null }) : <span className="permission-none">No permissions assigned</span>) : <span className="permission-none">Select admin to view</span>}</div></td></tr>) : <tr><td className="permissions-state" colSpan="5">No admins found. Create admins first.</td></tr>}</tbody></table></div>
+        <div className="permissions-role-table permissions-admin-summary">
+          <table>
+            <thead>
+              <tr><th>S.NO.</th><th>ROLE</th><th>MODULE</th><th>ASSIGNED USERS</th></tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td className="permissions-state" colSpan="4">Loading admins...</td></tr>
+              ) : adminRows.length ? adminRows.map((admin, index) => {
+                const selected = String(admin.id) === String(selectedAdminId)
+                return [
+                  <tr key={admin.id || index} className={selected ? 'is-selected' : ''} onClick={() => selectAdmin(admin.id)}>
+                    <td>{index + 1}</td>
+                    <td>
+                      <div className="role-name-cell">
+                        <span className="role-mark"><Icon><path d="M12 3 5 6v5c0 4.2 2.8 8.1 7 10 4.2-1.9 7-5.8 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-5" /></Icon></span>
+                        <span><strong>{admin.roleName}</strong><small className="role-badge">Assigned Role</small></span>
+                      </div>
+                    </td>
+                    <td><strong>{MODULES.length} modules</strong><small>PMS admin sidebar modules</small></td>
+                    <td>
+                      <div className="permission-user-cell">
+                        <strong><Icon><circle cx="9" cy="8" r="4" /><path d="M3 21v-1a6 6 0 0 1 12 0v1" /><path d="M17 11a3 3 0 1 0 0-6" /><path d="M21 21v-1a5 5 0 0 0-3-4.6" /></Icon>1 admin</strong>
+                        <small>{admin.name} - ID {admin.id || '0'}</small>
+                      </div>
+                    </td>
+                  </tr>,
+                  <tr key={`${admin.id || index}-permissions`} className={`permissions-detail-row${selected ? ' is-selected' : ''}`} onClick={() => selectAdmin(admin.id)}>
+                    <td colSpan="4">
+                      <div className="permissions-detail">
+                        <strong>Permissions</strong>
+                        <div className="permission-tags">
+                          {selected ? (hasAnyPermission(permissionState) ? MODULES.map((module) => {
+                            const allowed = ACTIONS.filter((action) => permissionState[module]?.[action]).map(actionLabel)
+                            return allowed.length ? <span key={module}>{module}: {allowed.join(', ')}</span> : null
+                          }) : <span className="permission-none">No permissions assigned</span>) : <span className="permission-none">Select admin to view</span>}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>,
+                ]
+              }) : (
+                <tr><td className="permissions-state" colSpan="4">No admins found. Create admins first.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="permissions-panel assign-panel"><header className="permissions-panel-header"><div><h2>Assign Permissions</h2><p>Admin sidebar module permissions for the selected Admin role.</p></div></header><form onSubmit={savePermissions}><label className="permissions-admin-select"><span>Admin Role / Admin ID</span><select value={selectedAdminId} onChange={(event) => selectAdmin(event.target.value)} disabled={loading || saving}><option value="">Select Admin</option>{admins.map((admin) => <option key={idOf(admin)} value={idOf(admin)}>{nameOf(admin)} - ID {idOf(admin) || '0'}</option>)}</select></label><label className="permissions-admin-select"><span>Backend Role</span><select value={selectedRoleId} onChange={(event) => chooseRole(event.target.value)} disabled={loading || saving}><option value="">Select Role</option>{roles.map((role) => <option key={idOf(role)} value={idOf(role)}>{nameOf(role)}</option>)}</select></label><div className="permissions-grid-wrap"><table className="permissions-grid"><thead><tr><th><span className="permissions-module-head"><span>Module</span><button className="permissions-select-all" type="button" onClick={toggleAllPermissions} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving}><Icon><path d="m5 12 4 4L19 6" /></Icon>{allSelected ? 'Deselect All' : 'Select All'}</button></span></th>{ACTIONS.map((action) => <th key={action}><label className="permissions-column-toggle"><input type="checkbox" checked={isColumnSelected(action)} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving} onChange={(event) => toggleColumnPermission(action, event.target.checked)} />{actionLabel(action)}</label></th>)}</tr></thead><tbody>{MODULES.map((module) => <tr key={module}><td><span className="module-label"><ModuleIcon module={module} /><span>{module}</span></span></td>{ACTIONS.map((action) => <td key={action}><label className={`permission-check permission-check-${action}`}><input type="checkbox" checked={Boolean(permissionState[module]?.[action])} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving} onChange={(event) => togglePermission(module, action, event.target.checked)} /><span><Icon><path d="m5 12 4 4L19 6" /></Icon></span>{actionLabel(action)}</label></td>)}</tr>)}</tbody></table></div><div className="permissions-save-row"><span>{selectedAdmin && selectedRole ? `${selectedCount} permissions selected for ${nameOf(selectedAdmin)} (${nameOf(selectedRole)})` : 'Select an admin and role'}</span><button className="permissions-primary" disabled={!selectedAdminId || !selectedRoleId || saving || loadingPermissions} type="submit">{saving ? 'Saving...' : 'Save Module Permissions'}</button></div></form></section>
     </main>
   </div>
 }
-
-
 
 
 

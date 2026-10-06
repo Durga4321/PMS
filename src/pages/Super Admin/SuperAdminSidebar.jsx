@@ -63,10 +63,11 @@ function SuperAdminSidebar({ activeLabel = '' }) {
         <button
           type="button"
           className="super-admin-collapse-btn"
-          onClick={() => {
-            const shell = document.querySelector('.super-admin-shell')
+          onClick={(event) => {
+            const shell = event.currentTarget.closest('.super-admin-sidebar')?.closest('.super-admin-shell, .admins-page-shell, .profile-super-admin-shell')
             if (shell) shell.classList.toggle('sidebar-collapsed')
           }}
+          aria-label="Collapse or expand menu"
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -79,5 +80,3 @@ function SuperAdminSidebar({ activeLabel = '' }) {
 }
 
 export default SuperAdminSidebar
-
-

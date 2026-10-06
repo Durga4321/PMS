@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import RowActions from '../../components/RowActions'
-import { changeSuperAdminMedicineStatus, getSuperAdminMedicines } from '../../config/api'
+import { changeSuperAdminMedicineStatus, deleteMedicine, getSuperAdminMedicines } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './Medicines.css'
@@ -71,6 +71,33 @@ function medicineId(item) {
   return item?._id || item?.id || item?.medicineId
 }
 
+function medicineSearchText(item) {
+  return [
+    item?.name,
+    item?.Name,
+    item?.medicineName,
+    item?.MedicineName,
+    item?.brand,
+    item?.Brand,
+    item?.brandName,
+    item?.BrandName,
+    item?.manufacturer,
+    item?.Manufacturer,
+    item?.company,
+    item?.Company,
+    item?.category,
+    item?.Category,
+    item?.categoryName,
+    item?.CategoryName,
+    item?.type,
+    item?.Type,
+    item?.sku,
+    item?.SKU,
+    item?.code,
+    item?.Code,
+  ].filter((value) => typeof value === 'string' || typeof value === 'number').join(' ').toLowerCase()
+}
+
 function priceValue(item) {
   const value = item?.price ?? item?.mrp ?? item?.priceMrp ?? item?.sellingPrice
   if (value === undefined || value === null || value === '') return '-'
@@ -107,7 +134,7 @@ function Medicines() {
   const filteredMedicines = useMemo(() => {
     const value = query.trim().toLowerCase()
     return medicines.filter((medicine) => {
-      const matchesQuery = !value || [medicineName(medicine), brandName(medicine), categoryName(medicine), medicine?.sku, medicine?.SKU].join(' ').toLowerCase().includes(value)
+      const matchesQuery = !value || medicineSearchText(medicine).includes(value)
       const matchesFilter = filter === 'All' || (filter === 'Active' && medicineStatus(medicine).toLowerCase() === 'active') || (filter === 'Inactive' && medicineStatus(medicine).toLowerCase() !== 'active') || (filter === 'Low Stock' && ['low', 'out'].includes(stockState(medicine)))
       return matchesQuery && matchesFilter
     })
@@ -158,11 +185,20 @@ function Medicines() {
     setEditingMedicine(null)
   }
 
-  function handleDelete(medicine) {
+  async function handleDelete(medicine) {
     const name = medicineName(medicine)
     if (!window.confirm(`Are you sure you want to delete ${name}?`)) return
     const id = medicineId(medicine)
-    setMedicines((current) => current.filter((item) => medicineId(item) !== id))
+    if (!id) {
+      setError('Unable to delete medicine: missing medicine ID.')
+      return
+    }
+    try {
+      await deleteMedicine(id)
+      setMedicines((current) => current.filter((item) => medicineId(item) !== id))
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to delete medicine.')
+    }
   }
 
   useEffect(() => setPage(1), [filter, query])
@@ -293,5 +329,3 @@ function Medicines() {
 }
 
 export default Medicines
-
-
