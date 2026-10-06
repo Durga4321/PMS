@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createSuperAdminPharmacy, getAddressByPincode, getSuperAdminPharmacies } from '../../config/api'
+import {
+  changeSuperAdminPharmacyStatus,
+  createSuperAdminPharmacy,
+  deleteSuperAdminPharmacy,
+  getAddressByPincode,
+  getSuperAdminPharmacies,
+  updateSuperAdminPharmacy,
+} from '../../config/api'
 import SuperAdminModulePage from './SuperAdminModulePage'
 import RowActions from '../../components/RowActions'
 import './Branches.css'
@@ -85,6 +92,7 @@ export default function Pharmacies() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [editingPharmacy, setEditingPharmacy] = useState(null)
   const [form, setForm] = useState(emptyForm)
 
   useEffect(() => {
@@ -110,26 +118,86 @@ export default function Pharmacies() {
   }, [])
 
 
+  function openEdit(pharmacy) {
+    setEditingPharmacy(pharmacy)
+    setCreateOpen(false)
+    setError('')
+    setForm({
+      name: pharmacyName(pharmacy) === '-' ? '' : pharmacyName(pharmacy),
+      phone: contactNumber(pharmacy) === '-' ? '' : contactNumber(pharmacy),
+      email: emailOf(pharmacy) === '-' ? '' : emailOf(pharmacy),
+      address: addressOf(pharmacy) === '-' ? '' : addressOf(pharmacy),
+      city: pharmacy.city || pharmacy.City || '',
+      district: pharmacy.district || pharmacy.District || '',
+      state: pharmacy.state || pharmacy.State || '',
+      country: pharmacy.country || pharmacy.Country || '',
+      postalCode: pharmacy.postalCode || pharmacy.PostalCode || '',
+    })
+  }
+
   async function createPharmacy(event) {
     event.preventDefault()
+    if (editingPharmacy && !idOf(editingPharmacy)) {
+      setError('Unable to update pharmacy: pharmacy ID is missing.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
       const payload = Object.fromEntries(Object.entries(form).map(([key, value]) => [key, String(value || '').trim()]).filter(([, value]) => value !== ''))
-      const response = await createSuperAdminPharmacy(payload)
-      const created = response?.data?.pharmacy || response?.pharmacy || response?.data || response
-      const mainBranch = response?.data?.mainBranch || response?.mainBranch
-      if (created?.id || created?.pharmacyId) sessionStorage.setItem('lastCreatedPharmacyId', String(created.id || created.pharmacyId))
-      if (mainBranch?.id || mainBranch?.branchId) sessionStorage.setItem('lastCreatedMainBranchId', String(mainBranch.id || mainBranch.branchId))
+      if (editingPharmacy) {
+        const isActive = String(statusOf(editingPharmacy)).toLowerCase() === 'active'
+        await updateSuperAdminPharmacy(idOf(editingPharmacy), { ...payload, isActive })
+      } else {
+        const response = await createSuperAdminPharmacy(payload)
+        const created = response?.data?.pharmacy || response?.pharmacy || response?.data || response
+        const mainBranch = response?.data?.mainBranch || response?.mainBranch
+        if (created?.id || created?.pharmacyId) sessionStorage.setItem('lastCreatedPharmacyId', String(created.id || created.pharmacyId))
+        if (mainBranch?.id || mainBranch?.branchId) sessionStorage.setItem('lastCreatedMainBranchId', String(mainBranch.id || mainBranch.branchId))
+      }
       setCreateOpen(false)
+      setEditingPharmacy(null)
       setForm(emptyForm)
       const listResponse = await getSuperAdminPharmacies({ page: 1, pageSize: 100 })
       const items = listFrom(listResponse).map(unwrapAdmin)
       setPharmacies(items)
     } catch (requestError) {
-      setError(requestError.message || 'Unable to create pharmacy.')
+      setError(requestError.message || `Unable to ${editingPharmacy ? 'update' : 'create'} pharmacy.`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function changePharmacyStatus(pharmacy) {
+    const pharmacyId = idOf(pharmacy)
+    if (!pharmacyId) {
+      setError('Unable to update pharmacy status: pharmacy ID is missing.')
+      return
+    }
+    const isActive = String(statusOf(pharmacy)).toLowerCase() === 'active'
+    setError('')
+    try {
+      await changeSuperAdminPharmacyStatus(pharmacyId, { isActive: !isActive, status: isActive ? 'Inactive' : 'Active' })
+      const response = await getSuperAdminPharmacies({ page: 1, pageSize: 100 })
+      setPharmacies(listFrom(response).map(unwrapAdmin))
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to update pharmacy status.')
+    }
+  }
+
+  async function deletePharmacy(pharmacy) {
+    const pharmacyId = idOf(pharmacy)
+    if (!pharmacyId) {
+      setError('Unable to delete pharmacy: pharmacy ID is missing.')
+      return
+    }
+    if (!window.confirm(`Delete ${pharmacyName(pharmacy)}?`)) return
+    setError('')
+    try {
+      await deleteSuperAdminPharmacy(pharmacyId)
+      setPharmacies((current) => current.filter((item) => String(idOf(item)) !== String(pharmacyId)))
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to delete pharmacy.')
     }
   }
 
@@ -163,7 +231,15 @@ export default function Pharmacies() {
       <span className="branches-location-text" key="address" title={addressOf(pharmacy)}>{addressOf(pharmacy)}</span>,
       <span className="branches-location-text" key="email" title={emailOf(pharmacy)}>{emailOf(pharmacy)}</span>,
       <StatusBadge key="status" status={status} />,
-      <RowActions key={`actions-${idOf(pharmacy) || index}`} itemName={pharmacyName(pharmacy)} isActive={String(status).toLowerCase() === 'active'} onView={() => setViewingPharmacy(pharmacy)} />,
+      <RowActions
+        key={`actions-${idOf(pharmacy) || index}`}
+        itemName={pharmacyName(pharmacy)}
+        isActive={String(status).toLowerCase() === 'active'}
+        onView={() => setViewingPharmacy(pharmacy)}
+        onEdit={() => openEdit(pharmacy)}
+        onStatus={() => changePharmacyStatus(pharmacy)}
+        onDelete={() => deletePharmacy(pharmacy)}
+      />,
     ]
   }), [pharmacies])
 
@@ -174,17 +250,17 @@ export default function Pharmacies() {
       rows={rows}
       loading={loading}
       error={error}
-      action={<button type="button" className="sa-btn-primary" onClick={() => setCreateOpen(true)}>+ Create Pharmacy</button>}
+      action={<button type="button" className="sa-btn-primary" onClick={() => { setEditingPharmacy(null); setForm(emptyForm); setCreateOpen(true) }}>+ Create Pharmacy</button>}
       emptyText="No pharmacies available."
     >
-      {createOpen ? (
-        <div className="sa-modal-backdrop" onClick={() => setCreateOpen(false)}>
+      {createOpen || editingPharmacy ? (
+        <div className="sa-modal-backdrop" onClick={() => { setCreateOpen(false); setEditingPharmacy(null) }}>
           <form className="sa-modal-card" onSubmit={createPharmacy} onClick={(event) => event.stopPropagation()}>
-            <div className="sa-modal-header"><h2>Create Pharmacy</h2><button type="button" className="sa-modal-close" onClick={() => setCreateOpen(false)}>&times;</button></div>
+            <div className="sa-modal-header"><h2>{editingPharmacy ? 'Edit Pharmacy' : 'Create Pharmacy'}</h2><button type="button" className="sa-modal-close" onClick={() => { setCreateOpen(false); setEditingPharmacy(null) }}>&times;</button></div>
             <div className="sa-modal-body"><div className="sa-modal-grid">
               {Object.keys(emptyForm).map((field) => <div className="sa-modal-field" key={field} style={field === 'address' ? { gridColumn: '1 / -1' } : undefined}><label>{field === 'name' ? 'Pharmacy Name *' : field === 'postalCode' ? 'Pincode' : field.replace(/([A-Z])/g, ' $1')}</label>{field === 'address' ? <textarea value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} /> : <input required={field === 'name'} type={field === 'email' ? 'email' : 'text'} inputMode={field === 'phone' || field === 'postalCode' ? 'numeric' : undefined} maxLength={field === 'phone' ? 10 : field === 'postalCode' ? 6 : undefined} pattern={field === 'phone' ? '[0-9]{10}' : undefined} value={form[field]} onChange={(event) => field === 'postalCode' ? handlePostalCodeChange(digitsOnly(event.target.value, 6)) : setForm({ ...form, [field]: field === 'phone' ? digitsOnly(event.target.value) : event.target.value })} />}</div>)}
             </div></div>
-            <div className="sa-modal-footer"><button type="button" className="sa-btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button><button type="submit" className="sa-btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Pharmacy'}</button></div>
+            <div className="sa-modal-footer"><button type="button" className="sa-btn-secondary" onClick={() => { setCreateOpen(false); setEditingPharmacy(null) }}>Cancel</button><button type="submit" className="sa-btn-primary" disabled={saving}>{saving ? (editingPharmacy ? 'Saving...' : 'Creating...') : (editingPharmacy ? 'Save Changes' : 'Create Pharmacy')}</button></div>
           </form>
         </div>
       ) : null}
@@ -211,5 +287,3 @@ export default function Pharmacies() {
     </SuperAdminModulePage>
   )
 }
-
-

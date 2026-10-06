@@ -207,28 +207,81 @@
   border-color: #cbd5e1;
   color: #0f172a;
 }
-.super-admin-shell.sidebar-collapsed {
-  padding-left: 72px;
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed {
+  padding-left: 112px;
 }
 
-.super-admin-shell.sidebar-collapsed .super-admin-sidebar {
-  width: 72px;
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-sidebar {
+  width: 112px;
   padding: 16px 8px;
 }
 
-.super-admin-shell.sidebar-collapsed .super-admin-brand-copy,
-.super-admin-shell.sidebar-collapsed .nav-label,
-.super-admin-shell.sidebar-collapsed .super-admin-collapse-btn span {
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .nav-label,
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-collapse-btn span {
   display: none;
 }
 
-.super-admin-shell.sidebar-collapsed .super-admin-nav-link {
-  justify-content: center;
-  padding: 6px 0;
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-brand-copy {
+  display: block;
+  width: 100%;
+  text-align: center;
 }
 
-.super-admin-shell.sidebar-collapsed .super-admin-brand {
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-brand-mark {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  border-radius: 9px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-brand-mark svg {
+  width: 19px;
+  height: 19px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-brand-copy strong {
+  font-size: 15px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-brand-copy small {
+  font-size: 10px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-nav-link {
+  width: 52px;
+  align-self: center;
   justify-content: center;
+  padding: 6px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .nav-icon-badge {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .nav-icon-badge svg {
+  width: 19px;
+  height: 19px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-nav-link.is-active {
+  border-radius: 12px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-sidebar-bottom {
+  display: flex;
+  justify-content: center;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-collapse-btn {
+  width: 44px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-brand {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   padding: 6px 0 18px;
 }
 
@@ -244,7 +297,7 @@
 
   .super-admin-brand div,
   .super-admin-nav::before,
-  .super-admin-nav-link span,
+  .super-admin-nav-link .nav-label,
   .super-admin-sidebar-footer div {
     display: none;
   }
@@ -253,12 +306,17 @@
   .super-admin-nav-link {
     justify-content: center;
   }
+
 }
 
 @media (max-width: 640px) {
-  .super-admin-shell {
+  :is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell) {
     display: block;
-    padding-left: 0;
+    padding-left: 0 !important;
+  }
+
+  .super-admin-sidebar-bottom {
+    display: none;
   }
 
   .super-admin-sidebar {
@@ -287,5 +345,3 @@
     display: block;
   }
 }
-
-

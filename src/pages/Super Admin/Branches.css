@@ -201,7 +201,7 @@
   stroke-width: 2.4;
 }
 
-/* Compact branch table so all columns fit on one screen */
+/* Keep the pharmacy table readable without clipping its columns. */
 .super-admin-module-panel:has(.branches-name-cell) .super-admin-module-header {
   padding: 14px 24px 8px;
 }
@@ -214,58 +214,69 @@
   width: 100%;
   min-width: 0;
   table-layout: fixed;
+  white-space: normal;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) th {
-  height: 42px;
-  padding: 0 10px;
-  font-size: 0.72rem;
+  height: 52px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  font-size: 0.82rem;
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) td {
-  height: 64px;
-  padding: 0 10px;
-  font-size: 0.72rem;
-  line-height: 1.2;
+  height: 78px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  font-size: 0.88rem;
+  line-height: 1.3;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) th:nth-child(1),
 .super-admin-module-panel:has(.branches-name-cell) td:nth-child(1) {
-  width: 54px;
+  width: 5%;
   padding-left: 8px;
   padding-right: 8px;
+  text-align: center;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) th:nth-child(2),
 .super-admin-module-panel:has(.branches-name-cell) td:nth-child(2) {
-  width: 30%;
+  width: 23%;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) th:nth-child(3),
 .super-admin-module-panel:has(.branches-name-cell) td:nth-child(3) {
-  width: 24%;
+  width: 18%;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) th:nth-child(4),
 .super-admin-module-panel:has(.branches-name-cell) td:nth-child(4) {
-  width: 24%;
+  width: 22%;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) th:nth-child(5),
 .super-admin-module-panel:has(.branches-name-cell) td:nth-child(5) {
-  width: 104px;
-  text-align: center;
+  display: none;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) th:nth-child(6),
 .super-admin-module-panel:has(.branches-name-cell) td:nth-child(6) {
-  width: 172px;
+  width: 14%;
+  text-align: center;
+}
+
+.super-admin-module-panel:has(.branches-name-cell) th:nth-child(7),
+.super-admin-module-panel:has(.branches-name-cell) td:nth-child(7) {
+  width: 18%;
   text-align: center;
 }
 
 .branches-name-cell {
-  gap: 10px;
+  white-space: normal;
+  gap: 12px;
   min-width: 0;
   width: 100%;
 }
@@ -285,52 +296,90 @@
 
 .branches-name-cell > span:last-child,
 .branches-contact-cell {
+  display: block;
+  width: 100%;
   min-width: 0;
+  white-space: normal;
 }
 
 .branches-name-cell strong,
 .branches-contact-cell strong {
   max-width: 100%;
-  overflow: hidden;
-  font-size: 0.78rem;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .branches-name-cell small,
 .branches-contact-cell small {
   max-width: 100%;
-  overflow: hidden;
-  margin-top: 3px;
-  font-size: 0.68rem;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .branches-location-text {
+  display: block;
   max-width: 100%;
-  font-size: 0.74rem;
-  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+  line-height: 1.3;
 }
 
 .branches-status-pill {
-  min-width: 88px;
-  min-height: 30px;
-  gap: 5px;
-  padding: 0 9px;
-  font-size: 0.68rem;
+  min-width: 100px;
+  min-height: 34px;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 0.76rem;
 }
 
 .branches-status-pill i {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  background: currentColor;
+  box-shadow: 0 0 0 1px #34d399, 0 0 7px rgba(16, 185, 129, 0.55);
+}
+
+.branches-status-pill.active i {
+  animation: branches-live-pulse 1.4s ease-in-out infinite;
+}
+
+.branches-status-pill.inactive i {
+  box-shadow: 0 0 0 1px #fca5a5, 0 0 7px rgba(239, 68, 68, 0.4);
+}
+
+@keyframes branches-live-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px #34d399, 0 0 4px rgba(16, 185, 129, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 2px #34d399, 0 0 9px rgba(16, 185, 129, 0.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .branches-status-pill.active i {
+    animation: none;
+  }
 }
 
 .branches-status-pill svg {
+  width: 15px;
+  height: 15px;
+}
+
+.branches-status-pill::after {
   width: 14px;
-  height: 14px;
+  height: 10px;
+  flex: 0 0 14px;
+  content: "";
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 16' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 8h5l3-6 4 12 3-6h7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 16' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 8h5l3-6 4 12 3-6h7'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .super-admin-module-panel:has(.branches-name-cell) .row-actions {
@@ -342,6 +391,7 @@
 .super-admin-module-panel:has(.branches-name-cell) .row-action-button {
   width: 34px;
   height: 34px;
+  flex: 0 0 34px;
   border-radius: 9px;
 }
 
@@ -349,4 +399,53 @@
   width: 17px;
   height: 17px;
   stroke-width: 2.2;
+}
+
+.super-admin-module-panel:has(.branches-name-cell) .row-action-button.view {
+  border: 1px solid #7dd3fc;
+  background: #e0f4ff;
+  color: #0284c7;
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.16);
+}
+
+.super-admin-module-panel:has(.branches-name-cell) .row-action-button.edit {
+  border: 1px solid #d8b4fe;
+  background: #f5edff;
+  color: #8b5cf6;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.14);
+}
+
+.super-admin-module-panel:has(.branches-name-cell) .row-action-button.status {
+  border: 1px solid #86efac;
+  background: #e7fbea;
+  color: #16a34a;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.16);
+}
+
+.super-admin-module-panel:has(.branches-name-cell) .row-action-button.status svg {
+  display: none;
+}
+
+.super-admin-module-panel:has(.branches-name-cell) .row-action-button.status::before {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  content: "";
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21l7.78-7.55 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z'/%3E%3Cpath d='M3 12h4l2-4 4 8 2-4h6'/%3E%3C/svg%3E") center / 15px 15px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21l7.78-7.55 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z'/%3E%3Cpath d='M3 12h4l2-4 4 8 2-4h6'/%3E%3C/svg%3E") center / 15px 15px no-repeat;
+}
+
+.super-admin-module-panel:has(.branches-name-cell) .row-action-button.delete {
+  border: 1px solid #fca5a5;
+  background: #fff0f0;
+  color: #ef4444;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.14);
+}
+
+@media (max-width: 900px) {
+  .super-admin-module-panel:has(.branches-name-cell) .super-admin-module-header {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
 }

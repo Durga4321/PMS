@@ -60,10 +60,10 @@
 
 .settings-card {
   position: relative;
-  padding: 0 20px 18px;
-  border: 1px solid #e3eaf1;
-  border-radius: 12px;
-  background: #ffffff;
+  padding: 20px 24px 18px;
+  border: 1px solid #b8e4ff;
+  border-radius: 20px;
+  background: #f4fbff;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
 
@@ -80,10 +80,12 @@
 
 .settings-tabs {
   display: flex;
-  gap: 10px;
-  margin: 0 -20px 20px;
-  padding: 0 20px;
-  border-bottom: 1px solid #e7edf3;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
 }
 
 .settings-live {
@@ -101,31 +103,54 @@
 
 
 .settings-tabs button {
-  min-height: 50px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   padding: 0 12px;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: #334155;
+  border: 1px solid #d9e2ef;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #087e9d;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 900;
   cursor: pointer;
 }
 
-.settings-tabs button.active,
-.settings-tabs button:hover {
-  background: transparent;
-  color: #1f344f;
+.settings-tabs button.email {
+  color: #8038f5;
 }
 
-.settings-tabs button.general.active { border-bottom-color: #16a394; }
-.settings-tabs button.email.active { border-bottom-color: #4787e8; }
-.settings-tabs button.sms.active { border-bottom-color: #e4a938; }
-.settings-tabs button.payment.active { border-bottom-color: #8064d9; }
+.settings-tabs button.sms {
+  color: #e91e73;
+}
+
+.settings-tabs button.payment {
+  color: #bd4c00;
+}
+
+.settings-tabs button.general.active {
+  border-color: #08a9c7;
+  background: #d5f8fc;
+}
+
+.settings-tabs button.email.active {
+  border-color: #08a9c7;
+  background: #d5f8fc;
+}
+
+.settings-tabs button.sms.active {
+  border-color: #08a9c7;
+  background: #d5f8fc;
+}
+
+.settings-tabs button.payment.active {
+  border-color: #08a9c7;
+  background: #d5f8fc;
+}
+
+.settings-tabs button:hover {
+  filter: brightness(0.97);
+}
 
 .settings-icon {
   width: 25px;
@@ -136,6 +161,13 @@
   border-radius: 7px;
   color: #168f85;
   background: #e6f8f4;
+}
+
+.settings-tabs .settings-icon,
+.settings-section-intro .settings-icon,
+.settings-control .settings-icon,
+.settings-notes .settings-icon {
+  display: none;
 }
 
 .settings-icon svg {
@@ -154,7 +186,7 @@
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0;
   margin: 0 0 2px;
 }
 
@@ -187,14 +219,18 @@
 .settings-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 12px;
+  gap: 14px 14px;
+}
+
+.settings-page .settings-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .settings-field {
   display: grid;
   gap: 7px;
   color: #475569;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -203,13 +239,88 @@
 }
 
 .settings-control {
-  min-height: 40px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   border: 1px solid #dbe3ed;
   border-radius: 9px;
   background: #ffffff;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.settings-page .settings-field:has(.settings-icon-appName) .settings-control {
+  border-color: #8be8f5;
+  background: #eafcff;
+}
+
+.settings-page .settings-field:has(.settings-icon-timezone) .settings-control {
+  border-color: #a9baff;
+  background: #f2f2ff;
+}
+
+.settings-page .settings-field:has(.settings-icon-currency) .settings-control {
+  border-color: #ffd0a2;
+  background: #fff7ed;
+}
+
+.settings-page .settings-field:has(.settings-icon-status) .settings-control {
+  border-color: #8be8f5;
+  background: #eafcff;
+}
+
+.settings-page .settings-field:has(.settings-icon-senderName) .settings-control,
+.settings-page .settings-field:has(.settings-icon-smtpPort) .settings-control {
+  border-color: #8be8f5;
+  background: #eafcff;
+}
+
+.settings-page .settings-field:has(.settings-icon-senderEmail) .settings-control,
+.settings-page .settings-field:has(.settings-icon-smtpUsername) .settings-control {
+  border-color: #d7d0ff;
+  background: #f4f2ff;
+}
+
+.settings-page .settings-field:has(.settings-icon-smtpHost) .settings-control,
+.settings-page .settings-field:has(.settings-icon-smtpPassword) .settings-control {
+  border-color: #ffd0a2;
+  background: #fff7ed;
+}
+
+.settings-page .settings-field:has(.settings-icon-smsConfigurationName) .settings-control,
+.settings-page .settings-field:has(.settings-icon-smsApiKey) .settings-control {
+  border-color: #8be8f5;
+  background: #eafcff;
+}
+
+.settings-page .settings-field:has(.settings-icon-smsProvider) .settings-control,
+.settings-page .settings-field:has(.settings-icon-smsApiSecret) .settings-control {
+  border-color: #d7d0ff;
+  background: #f4f2ff;
+}
+
+.settings-page .settings-field:has(.settings-icon-smsSenderId) .settings-control,
+.settings-page .settings-card:has(.settings-icon-smsConfigurationName) .settings-field:has(.settings-icon-status) .settings-control {
+  border-color: #ffd0a2;
+  background: #fff7ed;
+}
+
+.settings-page .settings-card:has(.settings-icon-paymentConfigurationName) .settings-field:has(.settings-icon-paymentConfigurationName) .settings-control,
+.settings-page .settings-card:has(.settings-icon-paymentConfigurationName) .settings-field:has(.settings-icon-publicKey) .settings-control,
+.settings-page .settings-card:has(.settings-icon-paymentConfigurationName) .settings-field:has(.settings-icon-status) .settings-control {
+  border-color: #8be8f5;
+  background: #eafcff;
+}
+
+.settings-page .settings-card:has(.settings-icon-paymentConfigurationName) .settings-field:has(.settings-icon-paymentGateway) .settings-control,
+.settings-page .settings-card:has(.settings-icon-paymentConfigurationName) .settings-field:has(.settings-icon-secretKey) .settings-control {
+  border-color: #d7d0ff;
+  background: #f4f2ff;
+}
+
+.settings-page .settings-card:has(.settings-icon-paymentConfigurationName) .settings-field:has(.settings-icon-merchantId) .settings-control,
+.settings-page .settings-card:has(.settings-icon-paymentConfigurationName) .settings-field:has(.settings-icon-paymentMode) .settings-control {
+  border-color: #ffd0a2;
+  background: #fff7ed;
 }
 
 .settings-control:focus-within {
@@ -235,20 +346,49 @@
   background: #ffffff;
   color: #243657;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .settings-field input,
 .settings-field select {
-  height: 40px;
+  height: 46px;
   flex: 1;
   min-width: 0;
   padding: 0 11px 0 8px;
   background: transparent;
 }
 
+.settings-password-toggle {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-grid;
+  place-items: center;
+  margin-right: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.settings-password-toggle svg {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.settings-password-toggle:focus-visible {
+  outline: 2px solid #0f9d9d;
+  outline-offset: 1px;
+}
+
 .settings-field textarea {
-  min-height: 96px;
+  min-height: 100px;
   padding: 10px 11px;
   resize: vertical;
 }
@@ -256,8 +396,7 @@
 .settings-notes {
   gap: 10px;
   margin-top: 6px;
-  padding-top: 15px;
-  border-top: 1px solid #e7edf3;
+  padding-top: 0;
 }
 
 .settings-section-heading {
@@ -267,10 +406,16 @@
 }
 
 .settings-notes textarea {
-  border: 1px solid #dbe3ed;
+  border: 1px solid #8be8f5;
   border-radius: 9px;
+  background: #eafcff;
   padding: 11px 12px;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.settings-card:has(.settings-icon-paymentConfigurationName) .settings-notes textarea {
+  border-color: #d7d0ff;
+  background: #f4f2ff;
 }
 
 .settings-notes textarea:focus {
@@ -306,12 +451,12 @@
   height: 38px;
   border: 0;
   border-radius: 9px;
-  background: #0f8f8b;
+  background: #00966b;
   color: #ffffff;
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 7px 15px rgba(15, 143, 139, 0.18);
+  box-shadow: 0 7px 15px rgba(0, 150, 107, 0.18);
 }
 
 .settings-actions button .settings-icon {
@@ -389,4 +534,3 @@
     flex-direction: column;
   }
 }
-

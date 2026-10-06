@@ -80,7 +80,20 @@ function SuperAdminTopbar({ onMenu, placeholder = 'Search dashboard, pharmacies,
 
   return (
     <header className="super-admin-topbar">
-      <button className="super-admin-topbar-menu" onClick={onMenu} type="button" aria-label="Open sidebar">
+      <button
+        className="super-admin-topbar-menu"
+        onClick={(event) => {
+          if (window.innerWidth <= 640) {
+            event.currentTarget.closest('.super-admin-shell, .admins-page-shell, .profile-super-admin-shell')?.classList.remove('sidebar-collapsed')
+            onMenu?.()
+            return
+          }
+          const shell = event.currentTarget.closest('.super-admin-shell, .admins-page-shell, .profile-super-admin-shell')
+          shell?.classList.toggle('sidebar-collapsed')
+        }}
+        type="button"
+        aria-label="Toggle sidebar"
+      >
         <Icon><path d="M4 6h16M4 12h16M4 18h16" /></Icon>
       </button>
 
@@ -127,6 +140,4 @@ function SuperAdminTopbar({ onMenu, placeholder = 'Search dashboard, pharmacies,
 }
 
 export default SuperAdminTopbar
-
-
 

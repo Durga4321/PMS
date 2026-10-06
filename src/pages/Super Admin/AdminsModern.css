@@ -341,7 +341,22 @@
 
 .admins-table {
   width: 100%;
+  min-width: 0;
   border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.admins-table th:nth-child(1) { width: 5%; }
+.admins-table th:nth-child(2) { width: 16%; }
+.admins-table th:nth-child(3) { width: 12%; }
+.admins-table th:nth-child(4) { width: 19%; }
+.admins-table th:nth-child(5) { width: 12%; }
+.admins-table th:nth-child(6) { width: 11%; }
+.admins-table th:nth-child(7) { width: 25%; }
+
+.admins-table th,
+.admins-table td {
+  box-sizing: border-box;
 }
 
 .admins-table th {
@@ -353,6 +368,13 @@
   padding: 16px 18px;
   text-align: left;
   border-bottom: 1px solid var(--admins-border);
+}
+
+.admins-table th:nth-child(2),
+.admins-table th:nth-child(4),
+.admins-table th:nth-child(6),
+.admins-table th:nth-child(7) {
+  text-align: center;
 }
 
 .admins-table td {
@@ -416,8 +438,41 @@
 }
 
 .admin-status.active {
-  background: var(--admins-success-soft);
-  color: var(--admins-success);
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #00b884;
+  background: #8debc3;
+  color: #065f46;
+  box-shadow: 0 0 7px rgba(0, 184, 132, 0.28);
+}
+
+.admin-status.active::before {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  content: "";
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.28), 0 0 7px rgba(16, 185, 129, 0.7);
+  animation: admins-live-pulse 1.6s ease-in-out infinite;
+}
+
+.admin-status.active::after {
+  width: 14px;
+  height: 9px;
+  flex: 0 0 14px;
+  content: "";
+  background-color: #10b981;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 12' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 6h5l2-4 3 8 3-6 2 2h7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 12' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 6h5l2-4 3 8 3-6 2 2h7'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+@keyframes admins-live-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.82; }
+  50% { transform: scale(1.08); opacity: 1; }
 }
 
 .admin-status.inactive {
@@ -843,6 +898,129 @@
 .admins-page-shell .admins-table td {
   padding: 12px 10px;
   font-size: 12px;
+}
+
+.admins-page-shell .admins-table .row-actions {
+  gap: 3px;
+  min-width: 0;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.admins-page-shell .admins-table td:nth-child(7) {
+  padding-right: 6px;
+  padding-left: 6px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.admins-page-shell .admins-table td:nth-child(3),
+.admins-page-shell .admins-table td:nth-child(4) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admins-page-shell .admins-table td:nth-child(5) {
+  white-space: nowrap;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.08);
+}
+
+.admins-page-shell .admins-table .row-actions > .row-actions {
+  flex: 0 0 auto;
+  gap: 3px;
+}
+
+.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button {
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  flex: 0 0 30px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button.view {
+  border-color: #a5ddff;
+  background: #e4f5ff;
+  color: #0086c9;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button.edit {
+  border-color: #d4b5ff;
+  background: #f3eaff;
+  color: #8247e5;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button.status {
+  border-color: #86efac;
+  background: #e8fff0;
+  color: #00a857;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button.status svg {
+  display: none;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button.status::before {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  content: "";
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21l7.78-7.55 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z'/%3E%3Cpath d='M3 12h4l2-4 4 8 2-4h6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21l7.78-7.55 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z'/%3E%3Cpath d='M3 12h4l2-4 4 8 2-4h6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button.delete {
+  border-color: #ffaaaa;
+  background: #fff0f0;
+  color: #e52f3b;
+}
+
+.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button.view,
+.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button.edit,
+.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button.status,
+.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button.delete {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  flex: 0 0 30px;
+  padding: 0;
+}
+
+.admins-page-shell .admins-table .row-actions > .row-action-button.view {
+  width: 52px;
+  min-width: 52px;
+  height: 30px;
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border-color: #a5ddff;
+  border-radius: 10px;
+  background: #e4f5ff;
+  color: #0878b5;
+  box-shadow: none;
+  font-size: 12px;
+}
+
+.admins-page-shell .admins-table .row-actions .row-action-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03) saturate(1.1);
 }
 
 @media (max-width: 980px) {

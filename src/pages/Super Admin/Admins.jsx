@@ -6,6 +6,7 @@ import SuperAdminTopbar from './SuperAdminTopbar'
 import {  assignPharmacyToAdmin,
   changePharmacyAdminStatus,
   createPharmacyAdmin,  getPharmacyAdmin,  getSuperAdminPharmacy,  getSuperAdminPharmacies,  listPharmacyAdmins,
+  deleteSuperAdminRole,
   listSuperAdminRoleDropdown,
   resetPharmacyAdminPassword,
   updatePharmacyAdmin,
@@ -246,8 +247,14 @@ function Admins() {
     try {
       if (editingAdmin) {
         const data = await updatePharmacyAdmin(getId(editingAdmin), payload)
-        const updatedAdmin = unwrapAdmin(data) || { ...editingAdmin, ...payload }
-        setAdmins((current) => mergeAdmins(current.filter((admin) => String(getId(admin)) !== String(getId(editingAdmin))), [updatedAdmin]))
+        const responseAdmin = unwrapAdmin(data)
+        const hasMatchingResponseId = String(getId(responseAdmin) || '') === String(getId(editingAdmin))
+        const updatedAdmin = hasMatchingResponseId
+          ? { ...editingAdmin, ...payload, ...responseAdmin }
+          : { ...editingAdmin, ...payload }
+        setAdmins((current) => current.map((admin) => (
+          String(getId(admin)) === String(getId(editingAdmin)) ? updatedAdmin : admin
+        )))
         showToast(data?.message || 'Admin updated successfully.')
       } else {
         const data = await createPharmacyAdmin(payload)
@@ -310,6 +317,23 @@ function Admins() {
       await loadAdmins()
     } catch (error) {
       showToast(error.message, 'error')
+    }
+  }
+
+  async function handleDelete(admin) {
+    const adminId = getId(admin)
+    if (!adminId) {
+      showToast('Unable to delete admin: missing admin ID.', 'error')
+      return
+    }
+    if (!window.confirm(`Are you sure you want to delete ${getName(admin)}?`)) return
+
+    try {
+      const response = await deleteSuperAdminRole(adminId)
+      showToast(response?.message || 'Admin deleted successfully.')
+      await loadAdmins()
+    } catch (error) {
+      showToast(error.message || 'Unable to delete admin.', 'error')
     }
   }
 
@@ -500,7 +524,7 @@ function Admins() {
                     <td>{getMobileNumber(admin)}</td>
                     <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
                     <td>
-                      <span className="row-actions"><button type="button" className="row-action-button view" title="Assign selected pharmacy" disabled={assigningAdminId === String(getId(admin)) || !assignmentPharmacyId} onClick={() => handleAssignPharmacy(admin)}>Assign</button><RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onStatus={() => handleStatus(admin)} /></span>
+                      <span className="row-actions"><button type="button" className="row-action-button view" title="Assign selected pharmacy" disabled={assigningAdminId === String(getId(admin)) || !assignmentPharmacyId} onClick={() => handleAssignPharmacy(admin)}>Assign</button><RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onStatus={() => handleStatus(admin)} onDelete={() => handleDelete(admin)} /></span>
                     </td>
                   </tr>
                 )) : (
@@ -631,8 +655,6 @@ function Admins() {
 }
 
 export default Admins
-
-
 
 
 

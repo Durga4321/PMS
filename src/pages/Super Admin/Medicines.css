@@ -1,8 +1,17 @@
+.medicines-page.super-admin-shell {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .super-admin-module-panel {
   min-height: 360px;
 }
 
 .medicines-page .super-admin-main {
+  width: auto;
+  min-width: 0;
+  box-sizing: border-box;
   background: #f8fbff;
 }
 
@@ -113,46 +122,129 @@
 }
 
 .medicines-table-wrap {
-  overflow-x: auto;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .medicines-table {
   width: 100%;
-  min-width: 900px;
+  min-width: 0;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 .medicines-table th,
 .medicines-table td {
-  padding: 13px 11px;
+  padding: 10px 5px;
   border-bottom: 1px solid #edf1f5;
   color: #243657;
-  font-size: 11px;
+  font-size: 10px;
   text-align: left;
   vertical-align: middle;
 }
 
 .medicines-table th {
   background: #f8fafc;
-  color: #64748b;
+  color: #334155;
   font-size: 10px;
   font-weight: 800;
+  text-align: left;
 }
 
 .medicines-table tbody tr:hover {
   background: #f8fcff;
 }
 
-.medicines-table th:nth-child(1) { width: 52px; }
-.medicines-table th:nth-child(2) { width: 20%; }
-.medicines-table th:nth-child(3) { width: 12%; }
-.medicines-table th:nth-child(4) { width: 12%; }
-.medicines-table th:nth-child(5) { width: 10%; }
-.medicines-table th:nth-child(6) { width: 9%; }
-.medicines-table th:nth-child(7) { width: 11%; }
+.medicines-table th:nth-child(1) { width: 4%; }
+.medicines-table th:nth-child(2) { width: 19%; }
+.medicines-table th:nth-child(3) { width: 10%; }
+.medicines-table th:nth-child(4) { width: 11%; }
+.medicines-table th:nth-child(5) { width: 8%; }
+.medicines-table th:nth-child(6) { width: 7%; }
+.medicines-table th:nth-child(7) { width: 10%; }
 .medicines-table th:nth-child(8) { width: 10%; }
-.medicines-table th:nth-child(9) { width: 170px; }
+.medicines-table th:nth-child(9) { width: 21%; }
+.medicines-table th:nth-child(9),
+.medicines-table td:nth-child(9) {
+  text-align: center;
+}
+
+.medicines-table th:nth-child(9) {
+  text-transform: uppercase;
+}
+
+.medicines-table th:nth-child(2),
+.medicines-table td:nth-child(2),
+.medicines-table th:nth-child(8),
+.medicines-table td:nth-child(8) {
+  padding-left: 6px;
+}
+
+.medicines-table .row-actions {
+  gap: 3px;
+  justify-content: center;
+}
+
+.medicines-table .row-action-button {
+  width: 25px;
+  height: 27px;
+  flex: 0 0 25px;
+  padding: 0;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 8px;
+}
+
+.medicines-table .row-action-button svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+  filter: brightness(1.2) saturate(1.2);
+}
+
+.medicines-table .row-action-button.view {
+  border-color: #7dd3fc;
+  background: #e0f4ff;
+  color: #009fe3;
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.16);
+}
+
+.medicines-table .row-action-button.edit {
+  border-color: #d8b4fe;
+  background: #f5edff;
+  color: #8b5cf6;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.14);
+}
+
+.medicines-table .row-action-button.status {
+  border-color: #86efac;
+  background: #e7fbea;
+  color: #00b85a;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.16);
+}
+
+.medicines-table .row-action-button.delete {
+  border-color: #fca5a5;
+  background: #fff0f0;
+  color: #ff3038;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.14);
+}
+
+.medicines-table .row-action-button.status svg {
+  display: none;
+}
+
+.medicines-table .row-action-button.status::before {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  content: "";
+  background-color: currentColor;
+  filter: brightness(1.2) saturate(1.2);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21l7.78-7.55 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z'/%3E%3Cpath d='M3 12h4l2-4 4 8 2-4h6'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21l7.78-7.55 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z'/%3E%3Cpath d='M3 12h4l2-4 4 8 2-4h6'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+}
 
 .medicine-name,
 .medicine-stock,
