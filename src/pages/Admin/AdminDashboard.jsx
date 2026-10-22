@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPharmacyAdminDashboard } from '../../config/api'
+import { getInventory, getPharmacyAdminDashboard, listMedicines } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
 
@@ -26,31 +26,98 @@ const dashboardTables = {
 }
 
 const unwrap = (response) => response?.data?.dashboard || response?.data || response?.dashboard || response || {}
+const unwrapArray = (response) => {
+  if (Array.isArray(response)) return response
+  const data = response?.data ?? response?.Data ?? response
+  if (Array.isArray(data)) return data
+  return (
+    [
+      data?.medicines,
+      data?.Medicines,
+      data?.inventory,
+      data?.Inventory,
+      data?.items,
+      data?.Items,
+      data?.results,
+      data?.Results,
+      data?.records,
+      data?.Records,
+      response?.medicines,
+      response?.items,
+      response?.results,
+    ].find(Array.isArray) || []
+  )
+}
 const pick = (source, keys, fallback = 0) => keys.map((key) => source?.[key]).find((value) => value !== undefined && value !== null && value !== '') ?? fallback
 const list = (source, keys) => keys.map((key) => source?.[key]).find(Array.isArray) || []
 const text = (source, keys, fallback = '-') => pick(source, keys, fallback)
 
+function getItemStock(item) {
+  const val = pick(item, ['stock', 'stockQuantity', 'initialStockCount', 'currentStock', 'totalStock', 'availableStock', 'quantity', 'qty'], null)
+  if (val !== null && !isNaN(Number(val)) && Number(val) > 0) return Number(val)
+  const unitMatch = String(item?.unit || '').trim().match(/^(\d+)\s*(units?|tablets?|capsules?|strips?|bottles?|vials?|packs?)?$/i)
+  if (unitMatch && Number(unitMatch[1]) > 0) return Number(unitMatch[1])
+  return Number(val) || 0
+}
+
 function AdminDashboard() {
   const navigate = useNavigate()
   const [dashboard, setDashboard] = useState(null)
+  const [medicinesList, setMedicinesList] = useState([])
+  const [inventoryList, setInventoryList] = useState([])
   const [loading, setLoading] = useState(true)
   const [salesFilter, setSalesFilter] = useState('7d')
 
   useEffect(() => {
     let active = true
-    getPharmacyAdminDashboard()
-      .then((response) => active && setDashboard(unwrap(response)))
-      .catch(() => active && setDashboard({}))
+    Promise.allSettled([
+      getPharmacyAdminDashboard(),
+      listMedicines(),
+      getInventory(),
+    ])
+      .then(([dashRes, medRes, invRes]) => {
+        if (!active) return
+        setDashboard(dashRes.status === 'fulfilled' ? unwrap(dashRes.value) : {})
+        setMedicinesList(medRes.status === 'fulfilled' ? unwrapArray(medRes.value) : [])
+        setInventoryList(invRes.status === 'fulfilled' ? unwrapArray(invRes.value) : [])
+      })
       .finally(() => active && setLoading(false))
     return () => { active = false }
   }, [])
 
   const view = useMemo(() => {
     const source = dashboard?.summary || dashboard?.stats || dashboard || {}
+    const dashMedicines = list(dashboard, ['topMedicines', 'topSelling', 'medicines'])
+    const dashStock = list(dashboard, ['stock', 'inventory', 'lowStockItems'])
+
+    const effectiveMedicines = dashMedicines.length ? dashMedicines : medicinesList
+    const effectiveStock = dashStock.length
+      ? dashStock
+      : inventoryList.length
+        ? inventoryList
+        : medicinesList
+
+    const computedLowStock = effectiveMedicines.filter((m) => {
+      const qty = getItemStock(m)
+      const reorder = Number(pick(m, ['reorderLevel', 'reorderStockLevel', 'minStock', 'minimumStock'], 5))
+      return qty <= reorder
+    }).length
+
+    const now = Date.now()
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+    const computedExpiryAlerts = effectiveStock.filter((item) => {
+      const rawDate = item?.expiryDate || item?.expiry || item?.expiresAt
+      if (!rawDate) return false
+      const parsed = new Date(rawDate).getTime()
+      return !isNaN(parsed) && parsed - now <= thirtyDaysMs
+    }).length
+
     const todaySales = pick(source, ['todaySales', 'salesToday', 'dailySales'], 0)
     const prescriptions = pick(source, ['prescriptions', 'totalPrescriptions', 'prescriptionsCount'], 0)
-    const lowStock = pick(source, ['lowStock', 'lowStockCount', 'lowStockMedicines'], 0)
-    const expiryAlerts = pick(source, ['expiryAlerts', 'expiryAlertsCount', 'nearExpiryCount'], 0)
+    const rawLowStock = Number(pick(source, ['lowStock', 'lowStockCount', 'lowStockMedicines'], 0)) || 0
+    const rawExpiryAlerts = Number(pick(source, ['expiryAlerts', 'expiryAlertsCount', 'nearExpiryCount'], 0)) || 0
+    const lowStock = rawLowStock > 0 ? rawLowStock : computedLowStock
+    const expiryAlerts = rawExpiryAlerts > 0 ? rawExpiryAlerts : computedExpiryAlerts
 
     return {
       source,
@@ -128,11 +195,11 @@ function AdminDashboard() {
           )
         }
       ],
-      topMedicines: list(dashboard, ['topMedicines', 'topSelling', 'medicines']),
-      recentStock: list(dashboard, ['stock', 'inventory', 'lowStockItems']),
+      topMedicines: effectiveMedicines,
+      recentStock: effectiveStock,
       reports: list(dashboard, ['reports', 'recentReports', 'activities']),
     }
-  }, [dashboard])
+  }, [dashboard, inventoryList, medicinesList])
 
   return (
     <AdminLayout activeLabel="Dashboard" title="Admin Dashboard" subtitle="Admin / Dashboard">
@@ -237,11 +304,15 @@ function AdminDashboard() {
                   <div className="top-med-item" key={getId(med, idx)}>
                     <span className="med-rank">0{idx + 1}</span>
                     <div className="med-details">
-                      <strong>{text(med, ['name', 'medicineName'])}</strong>
+                      <strong>{text(med, ['name', 'medicineName', 'genericName'])}</strong>
                       <small>{text(med, ['category', 'categoryName'])}</small>
                     </div>
                     <div className="med-qty-badge">
-                      <span>{text(med, ['quantitySold', 'sold', 'quantity'], 0)} sold</span>
+                      <span>
+                        {med?.quantitySold !== undefined || med?.sold !== undefined
+                          ? `${text(med, ['quantitySold', 'sold'], 0)} sold`
+                          : `${getItemStock(med)} in stock`}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -265,24 +336,37 @@ function AdminDashboard() {
       <section className="branch-grid three">
         <AdminTable
           {...dashboardTables.medicines}
-          rows={view.topMedicines.map((item) => [
-            text(item, ['name', 'medicineName']),
-            text(item, ['category', 'categoryName']),
-            text(item, ['strength']),
-            text(item, ['unit', 'dosageForm']),
-            text(item, ['status'], 'Active'),
-          ])}
+          rows={view.topMedicines.map((item) => {
+            const qty = getItemStock(item)
+            const statusText = String(text(item, ['status'], 'Active')).toLowerCase().includes('inactive')
+              ? 'Inactive'
+              : qty > 0
+                ? 'Active'
+                : 'Out of Stock'
+            return [
+              text(item, ['name', 'medicineName', 'genericName']),
+              text(item, ['category', 'categoryName']),
+              text(item, ['strength']),
+              text(item, ['unit', 'dosageForm']),
+              statusText,
+            ]
+          })}
           onActionClick={() => navigate('/admin/medicines')}
         />
         <AdminTable
           {...dashboardTables.stock}
-          rows={view.recentStock.map((item) => [
-            text(item, ['medicineName', 'name']),
-            text(item, ['batchNo', 'batchNumber']),
-            text(item, ['quantity', 'qty', 'currentStock'], 0),
-            text(item, ['expiryDate', 'expiry']),
-            text(item, ['status'], 'Active'),
-          ])}
+          rows={view.recentStock.map((item) => {
+            const qty = getItemStock(item)
+            const rawExpiry = text(item, ['expiryDate', 'expiry', 'expiresAt'], '-')
+            const expiryText = typeof rawExpiry === 'string' && rawExpiry.includes('T') ? rawExpiry.split('T')[0] : rawExpiry
+            return [
+              text(item, ['medicineName', 'name', 'genericName']),
+              text(item, ['batchNo', 'batchNumber', 'code', 'medicineCode'], 'BATCH-01'),
+              qty,
+              expiryText,
+              qty > 0 ? text(item, ['status'], 'In Stock') : 'Out of Stock',
+            ]
+          })}
           onActionClick={() => navigate('/inventory')}
         />
         <AdminTable

@@ -161,20 +161,24 @@
 }
 
 .super-admin-nav-link.is-active {
-  background: #ffffff;
-  color: #2563eb;
+  background: #2563eb !important;
+  color: #ffffff !important;
   font-weight: 700;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
   border-radius: 12px;
 }
 
 .super-admin-nav-link.is-active .nav-label {
-  color: #2563eb !important;
+  color: #ffffff !important;
 }
 
-.super-admin-nav-link.is-active .badge-blue {
-  background: #eff6ff;
-  color: #2563eb;
+.super-admin-nav-link.is-active .nav-icon-badge {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+}
+
+.super-admin-nav-link.is-active .nav-icon-badge svg {
+  stroke: #ffffff !important;
 }
 
 .super-admin-sidebar-bottom {

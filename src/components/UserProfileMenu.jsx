@@ -86,6 +86,11 @@ function clearRoleSession(roleType) {
     sessionStorage.removeItem(key)
     localStorage.removeItem(key)
   })
+  sessionStorage.removeItem('__pms_admin_pending_auth')
+  sessionStorage.removeItem('workingBranchId')
+  localStorage.removeItem('workingBranchId')
+  sessionStorage.removeItem('workingPharmacyId')
+  localStorage.removeItem('workingPharmacyId')
 }
 
 function UserProfileMenu({ roleType = 'pharmacy-admin' }) {

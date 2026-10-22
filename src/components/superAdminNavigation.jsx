@@ -10,7 +10,6 @@ const item = (label, path, iconName, color) => ({
 
 export const superAdminNavigation = [
   item('Dashboard', '/super-admin/dashboard', 'dashboard', 'blue'),
-  item('Pharmacies', '/super-admin/branches', 'branches', 'teal'),
   item('Medicines', '/super-admin/medicines', 'medicines', 'emerald'),
   item('Admins', '/super-admin/admins', 'admins', 'orange'),
   item('Roles & Permissions', '/super-admin/users-permissions', 'roles', 'amber'),

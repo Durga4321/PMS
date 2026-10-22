@@ -15,6 +15,8 @@ import {
   FaArrowLeft as LuArrowLeft,
   FaBell as LuBell,
   FaCircle as LuCircle,
+  FaCheckCircle as LuCheckCircle,
+  FaEye as LuEye,
   FaEyeSlash as LuEyeOff,
   FaKey as LuKeyRound,
   FaLock as LuLock,
@@ -48,9 +50,19 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [errors, setErrors] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const isPharmacyAdmin = roleType === 'pharmacy-admin'
   const isPharmacist = roleType === 'pharmacist'
   const [profileUser, setProfileUser] = useState(null)
+
+  const hasMinLength = form.newPassword.length >= 8
+  const hasUpper = /[A-Z]/.test(form.newPassword)
+  const hasLower = /[a-z]/.test(form.newPassword)
+  const hasNumber = /[0-9]/.test(form.newPassword)
+  const hasSpecial = /[^A-Za-z0-9]/.test(form.newPassword)
 
   const routeTab = searchParams.get('tab') === 'password' ? 'password' : initialTab
 
@@ -108,18 +120,36 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
       return
     }
 
+    setLoading(true)
     try {
-      const changePassword = isPharmacist ? changeSignedInPharmacistPassword : isPharmacyAdmin ? changePharmacyAdminPassword : changeSuperAdminPassword
+      const activeRole = isPharmacist
+        ? 'pharmacist'
+        : isPharmacyAdmin
+        ? 'pharmacy-admin'
+        : (sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken'))
+        ? 'pharmacy-admin'
+        : (sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken'))
+        ? 'pharmacist'
+        : 'super-admin'
+
+      const changePassword = activeRole === 'pharmacist'
+        ? changeSignedInPharmacistPassword
+        : activeRole === 'pharmacy-admin'
+        ? changePharmacyAdminPassword
+        : changeSuperAdminPassword
+
       await changePassword({
-        currentPassword: form.currentPassword,
-        newPassword: form.newPassword,
+        currentPassword: form.currentPassword.trim(),
+        newPassword: form.newPassword.trim(),
       })
       showToast('Password changed successfully.')
       setForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
       setSubmitted(false)
       setErrors({ currentPassword: '', newPassword: '', confirmPassword: '' })
     } catch (error) {
-      showToast(error.message, 'error')
+      showToast(error?.message || 'Failed to update password. Please verify your current password.', 'error')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -349,8 +379,32 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
                   <label className="profile-field-label">
                     <span className="field-label-text"><LuKeyRound size={14} className="field-label-icon" /> Current Password</span>
                     <div className="profile-password-field">
-                      <input type="password" value={form.currentPassword} minLength={8} required placeholder="Enter current password..." autoComplete="current-password" onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} />
-                      <span className="profile-password-toggle profile-lens-toggle" aria-hidden="true"><span className="profile-lens-rim"><LuEyeOff size={17} /></span></span>
+                      <input
+                        type={showCurrentPassword ? 'text' : 'password'}
+                        value={form.currentPassword}
+                        minLength={8}
+                        required
+                        placeholder="Enter current password..."
+                        autoComplete="current-password"
+                        onChange={(event) => {
+                          const val = event.target.value
+                          setForm((prev) => ({ ...prev, currentPassword: val }))
+                          if (submitted) {
+                            setErrors((prev) => ({ ...prev, currentPassword: validateField('currentPassword', val) }))
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="profile-password-toggle profile-lens-toggle"
+                        onClick={() => setShowCurrentPassword((prev) => !prev)}
+                        aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                        title={showCurrentPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <span className="profile-lens-rim">
+                          {showCurrentPassword ? <LuEye size={17} /> : <LuEyeOff size={17} />}
+                        </span>
+                      </button>
                     </div>
                     {submitted && errors.currentPassword ? <span className="field-error-msg">{errors.currentPassword}</span> : null}
                   </label>
@@ -358,30 +412,125 @@ export default function SuperAdminProfile({ initialTab = 'profile', roleType = '
                   <label className="profile-field-label">
                     <span className="field-label-text"><LuKeyRound size={14} className="field-label-icon" /> New Password</span>
                     <div className="profile-password-field">
-                      <input type="password" value={form.newPassword} minLength={8} required placeholder="Enter strong new password..." autoComplete="new-password" onChange={(event) => setForm({ ...form, newPassword: event.target.value })} />
-                      <span className="profile-password-toggle profile-lens-toggle" aria-hidden="true"><span className="profile-lens-rim"><LuEyeOff size={17} /></span></span>
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={form.newPassword}
+                        minLength={8}
+                        required
+                        placeholder="Enter strong new password..."
+                        autoComplete="new-password"
+                        onChange={(event) => {
+                          const val = event.target.value
+                          setForm((prev) => ({ ...prev, newPassword: val }))
+                          if (submitted) {
+                            setErrors((prev) => ({
+                              ...prev,
+                              newPassword: validateField('newPassword', val),
+                              confirmPassword: validateField('confirmPassword', prev.confirmPassword, val),
+                            }))
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="profile-password-toggle profile-lens-toggle"
+                        onClick={() => setShowNewPassword((prev) => !prev)}
+                        aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                        title={showNewPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <span className="profile-lens-rim">
+                          {showNewPassword ? <LuEye size={17} /> : <LuEyeOff size={17} />}
+                        </span>
+                      </button>
                     </div>
                     <ul className="profile-password-requirements" aria-label="Password requirements">
-                      <li><span className="requirement-vital-indicator"><LuCircle size={15} /></span><span>Minimum 8 characters</span></li>
-                      <li><span className="requirement-vital-indicator"><LuCircle size={15} /></span><span>At least 1 uppercase letter (A-Z)</span></li>
-                      <li><span className="requirement-vital-indicator"><LuCircle size={15} /></span><span>At least 1 lowercase letter (a-z)</span></li>
-                      <li><span className="requirement-vital-indicator"><LuCircle size={15} /></span><span>At least 1 number (0-9)</span></li>
-                      <li><span className="requirement-vital-indicator"><LuCircle size={15} /></span><span>At least 1 special character (@, #, $, %, etc.)</span></li>
+                      <li className={hasMinLength ? 'met' : ''}>
+                        <span className={`requirement-vital-indicator ${hasMinLength ? 'met' : ''}`}>
+                          {hasMinLength ? <LuCheckCircle size={15} /> : <LuCircle size={15} />}
+                        </span>
+                        <span>Minimum 8 characters</span>
+                      </li>
+                      <li className={hasUpper ? 'met' : ''}>
+                        <span className={`requirement-vital-indicator ${hasUpper ? 'met' : ''}`}>
+                          {hasUpper ? <LuCheckCircle size={15} /> : <LuCircle size={15} />}
+                        </span>
+                        <span>At least 1 uppercase letter (A-Z)</span>
+                      </li>
+                      <li className={hasLower ? 'met' : ''}>
+                        <span className={`requirement-vital-indicator ${hasLower ? 'met' : ''}`}>
+                          {hasLower ? <LuCheckCircle size={15} /> : <LuCircle size={15} />}
+                        </span>
+                        <span>At least 1 lowercase letter (a-z)</span>
+                      </li>
+                      <li className={hasNumber ? 'met' : ''}>
+                        <span className={`requirement-vital-indicator ${hasNumber ? 'met' : ''}`}>
+                          {hasNumber ? <LuCheckCircle size={15} /> : <LuCircle size={15} />}
+                        </span>
+                        <span>At least 1 number (0-9)</span>
+                      </li>
+                      <li className={hasSpecial ? 'met' : ''}>
+                        <span className={`requirement-vital-indicator ${hasSpecial ? 'met' : ''}`}>
+                          {hasSpecial ? <LuCheckCircle size={15} /> : <LuCircle size={15} />}
+                        </span>
+                        <span>At least 1 special character (@, #, $, %, etc.)</span>
+                      </li>
                     </ul>
                   </label>
 
                   <label className="profile-field-label">
                     <span className="field-label-text"><LuKeyRound size={14} className="field-label-icon" /> Confirm Password</span>
                     <div className="profile-password-field">
-                      <input type="password" value={form.confirmPassword} minLength={8} required placeholder="Confirm new password..." autoComplete="new-password" onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })} />
-                      <span className="profile-password-toggle profile-lens-toggle" aria-hidden="true"><span className="profile-lens-rim"><LuEyeOff size={17} /></span></span>
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={form.confirmPassword}
+                        minLength={8}
+                        required
+                        placeholder="Confirm new password..."
+                        autoComplete="new-password"
+                        onChange={(event) => {
+                          const val = event.target.value
+                          setForm((prev) => ({ ...prev, confirmPassword: val }))
+                          if (submitted) {
+                            setErrors((prev) => ({ ...prev, confirmPassword: validateField('confirmPassword', val, prev.newPassword) }))
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="profile-password-toggle profile-lens-toggle"
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                        title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <span className="profile-lens-rim">
+                          {showConfirmPassword ? <LuEye size={17} /> : <LuEyeOff size={17} />}
+                        </span>
+                      </button>
                     </div>
                     {submitted && errors.confirmPassword ? <span className="field-error-msg">{errors.confirmPassword}</span> : null}
                   </label>
 
                   <div className="profile-form-actions">
-                    <button type="button" className="profile-cancel-btn">Cancel</button>
-                    <button type="submit" className="profile-save" title="Update Password"><LuLock size={16} /><span>Update Password</span></button>
+                    <button
+                      type="button"
+                      className="profile-cancel-btn"
+                      onClick={() => {
+                        setForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                        setErrors({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                        setSubmitted(false)
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="profile-save"
+                      disabled={loading}
+                      title="Update Password"
+                    >
+                      <LuLock size={16} />
+                      <span>{loading ? 'Updating Password...' : 'Update Password'}</span>
+                    </button>
                   </div>
                 </form>
               )}

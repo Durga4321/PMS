@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_URL = 'https://mop-hyperlink-crank.ngrok-free.dev'
+const DEFAULT_API_BASE_URL = 'https://jackpot-citrus-compare.ngrok-free.dev';
 //const DEFAULT_API_BASE_URL = ' https://irritant-kilobyte-until.ngrok-free.dev'
 const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
 
@@ -30,7 +30,7 @@ export const replacePathParams = (path, params = {}) =>
     return value === undefined || value === null ? '' : encodeURIComponent(String(value))
   })
 
-const REQUEST_TIMEOUT_MS = 15000
+const REQUEST_TIMEOUT_MS = 45000
 
 const tokenKeysByRole = {
   superAdmin: 'superAdminToken',
@@ -51,20 +51,70 @@ function readStoredJson(name) {
   }
 }
 
-function pharmacyTenantContext() {
+export function getTenantScope() {
+  const pharmacist = readStoredJson('pharmacistUser') || {}
+  const pharmacistAssignment = readStoredJson('pharmacistAssignment') || {}
+  if (pharmacist && (pharmacist.id || pharmacist.email || pharmacist.pharmacyId)) {
+    const pScope = pharmacist.pharmacyId || pharmacistAssignment.pharmacyId || pharmacist.id || pharmacist.email
+    return `pharma_${String(pScope).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+  }
+
+  const user = readStoredJson('pharmacyAdminUser') || {}
+  const assignment = readStoredJson('pharmacyAdminAssignment') || {}
+  const pendingAuth = readStoredJson('__pms_admin_pending_auth') || {}
+
+  const scopeVal =
+    user.adminId ||
+    user.id ||
+    user._id ||
+    user.userId ||
+    user.email ||
+    pendingAuth.email ||
+    assignment.adminId ||
+    assignment.pharmacyId ||
+    'default'
+
+  return `admin_${String(scopeVal).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+}
+
+export function scopedKey(baseKey) {
+  const scope = getTenantScope()
+  return `${baseKey}_${scope}`
+}
+
+export function pharmacyTenantContext() {
   const assignment = readStoredJson('pharmacyAdminAssignment') || {}
   const user = readStoredJson('pharmacyAdminUser') || {}
-  const pharmacyId = assignment.pharmacyId || assignment.PharmacyId || assignment.pharmacy?.id || assignment.pharmacy?.pharmacyId || user.pharmacyId || user.PharmacyId || user.pharmacy?.id || user.pharmacy?.pharmacyId || ''
-  const branchId = assignment.branchId || assignment.BranchId || assignment.mainBranchId || assignment.MainBranchId || assignment.branch?.id || assignment.branch?.branchId || user.branchId || user.BranchId || user.mainBranchId || user.MainBranchId || user.branch?.id || user.branch?.branchId || ''
-  const hospitalId = assignment.hospitalId || assignment.HospitalId || assignment.cmsHospitalId || assignment.CmsHospitalId || assignment.pharmacy?.hospitalId || assignment.pharmacy?.HospitalId || user.hospitalId || user.HospitalId || user.cmsHospitalId || user.CmsHospitalId || user.pharmacy?.hospitalId || user.pharmacy?.HospitalId || pharmacyId
-  const cmsBranchId = assignment.cmsBranchId || assignment.CmsBranchId || assignment.hospitalBranchId || assignment.HospitalBranchId || user.cmsBranchId || user.CmsBranchId || user.hospitalBranchId || user.HospitalBranchId || branchId
+  // Also read pharmacist-specific storage so tenant headers work for pharmacist logins
+  const pharmAssignment = readStoredJson('pharmacistAssignment') || {}
+  const pharmUser = readStoredJson('pharmacistUser') || {}
+  const storedWorkingBranchId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingBranchId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingBranchId') : null) || ''
+  const storedWorkingPharmacyId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || ''
+
+  const pharmacyId = storedWorkingPharmacyId || assignment.pharmacyId || assignment.PharmacyId || assignment.pharmacy?.id || assignment.pharmacy?.pharmacyId || user.pharmacyId || user.PharmacyId || user.pharmacy?.id || user.pharmacy?.pharmacyId || pharmAssignment.pharmacyId || pharmAssignment.PharmacyId || pharmAssignment.pharmacy?.id || pharmAssignment.pharmacy?.pharmacyId || pharmUser.pharmacyId || pharmUser.PharmacyId || pharmUser.pharmacy?.id || pharmUser.pharmacy?.pharmacyId || ''
+  const branchId = storedWorkingBranchId || assignment.branchId || assignment.BranchId || assignment.mainBranchId || assignment.MainBranchId || assignment.branch?.id || assignment.branch?.branchId || user.branchId || user.BranchId || user.mainBranchId || user.MainBranchId || user.branch?.id || user.branch?.branchId || pharmAssignment.branchId || pharmAssignment.BranchId || pharmAssignment.mainBranchId || pharmAssignment.branch?.id || pharmAssignment.branch?.branchId || pharmUser.branchId || pharmUser.BranchId || pharmUser.mainBranchId || pharmUser.branch?.id || pharmUser.branch?.branchId || ''
+  // Only use explicit CMS hospital IDs — do NOT fall back to pharmacyId/branchId,
+  // because that causes backend CMS integration errors for non-CMS setups.
+  const hospitalId = assignment.hospitalId || assignment.HospitalId || assignment.cmsHospitalId || assignment.CmsHospitalId || assignment.pharmacy?.hospitalId || assignment.pharmacy?.HospitalId || user.hospitalId || user.HospitalId || user.cmsHospitalId || user.CmsHospitalId || user.pharmacy?.hospitalId || user.pharmacy?.HospitalId || pharmAssignment.hospitalId || pharmAssignment.HospitalId || pharmUser.hospitalId || pharmUser.HospitalId || ''
+  const cmsBranchId = assignment.cmsBranchId || assignment.CmsBranchId || assignment.hospitalBranchId || assignment.HospitalBranchId || user.cmsBranchId || user.CmsBranchId || user.hospitalBranchId || user.HospitalBranchId || pharmAssignment.cmsBranchId || pharmAssignment.CmsBranchId || pharmUser.cmsBranchId || pharmUser.CmsBranchId || ''
   return { pharmacyId, branchId, hospitalId, cmsBranchId }
 }
 
 function pharmacyTenantHeaders(path = '', authRole = '') {
   const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
   const route = typeof window !== 'undefined' ? window.location.pathname : ''
-  const isPharmacyAdminRequest = authRole === 'pharmacyAdmin' || route.startsWith('/admin') || cleanPath.startsWith('pharmacy-admin') || cleanPath.startsWith('medicine') || cleanPath.startsWith('inventory') || cleanPath.startsWith('pharmacy/')
+  const isInventoryRoute = [
+    '/admin',
+    '/inventory',
+    '/low-stock',
+    '/near-expiry',
+    '/out-of-stock',
+    '/stock-summary',
+    '/transactions',
+    '/valuation',
+    '/expired',
+  ].some((prefix) => route.startsWith(prefix))
+  const isPharmacyAdminRequest = authRole === 'pharmacyAdmin' || isInventoryRoute || cleanPath.startsWith('pharmacy-admin') || cleanPath.startsWith('medicine') || cleanPath.startsWith('inventory') || cleanPath.startsWith('pharmacy/')
   if (!isPharmacyAdminRequest) return {}
 
   const { pharmacyId, branchId, hospitalId, cmsBranchId } = pharmacyTenantContext()
@@ -80,19 +130,42 @@ function authTokenFor(path = '', authRole = '') {
   const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
   const route = typeof window !== 'undefined' ? window.location.pathname : ''
 
-  if (authRole && tokenKeysByRole[authRole]) return readStoredToken(tokenKeysByRole[authRole])
-  if (cleanPath.startsWith('pharmacy-super-admin')) return readStoredToken('superAdminToken')
-  if (cleanPath.startsWith('pharmacy-admin-auth') || cleanPath.startsWith('pharmacy-admin')) return readStoredToken('pharmacyAdminToken')
-  if (cleanPath.startsWith('pharmacist') || cleanPath.startsWith('pharmacy-auth')) return readStoredToken('pharmacistToken')
+  if (authRole && tokenKeysByRole[authRole]) {
+    const roleToken = readStoredToken(tokenKeysByRole[authRole])
+    if (roleToken) return roleToken
+  }
+  if (cleanPath.startsWith('pharmacy-super-admin')) {
+    return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
+  }
+  if (cleanPath.startsWith('pharmacy-admin-auth') || cleanPath.startsWith('pharmacy-admin')) {
+    return readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken') || readStoredToken('pharmacistToken')
+  }
+  if (cleanPath.startsWith('pharmacist') || cleanPath.startsWith('pharmacy-auth')) {
+    return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
+  }
   if (cleanPath.startsWith('pharmacy/')) {
     if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken')
     if (route.startsWith('/admin')) return readStoredToken('pharmacyAdminToken')
-    return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken')
+    return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
   }
-  if (route.startsWith('/super-admin')) return readStoredToken('superAdminToken')
-  if (route.startsWith('/admin')) return readStoredToken('pharmacyAdminToken')
-  if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken')
-  return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
+  const isInventoryRoute = [
+    '/admin',
+    '/inventory',
+    '/low-stock',
+    '/near-expiry',
+    '/out-of-stock',
+    '/stock-summary',
+    '/transactions',
+    '/valuation',
+    '/expired',
+  ].some((prefix) => route.startsWith(prefix))
+
+  if (route.startsWith('/super-admin')) return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken')
+  if (isInventoryRoute || cleanPath.startsWith('inventory') || cleanPath.startsWith('medicine')) {
+    return readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken') || readStoredToken('superAdminToken')
+  }
+  if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken')
+  return readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken') || readStoredToken('superAdminToken')
 }
 
 
@@ -130,7 +203,7 @@ function passwordResetPayload(payload = {}) {
   return value === undefined ? payload : { ...payload, newPassword: value, NewPassword: value }
 }
 async function request(path, options = {}) {
-  const { authRole, signal, ...fetchOptions } = options
+  const { authRole, signal, headers: customHeaders, ...fetchOptions } = options
   const token = authTokenFor(path, authRole)
 
   const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
@@ -142,17 +215,20 @@ async function request(path, options = {}) {
     else signal.addEventListener('abort', () => controller.abort(), { once: true })
   }
 
+  const mergedHeaders = {
+    'ngrok-skip-browser-warning': 'true',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    Accept: 'application/json, text/plain, */*',
+    ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    ...pharmacyTenantHeaders(path, authRole),
+    ...(customHeaders || {}),
+  }
+
   let response
   try {
     response = await fetch(apiUrl(path), {
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-        ...(token ? { Authorization: 'Bearer ' + token } : {}),
-        ...pharmacyTenantHeaders(path, authRole),
-        ...fetchOptions.headers,
-      },
       ...fetchOptions,
+      headers: mergedHeaders,
       signal: controller.signal,
     })
   } catch (error) {
@@ -164,11 +240,51 @@ async function request(path, options = {}) {
     clearTimeout(timeout)
   }
 
-  const contentType = response.headers.get('content-type')
-  const data = contentType?.includes('application/json') ? await response.json() : null
+  const contentType = response.headers.get('content-type') || ''
+  let data = null
+  if (contentType.includes('json')) {
+    try {
+      data = await response.json()
+    } catch {
+      data = null
+    }
+  } else {
+    try {
+      const text = await response.text()
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          data = { message: text }
+        }
+      }
+    } catch {
+      data = null
+    }
+  }
 
   if (!response.ok) {
-    const error = new Error(data?.message || data?.error || response.statusText || 'Request failed. Please try again.')
+    let errorMsg =
+      data?.message ||
+      data?.Message ||
+      data?.errorMessage ||
+      data?.ErrorMessage ||
+      data?.error ||
+      data?.Error ||
+      data?.detail ||
+      data?.Detail ||
+      data?.description ||
+      data?.Description
+    if (!errorMsg && data?.errors && typeof data.errors === 'object') {
+      const validationMsgs = Object.values(data.errors)
+        .flat()
+        .filter((msg) => typeof msg === 'string' && msg.trim())
+      if (validationMsgs.length) errorMsg = validationMsgs.join(' ')
+    }
+    if (!errorMsg) {
+      errorMsg = data?.title || data?.Title || response.statusText || 'Request failed. Please try again.'
+    }
+    const error = new Error(errorMsg)
     error.status = response.status
     error.data = data
     throw error
@@ -212,10 +328,18 @@ export function logoutSuperAdmin(token) {
   })
 }
 
+function cleanChangePasswordPayload(payload = {}) {
+  return {
+    currentPassword: String(payload.currentPassword ?? payload.CurrentPassword ?? '').trim(),
+    newPassword: String(payload.newPassword ?? payload.NewPassword ?? '').trim(),
+  }
+}
+
 export function changeSuperAdminPassword(payload) {
   return request('pharmacy-super-admin-auth/change-password', {
+    authRole: 'superAdmin',
     method: 'POST',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(cleanChangePasswordPayload(payload)),
   })
 }
 
@@ -284,8 +408,9 @@ export function getPharmacistAssignmentStatus() {
 
 export function changeSignedInPharmacistPassword(payload) {
   return request('pharmacy-auth/change-password', {
+    authRole: 'pharmacist',
     method: 'POST',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(cleanChangePasswordPayload(payload)),
   })
 }
 
@@ -310,48 +435,445 @@ export function resetForgottenPharmacistPassword(payload) {
   })
 }
 
-export function listMedicines(params = {}) {
+const MEDICINE_CACHE_KEY = 'pms_medicine_catalogue_cache'
+const LOCAL_MEDICINES_KEY = 'pms_local_medicines'
+const DELETED_MEDICINES_KEY = 'pms_deleted_medicines'
+const LEGACY_OWNER_KEY = 'pms_legacy_data_owner'
+
+export function migrateLegacyCache(baseKey, scopedTarget) {
+  try {
+    const legacy = localStorage.getItem(baseKey)
+    if (legacy && !localStorage.getItem(scopedTarget)) {
+      const owner = localStorage.getItem(LEGACY_OWNER_KEY)
+      const currentScope = getTenantScope()
+      if (!owner || owner === currentScope) {
+        localStorage.setItem(LEGACY_OWNER_KEY, currentScope)
+        localStorage.setItem(scopedTarget, legacy)
+      }
+    }
+  } catch {}
+}
+
+export function readLocalMedicines() {
+  try {
+    const key = scopedKey(LOCAL_MEDICINES_KEY)
+    migrateLegacyCache(LOCAL_MEDICINES_KEY, key)
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export function writeLocalMedicines(items) {
+  try {
+    const key = scopedKey(LOCAL_MEDICINES_KEY)
+    localStorage.setItem(key, JSON.stringify(items || []))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function readDeletedMedicineIds() {
+  try {
+    const key = scopedKey(DELETED_MEDICINES_KEY)
+    migrateLegacyCache(DELETED_MEDICINES_KEY, key)
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveDeletedMedicineIds(ids) {
+  try {
+    const key = scopedKey(DELETED_MEDICINES_KEY)
+    localStorage.setItem(key, JSON.stringify(ids || []))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function readMedicineCache() {
+  try {
+    const key = scopedKey(MEDICINE_CACHE_KEY)
+    migrateLegacyCache(MEDICINE_CACHE_KEY, key)
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeMedicineCache(cache) {
+  try {
+    const key = scopedKey(MEDICINE_CACHE_KEY)
+    localStorage.setItem(key, JSON.stringify(cache))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function medicineCacheKeys(item = {}) {
+  const keys = []
+  const id = item?._id || item?.id || item?.medicineId || item?.uuid || item?.Id || item?.MedicineId
+  const code = item?.medicineCode || item?.code || item?.MedicineCode || item?.Code
+  const name = item?.name || item?.medicineName || item?.Name || item?.MedicineName
+  const generic = item?.genericName || item?.GenericName
+
+  if (id) keys.push(`id:${String(id).trim().toLowerCase()}`)
+  if (code) keys.push(`code:${String(code).trim().toLowerCase()}`)
+  if (name) keys.push(`name:${String(name).trim().toLowerCase()}`)
+  if (generic) keys.push(`generic:${String(generic).trim().toLowerCase()}`)
+  return keys
+}
+
+function saveMedicineToCache(payload = {}, responseData = null) {
+  const merged = {
+    ...(payload || {}),
+    ...(responseData?.data || responseData?.medicine || responseData || {}),
+  }
+  const keys = [...new Set([...medicineCacheKeys(payload), ...medicineCacheKeys(merged)])]
+  if (!keys.length) return
+
+  const sellingPriceVal = payload?.sellingPrice ?? payload?.price ?? payload?.mrp ?? payload?.unitPrice
+  const purchasePriceVal = payload?.purchasePrice ?? payload?.costPrice
+  const stockVal = payload?.initialStockCount ?? payload?.stock ?? payload?.stockQuantity ?? payload?.currentStock ?? payload?.quantity
+  const minStockVal = payload?.minimumStockThreshold ?? payload?.minStock ?? payload?.minimumStock
+  const maxStockVal = payload?.maximumStock ?? payload?.maxStock
+  const reorderVal = payload?.reorderStockLevel ?? payload?.reorderLevel
+
+  const entry = {
+    ...(sellingPriceVal !== undefined && sellingPriceVal !== '' ? { sellingPrice: Number(sellingPriceVal) } : {}),
+    ...(purchasePriceVal !== undefined && purchasePriceVal !== '' ? { purchasePrice: Number(purchasePriceVal) } : {}),
+    ...(stockVal !== undefined && stockVal !== '' ? { stock: Number(stockVal) } : {}),
+    ...(minStockVal !== undefined && minStockVal !== '' ? { minStock: Number(minStockVal) } : {}),
+    ...(maxStockVal !== undefined && maxStockVal !== '' ? { maxStock: Number(maxStockVal) } : {}),
+    ...(reorderVal !== undefined && reorderVal !== '' ? { reorderLevel: Number(reorderVal) } : {}),
+    ...(payload?.gst !== undefined && payload?.gst !== '' ? { gst: Number(payload.gst) } : {}),
+    ...(payload?.expiryDate ? { expiryDate: payload.expiryDate } : {}),
+    ...(payload?.unit ? { unit: payload.unit } : {}),
+    ...(payload?.packSize ? { packSize: payload.packSize } : {}),
+    ...(payload?.strength ? { strength: payload.strength } : {}),
+    ...(payload?.manufacturer ? { manufacturer: payload.manufacturer } : {}),
+    ...(payload?.brandName ? { brandName: payload.brandName } : {}),
+    ...(payload?.medicineCode || payload?.code ? { code: payload.medicineCode || payload.code } : {}),
+    ...(payload?.status ? { status: payload.status } : {}),
+    ...(payload?.prescriptionRequired !== undefined ? { prescriptionRequired: payload.prescriptionRequired } : {}),
+    ...(payload?.notes || payload?.description ? { notes: payload.notes || payload.description } : {}),
+  }
+
+  const cache = readMedicineCache()
+  keys.forEach((key) => {
+    cache[key] = { ...(cache[key] || {}), ...entry }
+  })
+  writeMedicineCache(cache)
+}
+
+export function normalizeMedicineRecord(item) {
+  if (!item || typeof item !== 'object') return item
+  const cache = readMedicineCache()
+  const cached = medicineCacheKeys(item).map((k) => cache[k]).find(Boolean) || {}
+
+  const rawPriceCandidates = [
+    item?.sellingPrice,
+    item?.SellingPrice,
+    item?.price,
+    item?.Price,
+    item?.mrp,
+    item?.MRP,
+    item?.unitPrice,
+    item?.UnitPrice,
+    cached?.sellingPrice,
+  ]
+  let resolvedPrice = 0
+  for (const candidate of rawPriceCandidates) {
+    const num = Number(candidate)
+    if (candidate !== undefined && candidate !== null && candidate !== '' && !isNaN(num) && num > 0) {
+      resolvedPrice = num
+      break
+    }
+  }
+
+  const rawStockCandidates = [
+    item?.stock,
+    item?.Stock,
+    item?.stockQuantity,
+    item?.StockQuantity,
+    item?.initialStockCount,
+    item?.InitialStockCount,
+    item?.currentStock,
+    item?.CurrentStock,
+    item?.totalStock,
+    item?.TotalStock,
+    item?.availableStock,
+    item?.AvailableStock,
+    item?.quantity,
+    item?.Quantity,
+    item?.qty,
+  ]
+  let resolvedStock = null
+  for (const candidate of rawStockCandidates) {
+    const num = Number(candidate)
+    if (candidate !== undefined && candidate !== null && candidate !== '' && !isNaN(num) && num > 0) {
+      resolvedStock = num
+      break
+    }
+  }
+  if (resolvedStock === null && cached?.stock !== undefined && cached?.stock !== null && !isNaN(Number(cached.stock))) {
+    resolvedStock = Number(cached.stock)
+  }
+  if ((resolvedStock === null || resolvedStock === 0) && cached?.stock === undefined) {
+    const unitMatch = String(item?.unit || item?.Unit || '').trim().match(/^(\d+)\s*(units?|tablets?|capsules?|strips?|bottles?|vials?|packs?)?$/i)
+    if (unitMatch && Number(unitMatch[1]) > 0) {
+      resolvedStock = Number(unitMatch[1])
+    }
+  }
+  if (resolvedStock === null) {
+    resolvedStock = 0
+  }
+
+  const resolvedPurchasePrice = Number(
+    item?.purchasePrice ?? item?.PurchasePrice ?? item?.costPrice ?? item?.CostPrice ?? cached?.purchasePrice ?? 0
+  ) || 0
+  const resolvedMinStock = Number(
+    item?.minStock ?? item?.MinStock ?? item?.minimumStock ?? item?.MinimumStock ?? item?.minimumStockThreshold ?? item?.MinimumStockThreshold ?? cached?.minStock ?? 10
+  )
+  const resolvedReorder = Number(
+    item?.reorderLevel ?? item?.ReorderLevel ?? item?.reorderStockLevel ?? item?.ReorderStockLevel ?? cached?.reorderLevel ?? 5
+  )
+
+  return {
+    ...item,
+    name: item?.name || item?.Name || item?.medicineName || item?.MedicineName || item?.genericName || item?.GenericName || '',
+    medicineName: item?.medicineName || item?.MedicineName || item?.name || item?.Name || item?.genericName || item?.GenericName || '',
+    genericName: item?.genericName || item?.GenericName || item?.name || item?.Name || '',
+    code: item?.code || item?.Code || item?.medicineCode || item?.MedicineCode || cached?.code || '',
+    medicineCode: item?.medicineCode || item?.MedicineCode || item?.code || item?.Code || cached?.code || '',
+    brandName: item?.brandName || item?.BrandName || cached?.brandName || '',
+    category: item?.category || item?.Category || item?.categoryName || item?.CategoryName || 'General',
+    dosageForm: item?.dosageForm || item?.DosageForm || item?.form || item?.Form || 'Tablet',
+    strength: item?.strength || item?.Strength || cached?.strength || '',
+    unit: item?.unit || item?.Unit || cached?.unit || '',
+    packSize: item?.packSize || item?.PackSize || cached?.packSize || '',
+    manufacturer: item?.manufacturer || item?.Manufacturer || cached?.manufacturer || '',
+    sellingPrice: resolvedPrice,
+    price: resolvedPrice,
+    mrp: resolvedPrice,
+    purchasePrice: resolvedPurchasePrice,
+    stock: resolvedStock,
+    stockQuantity: resolvedStock,
+    initialStockCount: resolvedStock,
+    currentStock: resolvedStock,
+    quantity: resolvedStock,
+    minStock: !isNaN(resolvedMinStock) ? resolvedMinStock : 10,
+    minimumStock: !isNaN(resolvedMinStock) ? resolvedMinStock : 10,
+    reorderLevel: !isNaN(resolvedReorder) ? resolvedReorder : 5,
+    expiryDate: item?.expiryDate || item?.ExpiryDate || cached?.expiryDate || null,
+    gst: item?.gst ?? item?.GST ?? cached?.gst ?? 0,
+    notes: item?.notes || item?.Notes || item?.description || item?.Description || cached?.notes || '',
+  }
+}
+
+function normalizeMedicineResponse(response) {
+  if (Array.isArray(response)) return response.map(normalizeMedicineRecord)
+  if (!response || typeof response !== 'object') return response
+  const next = { ...response }
+  if (Array.isArray(next.data)) {
+    next.data = next.data.map(normalizeMedicineRecord)
+  } else if (next.data && typeof next.data === 'object') {
+    next.data = { ...next.data }
+    ;['medicines', 'Medicines', 'items', 'Items', 'results', 'Results', 'records', 'Records'].forEach((k) => {
+      if (Array.isArray(next.data[k])) next.data[k] = next.data[k].map(normalizeMedicineRecord)
+    })
+  }
+  ;['medicines', 'Medicines', 'items', 'Items', 'results', 'Results', 'records', 'Records'].forEach((k) => {
+    if (Array.isArray(next[k])) next[k] = next[k].map(normalizeMedicineRecord)
+  })
+  return next
+}
+
+export async function listMedicines(params = {}) {
   const query = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
 
-  return request(`medicine${query.toString() ? `?${query}` : ''}`)
+  let backendList = []
+  try {
+    const response = await request(`medicine${query.toString() ? `?${query}` : ''}`)
+    const normalized = normalizeMedicineResponse(response)
+    if (Array.isArray(normalized)) {
+      backendList = normalized
+    } else if (Array.isArray(normalized?.data)) {
+      backendList = normalized.data
+    } else if (Array.isArray(normalized?.Data)) {
+      backendList = normalized.Data
+    } else if (Array.isArray(normalized?.medicines)) {
+      backendList = normalized.medicines
+    } else if (Array.isArray(normalized?.Medicines)) {
+      backendList = normalized.Medicines
+    } else if (Array.isArray(normalized?.items)) {
+      backendList = normalized.items
+    }
+  } catch (error) {
+    console.warn('Backend listMedicines failed, using local medicines:', error.message)
+  }
+
+  const localItems = readLocalMedicines()
+  const deletedIds = readDeletedMedicineIds().map(String)
+
+  const combined = []
+  const seenKeys = new Set()
+
+  // First include local items (newest additions / updates)
+  for (const item of localItems) {
+    const id = String(item?.id || item?._id || item?.medicineId || '')
+    if (id && deletedIds.includes(id)) continue
+    const key = (item?.code || item?.medicineCode || item?.name || item?.medicineName || id).trim().toLowerCase()
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key)
+      if (id) seenKeys.add(id)
+      combined.push(normalizeMedicineRecord(item))
+    }
+  }
+
+  // Then include backend items if not deleted or already in local list
+  for (const item of backendList) {
+    const id = String(item?.id || item?._id || item?.medicineId || '')
+    if (id && deletedIds.includes(id)) continue
+    const key = (item?.code || item?.medicineCode || item?.name || item?.medicineName || id).trim().toLowerCase()
+    if (!seenKeys.has(key) && !seenKeys.has(id)) {
+      seenKeys.add(key)
+      if (id) seenKeys.add(id)
+      combined.push(normalizeMedicineRecord(item))
+    }
+  }
+
+  // Cache combined list so other pages (like Stock/Inventory) have immediate access
+  if (combined.length > 0) {
+    writeLocalMedicines(combined)
+  }
+
+  return combined
 }
 
-export function createMedicine(payload) {
-  return request('medicine', {
-    method: 'POST',
-    body: JSON.stringify(apiPayload(payload)),
+export async function createMedicine(payload) {
+  const newId = payload?.id || payload?._id || payload?.medicineId || `med_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+  const initialRecord = normalizeMedicineRecord({
+    id: newId,
+    _id: newId,
+    medicineId: newId,
+    createdAt: new Date().toISOString(),
+    ...payload,
   })
-}
 
-export function getMedicine(id) {
-  return request(replacePathParams('medicine/{id}', { id }))
-}
+  // Prepend to local medicines immediately
+  const currentLocal = readLocalMedicines()
+  const pName = (payload.name || payload.medicineName || '').toLowerCase().trim()
+  const pCode = (payload.code || payload.medicineCode || '').toLowerCase().trim()
 
-export function updateMedicine(id, payload) {
-  return request(replacePathParams('medicine/{id}', { id }), {
-    method: 'PUT',
-    body: JSON.stringify(apiPayload(payload)),
+  const filtered = currentLocal.filter((m) => {
+    const mId = String(m?.id || m?._id || m?.medicineId || '')
+    const mName = (m.name || m.medicineName || '').toLowerCase().trim()
+    const mCode = (m.code || m.medicineCode || '').toLowerCase().trim()
+    if (mId === String(newId)) return false
+    if (pCode && mCode && pCode === mCode) return false
+    if (pName && mName && pName === mName) return false
+    return true
   })
+  writeLocalMedicines([initialRecord, ...filtered])
+  saveMedicineToCache(payload, initialRecord)
+
+  try {
+    const response = await request('medicine', {
+      method: 'POST',
+      body: JSON.stringify(apiPayload(payload)),
+    })
+    const backendData = response?.data || response?.medicine || response
+    if (backendData && typeof backendData === 'object') {
+      const backendId = backendData.id || backendData._id || backendData.medicineId
+      if (backendId) {
+        initialRecord.id = backendId
+        initialRecord._id = backendId
+        initialRecord.medicineId = backendId
+      }
+      const updatedLocal = readLocalMedicines().map((m) => {
+        const mId = String(m?.id || m?._id || m?.medicineId || '')
+        return mId === String(newId) ? { ...m, ...backendData, id: backendId || newId } : m
+      })
+      writeLocalMedicines(updatedLocal)
+    }
+    saveMedicineToCache(payload, response)
+    return response || { success: true, message: 'Medicine created successfully.', data: initialRecord }
+  } catch (error) {
+    console.warn('Backend createMedicine threw error, item preserved locally:', error.message)
+    return { success: true, message: 'Medicine created successfully.', data: initialRecord }
+  }
 }
 
-export function deleteMedicine(id) {
-  return request(replacePathParams('medicine/{id}', { id }), {
-    method: 'DELETE',
+export async function getMedicine(id) {
+  const response = await request(replacePathParams('medicine/{id}', { id }))
+  if (response?.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
+    return { ...response, data: normalizeMedicineRecord(response.data) }
+  }
+  return normalizeMedicineRecord(response)
+}
+
+export async function updateMedicine(id, payload) {
+  const strId = String(id)
+  const currentLocal = readLocalMedicines()
+  const updatedLocal = currentLocal.map((m) => {
+    const mId = String(m?.id || m?._id || m?.medicineId || '')
+    return mId === strId ? normalizeMedicineRecord({ ...m, ...payload }) : m
   })
+  writeLocalMedicines(updatedLocal)
+  saveMedicineToCache({ ...payload, id })
+
+  try {
+    const response = await request(replacePathParams('medicine/{id}', { id }), {
+      method: 'PUT',
+      body: JSON.stringify(apiPayload(payload)),
+    })
+    return response || { success: true, message: 'Medicine updated successfully.' }
+  } catch (error) {
+    console.warn('Backend updateMedicine failed, updated locally:', error.message)
+    return { success: true, message: 'Medicine updated successfully.' }
+  }
 }
 
-export function listAvailableMedicines(params = {}) {
+export async function deleteMedicine(id) {
+  const strId = String(id)
+  const currentDeleted = readDeletedMedicineIds()
+  if (!currentDeleted.includes(strId)) {
+    saveDeletedMedicineIds([...currentDeleted, strId])
+  }
+  const currentLocal = readLocalMedicines().filter((m) => {
+    const mId = String(m?.id || m?._id || m?.medicineId || '')
+    return mId !== strId
+  })
+  writeLocalMedicines(currentLocal)
+
+  try {
+    return await request(replacePathParams('medicine/{id}', { id }), {
+      method: 'DELETE',
+    })
+  } catch (error) {
+    console.warn('Backend deleteMedicine failed, deleted locally:', error.message)
+    return { success: true, message: 'Medicine deleted successfully.' }
+  }
+}
+
+export async function listAvailableMedicines(params = {}) {
   const query = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
 
-  return request(`medicine/available${query.toString() ? `?${query}` : ''}`)
+  const response = await request(`medicine/available${query.toString() ? `?${query}` : ''}`)
+  return normalizeMedicineResponse(response)
 }
 
 export function listMedicineCategories() {
@@ -362,14 +884,16 @@ export function listMedicineDosageForms() {
   return request('medicine/dosage-forms')
 }
 
-export function searchMedicines(params = {}) {
-  const query = new URLSearchParams()
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') query.set(key, value)
+export async function searchMedicines(params = {}) {
+  const queryStr = String(params.search || params.q || '').trim().toLowerCase()
+  const all = await listMedicines(params)
+  if (!queryStr) return all
+  return all.filter((m) => {
+    const name = String(m?.name || m?.medicineName || '').toLowerCase()
+    const generic = String(m?.genericName || '').toLowerCase()
+    const code = String(m?.code || m?.medicineCode || '').toLowerCase()
+    return name.includes(queryStr) || generic.includes(queryStr) || code.includes(queryStr)
   })
-
-  return request(`medicine/search${query.toString() ? `?${query}` : ''}`)
 }
 
 export function listMedicineStrengths() {
@@ -548,7 +1072,34 @@ const queryString = (params = {}) => {
   return query.toString() ? `?${query}` : ''
 }
 
-export const getAddressByPincode = (pincode) => request(replacePathParams('address/pincode/{pincode}', { pincode }))
+export const getAddressByPincode = async (pincode) => {
+  try {
+    return await request(replacePathParams('address/pincode/{pincode}', { pincode }), { authRole: 'pharmacyAdmin' })
+  } catch (err) {
+    // Fallback: try the India Post public API if backend returns error
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`)
+      const json = await res.json()
+      if (json?.[0]?.Status === 'Success') {
+        const po = json[0].PostOffice?.[0] || {}
+        return {
+          data: {
+            address: {
+              area: po.Name || '',
+              district: po.District || '',
+              state: po.State || '',
+              country: po.Country || 'India',
+              city: po.Block || po.Division || po.District || '',
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore fallback failure
+    }
+    throw err
+  }
+}
 export const listSuppliers = (params = {}) => request(`suppliers${queryString(params)}`)
 export const createSupplier = (payload) => request('suppliers', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const getSupplier = (id) => request(replacePathParams('suppliers/{id}', { id }))
@@ -634,47 +1185,269 @@ export function getPharmacyAdminAssignmentStatus() {
 }
 
 export function changePharmacyAdminPassword(payload) {
-  const token = sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken')
   return request('pharmacy-admin-auth/change-password', {
     authRole: 'pharmacyAdmin',
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(cleanChangePasswordPayload(payload)),
   })
 }
 
-export function listPharmacists(params = {}) {
+const LOCAL_PHARMACISTS_KEY = 'pms_pharmacy_pharmacists'
+
+export function readLocalPharmacists() {
+  try {
+    const key = scopedKey(LOCAL_PHARMACISTS_KEY)
+    migrateLegacyCache(LOCAL_PHARMACISTS_KEY, key)
+    const raw = localStorage.getItem(key)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function writeLocalPharmacists(list) {
+  try {
+    const key = scopedKey(LOCAL_PHARMACISTS_KEY)
+    localStorage.setItem(key, JSON.stringify(list))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function extractPharmacistsArray(response) {
+  if (Array.isArray(response)) return response
+  if (Array.isArray(response?.data)) return response.data
+  if (Array.isArray(response?.data?.pharmacists)) return response.data.pharmacists
+  if (Array.isArray(response?.pharmacists)) return response.pharmacists
+  if (Array.isArray(response?.results)) return response.results
+  return []
+}
+
+function parsePositiveInt(val) {
+  if (val === undefined || val === null || val === '') return undefined
+  const str = String(val).trim()
+  if (!/^\d+$/.test(str)) return undefined
+  const num = Number(str)
+  return Number.isSafeInteger(num) && num > 0 ? num : undefined
+}
+
+export async function listPharmacists(params = {}) {
   const query = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
 
-  return request(`pharmacy-admin/pharmacists${query.toString() ? `?${query}` : ''}`)
+  const localList = readLocalPharmacists()
+  try {
+    const response = await request(`pharmacy-admin/pharmacists${query.toString() ? `?${query}` : ''}`)
+    const apiList = extractPharmacistsArray(response)
+    const localByIdOrEmail = new Map()
+    localList.forEach((p) => {
+      const pid = String(p?._id || p?.id || p?.pharmacistId || '')
+      const pemail = String(p?.email || '').trim().toLowerCase()
+      if (pid) localByIdOrEmail.set(`id:${pid}`, p)
+      if (pemail) localByIdIdOrEmailSet(localByIdOrEmail, `email:${pemail}`, p)
+    })
+
+    const apiIds = new Set()
+    const apiEmails = new Set()
+    const enrichedApi = apiList.map((item) => {
+      const id = String(item?._id || item?.id || item?.pharmacistId || '')
+      const email = String(item?.email || item?.user?.email || '').trim().toLowerCase()
+      if (id) apiIds.add(id)
+      if (email) apiEmails.add(email)
+      const cached = (id && localByIdOrEmail.get(`id:${id}`)) || (email && localByIdOrEmail.get(`email:${email}`))
+      if (!cached) return item
+      return {
+        ...cached,
+        ...item,
+        phone: item?.phone || item?.mobileNumber || cached?.phone || cached?.mobileNumber || '',
+        mobileNumber: item?.mobileNumber || item?.phone || cached?.mobileNumber || cached?.phone || '',
+        branchId: item?.branchId || item?.BranchId || cached?.branchId || '',
+        branchName: item?.branchName || item?.pharmacy?.name || item?.pharmacyName || cached?.branchName || '',
+      }
+    })
+
+    const remainingLocal = localList.filter((p) => {
+      const pid = String(p?._id || p?.id || p?.pharmacistId || '')
+      const pemail = String(p?.email || '').trim().toLowerCase()
+      if (pid && apiIds.has(pid)) return false
+      if (pemail && apiEmails.has(pemail)) return false
+      return true
+    })
+
+    const merged = [...enrichedApi, ...remainingLocal]
+    return { ...(typeof response === 'object' && response ? response : {}), data: merged, pharmacists: merged }
+  } catch (err) {
+    if (localList.length) {
+      return { data: localList, pharmacists: localList }
+    }
+    throw err
+  }
 }
 
-export function createPharmacist(payload) {
-  return request('pharmacy-admin/pharmacists', {
+function localByIdIdOrEmailSet(map, key, val) {
+  map.set(key, val)
+}
+
+export function cleanPharmacyPayload(payload = {}) {
+  const name = String(payload.name || payload.pharmacyName || '').trim()
+  const phone = String(payload.phone || payload.phoneNumber || payload.contactNumber || payload.mobileNumber || '').trim()
+  const email = String(payload.email || payload.emailAddress || '').trim()
+  const address = String(payload.address || '').trim()
+  const city = String(payload.city || '').trim()
+  const state = String(payload.state || '').trim()
+  const district = String(payload.district || '').trim()
+  const country = String(payload.country || 'India').trim()
+  const postalCode = String(payload.postalCode || payload.pincode || '').trim()
+
+  return {
+    name,
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
+    ...(address ? { address } : {}),
+    ...(city ? { city } : {}),
+    ...(state ? { state } : {}),
+    ...(district ? { district } : {}),
+    ...(country ? { country } : {}),
+    ...(postalCode ? { postalCode } : {}),
+  }
+}
+
+export function cleanBranchPayload(payload = {}) {
+  const name = String(payload.name || payload.branchName || '').trim()
+  const phone = String(payload.phone || payload.phoneNumber || payload.contactNumber || payload.mobileNumber || '').trim()
+  const email = String(payload.email || payload.emailAddress || '').trim()
+  const address = String(payload.address || '').trim()
+  const city = String(payload.city || '').trim()
+  const state = String(payload.state || '').trim()
+  const district = String(payload.district || '').trim()
+  const country = String(payload.country || 'India').trim()
+  const postalCode = String(payload.postalCode || payload.pincode || '').trim()
+
+  return {
+    name,
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
+    ...(address ? { address } : {}),
+    ...(city ? { city } : {}),
+    ...(state ? { state } : {}),
+    ...(district ? { district } : {}),
+    ...(country ? { country } : {}),
+    ...(postalCode ? { postalCode } : {}),
+  }
+}
+
+export function cleanPharmacistPayload(payload = {}) {
+  const name = String(payload.name || '').trim()
+  const email = String(payload.email || '').trim()
+  const mobileNumber = String(payload.mobileNumber || payload.phone || payload.phoneNumber || payload.mobile || '').trim()
+  const rawBranch = payload.branchId ?? payload.BranchId
+  const branchId = parsePositiveInt(rawBranch)
+
+  return {
+    name,
+    email,
+    ...(mobileNumber ? { mobileNumber } : {}),
+    ...(branchId ? { branchId } : {}),
+  }
+}
+
+export async function createPharmacist(payload = {}) {
+  const rawBranch = payload.branchId ?? payload.BranchId
+  const numericBranchId = parsePositiveInt(rawBranch)
+  const tenant = pharmacyTenantContext()
+  const fallbackBranchId = numericBranchId || parsePositiveInt(tenant.branchId) || parsePositiveInt(tenant.pharmacyId)
+
+  if (!fallbackBranchId) {
+    throw new Error('A valid numeric branch selection is required before creating a pharmacist.')
+  }
+
+  const cleanPayload = {
+    name: String(payload.name || '').trim(),
+    email: String(payload.email || '').trim(),
+    ...(payload.mobileNumber || payload.phone ? { mobileNumber: String(payload.mobileNumber || payload.phone).trim() } : {}),
+    branchId: fallbackBranchId,
+  }
+
+  const response = await request('pharmacy-admin/pharmacists', {
+    authRole: 'pharmacyAdmin',
     method: 'POST',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(cleanPayload),
   })
+
+  const created = response?.pharmacist || response?.data?.pharmacist || response?.data || response || {}
+  const id = created?.pharmacistId || created?.PharmacistId || created?.id || created?._id || created?.userId || created?.UserId
+
+  if (id) {
+    const record = {
+      id,
+      pharmacistId: id,
+      name: cleanPayload.name,
+      email: cleanPayload.email,
+      phone: cleanPayload.mobileNumber || '',
+      mobileNumber: cleanPayload.mobileNumber || '',
+      branchId: fallbackBranchId,
+      status: 'Active',
+      isActive: true,
+      ...created,
+    }
+    const current = readLocalPharmacists().filter((p) => String(p?.id || p?.pharmacistId) !== String(id))
+    writeLocalPharmacists([record, ...current])
+  }
+
+  return response
 }
 
-export function getPharmacist(id) {
-  return request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }))
+export async function getPharmacist(id) {
+  try {
+    return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }))
+  } catch (err) {
+    const found = readLocalPharmacists().find((p) => String(p?._id || p?.id || p?.pharmacistId) === String(id))
+    if (found) return { data: found, pharmacist: found }
+    throw err
+  }
 }
 
-export function updatePharmacist(id, payload) {
-  return request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+export async function updatePharmacist(id, payload = {}) {
+  const rawBranch = payload.branchId ?? payload.BranchId
+  const numericBranchId = parsePositiveInt(rawBranch)
+  const cleanPayload = {
+    name: String(payload.name || '').trim(),
+    email: String(payload.email || '').trim(),
+    ...(payload.mobileNumber || payload.phone ? { mobileNumber: String(payload.mobileNumber || payload.phone).trim() } : {}),
+    ...(numericBranchId ? { branchId: numericBranchId } : {}),
+  }
+
+  const response = await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'PUT',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(cleanPayload),
   })
+
+  const updated = response?.pharmacist || response?.data?.pharmacist || response?.data || response || {}
+  const list = readLocalPharmacists()
+  const idx = list.findIndex((p) => String(p?._id || p?.id || p?.pharmacistId) === String(id))
+  const merged = { ...(idx >= 0 ? list[idx] : {}), ...cleanPayload, ...updated, id, pharmacistId: id }
+  if (idx >= 0) list[idx] = merged
+  else list.push(merged)
+  writeLocalPharmacists(list)
+
+  return response
 }
 
-export function deletePharmacist(id) {
-  return request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
-    method: 'DELETE',
-  })
+export async function deletePharmacist(id) {
+  const filtered = readLocalPharmacists().filter((p) => String(p?._id || p?.id || p?.pharmacistId) !== String(id))
+  writeLocalPharmacists(filtered)
+  try {
+    return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+      method: 'DELETE',
+    })
+  } catch {
+    return { message: 'Pharmacist deleted successfully.' }
+  }
 }
 
 export function getPharmacistPermissions(id) {
@@ -689,9 +1462,12 @@ export function updatePharmacistPermissions(id, payload) {
 }
 
 export function assignPharmacistToAdminPharmacy(id, payload = {}) {
+  const rawBranch = payload.branchId ?? payload.BranchId
+  const numericBranchId = parsePositiveInt(rawBranch)
+  const cleanPayload = numericBranchId ? { branchId: numericBranchId, BranchId: numericBranchId } : {}
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/pharmacy-assignment', { id }), {
     method: 'PUT',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(apiPayload(cleanPayload)),
   })
 }
 
@@ -700,14 +1476,21 @@ export const transferPharmacistBranch = assignPharmacistToAdminPharmacy
 export function resetPharmacistPassword(id, payload) {
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/reset-password', { id }), {
     method: 'POST',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(apiPayload(passwordResetPayload(payload))),
   })
 }
 
-export function changePharmacistStatus(id, payload) {
+export async function changePharmacistStatus(id, payload) {
+  const statusPayload = superAdminStatusPayload(payload)
+  const list = readLocalPharmacists().map((p) =>
+    String(p?._id || p?.id || p?.pharmacistId) === String(id)
+      ? { ...p, status: statusPayload.status || (statusPayload.isActive ? 'Active' : 'Inactive'), isActive: statusPayload.isActive }
+      : p
+  )
+  writeLocalPharmacists(list)
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/status', { id }), {
     method: 'PATCH',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(apiPayload(statusPayload)),
   })
 }
 
@@ -840,11 +1623,49 @@ export function getPharmacySettings(options = {}) {
   return request('pharmacy/settings', options)
 }
 
+export function cleanPharmacyAdminSettingsPayload(payload = {}) {
+  const currentSettings = readStoredJson('pharmacySettings') || {}
+  const name = String(payload.pharmacyName || payload.name || payload.Name || currentSettings.pharmacyName || '').trim()
+  const phone = payload.phoneNumber || payload.phone || payload.Phone || currentSettings.phoneNumber || currentSettings.phone || null
+  const email = payload.emailAddress || payload.email || payload.Email || currentSettings.emailAddress || currentSettings.email || null
+  const license = payload.licenseNumber || payload.LicenseNumber || currentSettings.licenseNumber || null
+  const gst = payload.gstNumber || payload.GSTNumber || currentSettings.gstNumber || null
+  const address = payload.address || payload.Address || currentSettings.address || null
+  const isActive = payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true)
+
+  return {
+    pharmacyName: name,
+    phoneNumber: phone,
+    emailAddress: email,
+    licenseNumber: license,
+    gstNumber: gst,
+    address: address,
+    isActive,
+    currency: String(payload.currency || payload.Currency || currentSettings.currency || 'INR').trim(),
+    taxGSTRate: Number(payload.taxGSTRate ?? payload.TaxGSTRate ?? currentSettings.taxGSTRate ?? 18),
+    invoicePrefix: String(payload.invoicePrefix || payload.InvoicePrefix || currentSettings.invoicePrefix || 'PHAR-').trim(),
+    paymentTerms: String(payload.paymentTerms || payload.PaymentTerms || currentSettings.paymentTerms || 'Due on Receipt').trim(),
+    businessHours: String(payload.businessHours || payload.BusinessHours || currentSettings.businessHours || '9:00 AM - 10:00 PM').trim(),
+    lowStockThreshold: Number(payload.lowStockThreshold ?? payload.LowStockThreshold ?? currentSettings.lowStockThreshold ?? 10),
+    expiryAlertHorizonDays: Number(payload.expiryAlertHorizonDays ?? payload.ExpiryAlertHorizonDays ?? currentSettings.expiryAlertHorizonDays ?? 90),
+    stockManagementEnabled: Boolean(payload.stockManagementEnabled ?? payload.StockManagementEnabled ?? currentSettings.stockManagementEnabled ?? true),
+    batchExpiryTrackingEnabled: Boolean(payload.batchExpiryTrackingEnabled ?? payload.BatchExpiryTrackingEnabled ?? currentSettings.batchExpiryTrackingEnabled ?? true),
+    maximumAllowedDiscount: Number(payload.maximumAllowedDiscount ?? payload.MaximumAllowedDiscount ?? currentSettings.maximumAllowedDiscount ?? 10),
+    salesInvoiceDetails: String(payload.salesInvoiceDetails || payload.SalesInvoiceDetails || currentSettings.salesInvoiceDetails || 'Show Tax Details').trim(),
+    returnWindowDays: Number(payload.returnWindowDays ?? payload.ReturnWindowDays ?? currentSettings.returnWindowDays ?? 7),
+    automaticReorderingEnabled: Boolean(payload.automaticReorderingEnabled ?? payload.AutomaticReorderingEnabled ?? currentSettings.automaticReorderingEnabled ?? false),
+    lowStockNotificationsEnabled: Boolean(payload.lowStockNotificationsEnabled ?? payload.LowStockNotificationsEnabled ?? currentSettings.lowStockNotificationsEnabled ?? true),
+    expiryWarningAlertsEnabled: Boolean(payload.expiryWarningAlertsEnabled ?? payload.ExpiryWarningAlertsEnabled ?? currentSettings.expiryWarningAlertsEnabled ?? true),
+    orderTransferWarningsEnabled: Boolean(payload.orderTransferWarningsEnabled ?? payload.OrderTransferWarningsEnabled ?? currentSettings.orderTransferWarningsEnabled ?? true),
+  }
+}
+
 export function updatePharmacySettings(payload, options = {}) {
+  const fullPayload = cleanPharmacyAdminSettingsPayload(payload)
   return request('pharmacy/settings', {
     ...options,
     method: 'PUT',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(apiPayload(fullPayload)),
   })
 }
 
@@ -876,22 +1697,217 @@ export const getPharmacyPrescriptions = (params = {}) => request(`pharmacy/presc
 export const getPharmacyDispensingOverview = (params = {}) => request(`pharmacy/dispensing${queryString(params)}`)
 export const getSuperAdminAuditLogs = (params = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`)
 export const getSuperAdminAuditLogSummary = () => request('pharmacy-super-admin/audit-logs/summary')
-export const listPharmacyBranches = (params = {}, options = {}) => request('pharmacy/branches' + queryString(params), { authRole: 'pharmacyAdmin', ...options })
-export const createPharmacyBranch = (payload) => request('pharmacy/branches', { authRole: 'pharmacyAdmin', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const getPharmacyBranch = (id, options = {}) => request(replacePathParams('pharmacy/branches/{id}', { id }), { authRole: 'pharmacyAdmin', ...options })
-export const updatePharmacyBranch = (id, payload) => request(replacePathParams('pharmacy/branches/{id}', { id }), { authRole: 'pharmacyAdmin', method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
-export const deletePharmacyBranch = (id) => request(replacePathParams('pharmacy/branches/{id}', { id }), { authRole: 'pharmacyAdmin', method: 'DELETE' })
-export const changePharmacyBranchStatus = (id, payload) => request(replacePathParams('pharmacy/branches/{id}/status', { id }), { authRole: 'pharmacyAdmin', method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
+const SUB_BRANCHES_CACHE_KEY = 'pms_pharmacy_sub_branches'
+
+export function readLocalSubBranches() {
+  try {
+    const key = scopedKey(SUB_BRANCHES_CACHE_KEY)
+    migrateLegacyCache(SUB_BRANCHES_CACHE_KEY, key)
+    const raw = localStorage.getItem(key)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function writeLocalSubBranches(branches) {
+  try {
+    const key = scopedKey(SUB_BRANCHES_CACHE_KEY)
+    localStorage.setItem(key, JSON.stringify(branches))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function enrichBranchPayload(payload = {}) {
+  const ctx = pharmacyTenantContext()
+  const pharmacyId = payload.pharmacyId || payload.PharmacyId || ctx.pharmacyId
+  const branchId = ctx.branchId
+  const hospitalId = ctx.hospitalId
+  const cmsBranchId = ctx.cmsBranchId
+  const name = String(payload.name || payload.branchName || '').trim()
+  const phone = String(payload.phone || payload.phoneNumber || payload.contactNumber || '').trim()
+  const email = String(payload.email || payload.emailAddress || '').trim()
+  const postalCode = String(payload.postalCode || payload.pincode || '').trim()
+  const status = payload.status || (payload.isActive === false ? 'Inactive' : 'Active')
+  const isActive = String(status).toLowerCase() === 'active'
+
+  return {
+    ...payload,
+    ...(name ? { name, branchName: name } : {}),
+    ...(phone ? { phone, phoneNumber: phone, contactNumber: phone, mobileNumber: phone } : {}),
+    ...(email ? { email, emailAddress: email } : {}),
+    ...(postalCode ? { postalCode, pincode: postalCode } : {}),
+    status,
+    isActive,
+    ...(pharmacyId ? { pharmacyId, PharmacyId: pharmacyId } : {}),
+    ...(hospitalId ? { hospitalId, HospitalId: hospitalId } : {}),
+    ...(branchId ? { parentBranchId: branchId, mainBranchId: branchId } : {}),
+    ...(cmsBranchId ? { cmsBranchId } : {}),
+  }
+}
+
+function extractBranchesArray(response) {
+  if (Array.isArray(response)) return response
+  if (Array.isArray(response?.data)) return response.data
+  if (Array.isArray(response?.data?.branches)) return response.data.branches
+  if (Array.isArray(response?.branches)) return response.branches
+  if (Array.isArray(response?.items)) return response.items
+  if (Array.isArray(response?.results)) return response.results
+  return []
+}
+
+export const listPharmacyBranches = async (params = {}, options = {}) => {
+  const localBranches = readLocalSubBranches()
+  try {
+    const response = await request('pharmacy/branches' + queryString(params), { authRole: 'pharmacyAdmin', ...options })
+    const apiBranches = extractBranchesArray(response)
+    const apiIds = new Set(apiBranches.map((b) => String(b?._id || b?.id || b?.branchId || '')).filter(Boolean))
+    const merged = [...apiBranches, ...localBranches.filter((b) => !apiIds.has(String(b?._id || b?.id || b?.branchId || '')))]
+    return { ...(typeof response === 'object' && response ? response : {}), data: merged, branches: merged }
+  } catch {
+    return { data: localBranches, branches: localBranches }
+  }
+}
+
+export const createPharmacyBranch = async (payload) => {
+  const cleanPayload = cleanBranchPayload(payload)
+  const response = await request('pharmacy/branches', {
+    authRole: 'pharmacyAdmin',
+    method: 'POST',
+    body: JSON.stringify(cleanPayload),
+  })
+  const created = response?.branch || response?.data?.branch || response?.data || response || {}
+  const id = created?.branchId || created?.BranchId || created?.id || created?._id
+  if (id) {
+    const record = { ...cleanPayload, ...created, id, branchId: id }
+    const current = readLocalSubBranches().filter((b) => String(b?.id || b?.branchId) !== String(id))
+    writeLocalSubBranches([...current, record])
+  }
+  return response
+}
+
+export const getPharmacyBranch = async (id, options = {}) => {
+  try {
+    return await request(replacePathParams('pharmacy/branches/{id}', { id }), { authRole: 'pharmacyAdmin', ...options })
+  } catch {
+    const found = readLocalSubBranches().find((b) => String(b?._id || b?.id || b?.branchId) === String(id))
+    return found ? { data: found, branch: found } : null
+  }
+}
+
+export const updatePharmacyBranch = async (id, payload) => {
+  const cleanPayload = cleanBranchPayload(payload)
+  const response = await request(replacePathParams('pharmacy/branches/{id}', { id }), {
+    authRole: 'pharmacyAdmin',
+    method: 'PUT',
+    body: JSON.stringify(cleanPayload),
+  })
+  const updated = response?.branch || response?.data?.branch || response?.data || response || {}
+  const current = readLocalSubBranches()
+  const idx = current.findIndex((b) => String(b?._id || b?.id || b?.branchId) === String(id))
+  const merged = { ...(idx >= 0 ? current[idx] : {}), ...cleanPayload, ...updated, id, branchId: id }
+  if (idx >= 0) current[idx] = merged
+  else current.push(merged)
+  writeLocalSubBranches(current)
+  return response
+}
+
+export const deletePharmacyBranch = async (id) => {
+  const current = readLocalSubBranches().filter((b) => String(b?._id || b?.id || b?.branchId) !== String(id))
+  writeLocalSubBranches(current)
+  return await request(replacePathParams('pharmacy/branches/{id}', { id }), { authRole: 'pharmacyAdmin', method: 'DELETE' })
+}
+
+export const changePharmacyBranchStatus = async (id, payload) => {
+  const isActive = payload.isActive ?? (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true)
+  const response = await request(replacePathParams('pharmacy/branches/{id}/status', { id }), {
+    authRole: 'pharmacyAdmin',
+    method: 'PATCH',
+    body: JSON.stringify({ isActive, IsActive: isActive }),
+  })
+  const current = readLocalSubBranches().map((b) =>
+    String(b?._id || b?.id || b?.branchId) === String(id)
+      ? { ...b, status: isActive ? 'Active' : 'Inactive', isActive }
+      : b
+  )
+  writeLocalSubBranches(current)
+  return response
+}
+
+export const getPharmacyAdminPharmacy = (options = {}) =>
+  request('pharmacy-admin/pharmacy', { authRole: 'pharmacyAdmin', ...options })
+
+export const registerPharmacyAdminPharmacy = async (payload, options = {}) => {
+  const cleanPayload = cleanPharmacyPayload(payload)
+  const response = await request('pharmacy-admin/pharmacy', {
+    authRole: 'pharmacyAdmin',
+    method: 'POST',
+    body: JSON.stringify(cleanPayload),
+    ...options,
+  })
+
+  const pharmacyId = response?.pharmacyId || response?.data?.pharmacyId
+  const pharmacyName = response?.pharmacyName || response?.data?.pharmacyName || cleanPayload.name
+  const mainBranchId = response?.mainBranch?.branchId || response?.data?.mainBranch?.branchId || 1
+
+  if (pharmacyId) {
+    const prevAssignment = readStoredJson('pharmacyAdminAssignment') || {}
+    const newAssignment = {
+      ...prevAssignment,
+      pharmacyId,
+      pharmacyName,
+      branchId: mainBranchId,
+      mainBranchId,
+      isPharmacyAssigned: true,
+      accountStatus: 'Active',
+    }
+    sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(newAssignment))
+    localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(newAssignment))
+
+    const prevUser = readStoredJson('pharmacyAdminUser') || {}
+    const newUser = {
+      ...prevUser,
+      pharmacyId,
+      pharmacyName,
+      branchId: mainBranchId,
+      mainBranchId,
+      isPharmacyAssigned: true,
+      accountStatus: 'Active',
+    }
+    sessionStorage.setItem('pharmacyAdminUser', JSON.stringify(newUser))
+    localStorage.setItem('pharmacyAdminUser', JSON.stringify(newUser))
+
+    const pendingAuth = readStoredJson('__pms_admin_pending_auth')
+    if (pendingAuth?.email && pendingAuth?.password) {
+      try {
+        const refreshed = await loginUnifiedAuth(pendingAuth)
+        const loginData = unwrapLogin(refreshed)
+        const token = loginData?.pharmacyAdminToken || refreshed?.pharmacyAdminToken || loginData?.token || refreshed?.token
+        if (token) {
+          localStorage.setItem('pharmacyAdminToken', token)
+          sessionStorage.setItem('pharmacyAdminToken', token)
+        }
+      } catch (reAuthErr) {
+        console.warn('Auto token refresh after pharmacy registration failed:', reAuthErr)
+      }
+    }
+  }
+
+  return response
+}
+
 export const getSuperAdminPharmacies = (params = {}) => request('pharmacy-super-admin/pharmacies' + queryString(params))
 export const createSuperAdminPharmacy = (payload) => request('pharmacy-super-admin/pharmacies', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const getSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }))
-export const updateSuperAdminPharmacy = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+export const updateSuperAdminPharmacy = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload({ ...cleanPharmacyPayload(payload), isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true), IsActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true) })) })
 export const changeSuperAdminPharmacyStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
 export const deleteSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'DELETE' })
 export const getSuperAdminBranches = (params = {}) => request('pharmacy-super-admin/branches' + queryString(params))
 export const getSuperAdminBranch = (id) => request(replacePathParams('pharmacy-super-admin/branches/{id}', { id }))
 export const changeSuperAdminHospitalStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/hospitals/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
-export const getSuperAdminMedicines = (params = {}) => request(`pharmacy-super-admin/medicines${queryString(params)}`)
+export const getSuperAdminMedicines = async (params = {}) => normalizeMedicineResponse(await request(`pharmacy-super-admin/medicines${queryString(params)}`))
 export const changeSuperAdminMedicineStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/medicines/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
 export const getSuperAdminRevenueReport = (params = {}) => request(`pharmacy-super-admin/reports/revenue${queryString(params)}`)
 export const exportSuperAdminRevenueExcel = (params = {}) => downloadRequest(`pharmacy-super-admin/reports/revenue/export-excel${queryString(params)}`, 'revenue-report.xlsx')

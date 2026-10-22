@@ -64,6 +64,11 @@ function clearAuthSession() {
       localStorage.removeItem(assignmentKey)
     }
   })
+  sessionStorage.removeItem('__pms_admin_pending_auth')
+  sessionStorage.removeItem('workingBranchId')
+  localStorage.removeItem('workingBranchId')
+  sessionStorage.removeItem('workingPharmacyId')
+  localStorage.removeItem('workingPharmacyId')
 }
 
 function unwrapLogin(data) {
@@ -152,6 +157,10 @@ function Login() {
       if (!token) throw new Error('Login succeeded but token was not returned.')
 
       storage.setItem(flow.tokenKey, token)
+
+      if (flow.role === 'pharmacy-admin') {
+        sessionStorage.setItem('__pms_admin_pending_auth', JSON.stringify({ email, password }))
+      }
 
       let storedUser = { ...user, role: user?.role || flow.role }
       if (flow.assignment) {

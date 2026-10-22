@@ -161,39 +161,33 @@ img {
 }
 .admins-main {
   height: 100vh !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   padding: 0 !important;
 }
 .admins-topbar {
-  flex: 0 0 auto !important;
-  position: relative !important;
-  top: auto !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 90 !important;
   margin-bottom: 0 !important;
   padding: 0 20px !important;
 }
 .admins-content {
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  padding: 20px 20px 20px !important;
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
+  padding: 20px 20px 32px !important;
   box-sizing: border-box !important;
 }
 .admins-section-header,
 .admins-toolbar,
 .admins-create-panel {
-  flex: 0 0 auto !important;
+  flex: none !important;
 }
 .admins-table-card {
-  flex: 1 !important;
-  overflow-y: auto !important;
+  overflow-y: visible !important;
   overflow-x: auto !important;
-  scrollbar-width: none !important;
-}
-.admins-table-card::-webkit-scrollbar {
-  display: none !important;
 }
 
 /* 3. Pharmacy Admin Layouts */
@@ -204,29 +198,29 @@ img {
 }
 .branch-admin-main {
   height: 100vh !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  padding: 0 !important;
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 24px 36px !important;
 }
 .branch-admin-header {
-  flex: 0 0 auto !important;
-  position: relative !important;
-  top: auto !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 90 !important;
+  margin: 0 -24px !important;
+  padding: 0 24px !important;
 }
 .branch-admin-content {
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  padding: 0 20px 20px !important;
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
+  padding: 0 0 28px !important;
   box-sizing: border-box !important;
 }
 .branch-admin-content.is-dashboard {
   display: block !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 0 20px 28px !important;
+  overflow: visible !important;
+  padding: 0 0 28px !important;
 }
 .branch-admin-content.is-dashboard .branch-panel {
   flex: none !important;
@@ -245,29 +239,29 @@ img {
 }
 .pharmacist-main {
   height: 100vh !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  padding: 0 !important;
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 24px 36px !important;
 }
 .pharmacist-header {
-  flex: 0 0 auto !important;
-  position: relative !important;
-  top: auto !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 90 !important;
+  margin: 0 -24px !important;
+  padding: 0 24px !important;
 }
 .pharmacist-content {
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  padding: 0 20px 20px !important;
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
+  padding: 0 0 28px !important;
   box-sizing: border-box !important;
 }
 .pharmacist-content.is-dashboard {
   display: block !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 0 20px 28px !important;
+  overflow: visible !important;
+  padding: 0 0 28px !important;
 }
 .pharmacist-content.is-dashboard .pharmacist-panel,
 .pharmacist-dashboard-container .pharmacist-panel {
@@ -282,13 +276,13 @@ img {
 /* 5. Shared Admin/Pharmacist Panel list scrolling components */
 .branch-panel,
 .pharmacist-panel {
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
+  flex: none !important;
+  display: block !important;
+  overflow: visible !important;
+  height: auto !important;
   min-height: 0 !important;
-  margin-top: 20px !important;
-  margin-bottom: 20px !important;
+  margin-top: 16px !important;
+  margin-bottom: 24px !important;
 }
 .branch-panel-heading,
 .medicine-filters,
@@ -302,13 +296,8 @@ img {
   flex: 0 0 auto !important;
 }
 .branch-table-wrap {
-  flex: 1 !important;
-  overflow-y: auto !important;
+  overflow-y: visible !important;
   overflow-x: auto !important;
-  scrollbar-width: none !important;
-}
-.branch-table-wrap::-webkit-scrollbar {
-  display: none !important;
 }
 
 /* 6. Profile Pages Layout */

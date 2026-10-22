@@ -11,7 +11,7 @@ import SuperAdminModulePage from './SuperAdminModulePage'
 import RowActions from '../../components/RowActions'
 import './Branches.css'
 
-const headers = ['S.No.', 'Pharmacy Name', 'Contact Number', 'Address', 'Email ID', 'Status', 'Actions']
+const headers = ['S.No.', 'Pharmacy Name', 'Contact Number', 'Address', 'Status', 'Actions']
 const emptyForm = { name: '', phone: '', email: '', address: '', city: '', district: '', state: '', country: '', postalCode: '' }
 const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
 function listFrom(response) {
@@ -73,11 +73,30 @@ function statusOf(item) {
 function PharmacyNameCell({ pharmacy, index }) {
   const name = pharmacyName(pharmacy)
   const id = idOf(pharmacy) || index + 1
-  return <span className="branches-name-cell"><span className="branches-location-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 21h18" /><path d="M5 21V7l8-4 6 3v15" /><path d="M9 9h1M9 13h1M9 17h1M14 10h1M14 14h1M14 18h1" /></svg></span><span><strong>{name}</strong><small>Pharmacy ID: {id}</small></span></span>
+  return (
+    <div className="branches-name-cell">
+      <span className="branches-location-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 21h18" />
+          <path d="M5 21V7l8-4 6 3v15" />
+          <path d="M9 9h1M9 13h1M9 17h1M14 10h1M14 14h1M14 18h1" />
+        </svg>
+      </span>
+      <div className="branches-column-details">
+        <strong>{name}</strong>
+        <small className="branches-subtext">Pharmacy ID: {id}</small>
+      </div>
+    </div>
+  )
 }
 
 function ContactCell({ pharmacy }) {
-  return <span className="branches-contact-cell"><strong>{contactNumber(pharmacy)}</strong><small>{emailOf(pharmacy)}</small></span>
+  return (
+    <div className="branches-contact-cell">
+      <strong>{contactNumber(pharmacy)}</strong>
+      <small className="branches-subtext">{emailOf(pharmacy)}</small>
+    </div>
+  )
 }
 
 function StatusBadge({ status }) {
@@ -229,7 +248,6 @@ export default function Pharmacies() {
       <PharmacyNameCell key="name" pharmacy={pharmacy} index={index} />,
       <ContactCell key="contact" pharmacy={pharmacy} />,
       <span className="branches-location-text" key="address" title={addressOf(pharmacy)}>{addressOf(pharmacy)}</span>,
-      <span className="branches-location-text" key="email" title={emailOf(pharmacy)}>{emailOf(pharmacy)}</span>,
       <StatusBadge key="status" status={status} />,
       <RowActions
         key={`actions-${idOf(pharmacy) || index}`}
