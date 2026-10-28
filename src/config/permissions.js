@@ -1,12 +1,13 @@
 export const PERMISSION_ACTIONS = ['view', 'create', 'edit', 'delete']
 
-export const ADMIN_MODULES = ['Dashboard', 'Users', 'Medicines', 'Stock', 'Suppliers', 'Purchase Orders', 'Stock Transfers', 'Prescriptions', 'Dispensing', 'Expiry Alerts', 'Reports', 'Settings', 'CMS Integration']
+export const ADMIN_MODULES = ['Dashboard', 'Pharmacies', 'Users', 'Medicines', 'Branches', 'Stock', 'Suppliers', 'Purchase Orders', 'Stock Transfers', 'Prescriptions', 'Dispensing', 'Expiry Alerts', 'Reports', 'Settings', 'CMS Integration']
 
 export const MODULE_ALIASES = {
   Dashboard: ['dashboard'],
   Users: ['users', 'user management', 'pharmacists', 'pharmacist', 'users permissions', 'users & permissions'],
   Pharmacists: ['pharmacists', 'pharmacist', 'users', 'user management'],
-  Branches: ['branches', 'clinics'],
+  Pharmacies: ['pharmacies', 'pharmacy'],
+  Branches: ['branches', 'branch', 'sub branches', 'sub branch', 'clinics'],
   Doctors: ['doctors'],
   Receptionists: ['receptionists'],
   Nurses: ['nurses'],
@@ -118,7 +119,11 @@ export function hasPermission(permissions, module, action = 'view') {
   const normalized = normalizePermissions(permissions)
   const canonical = canonicalModule(module)
   if (!canonical) return true
-  return Boolean(normalized[canonical]?.[action])
+  if (Boolean(normalized[canonical]?.[action])) return true
+  if (canonical === 'Pharmacies' && normalized['Branches']?.[action]) return true
+  if (canonical === 'Branches' && normalized['Pharmacies']?.[action]) return true
+  if ((canonical === 'Pharmacies' || canonical === 'Branches') && action === 'view') return true
+  return false
 }
 
 export function readAdminPermissions() {

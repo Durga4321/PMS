@@ -11,14 +11,18 @@
   overflow-x: hidden;
   background: transparent;
   padding: 0 32px 40px !important;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
   box-sizing: border-box;
 }
 
 .branch-admin-main::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+  width: 6px;
+}
+
+.branch-admin-main::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 999px;
 }
 
 .branch-admin-content {

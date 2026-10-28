@@ -10,9 +10,10 @@ const item = (label, path, iconName, color) => ({
 
 export const adminNavigation = [
   item('Dashboard', '/admin/dashboard', 'dashboard', 'blue'),
+  item('Pharmacies', '/admin/pharmacies', 'branches', 'teal'),
+  item('Branches', '/admin/branches', 'clinics', 'teal'),
   item('Pharmacists', '/admin/users', 'users', 'orange'),
   item('Medicines', '/admin/medicines', 'medicines', 'emerald'),
-  item('Branches', '/admin/branches', 'branches', 'teal'),
   item('Stock', '/admin/stock', 'package', 'teal'),
   item('Suppliers', '/admin/suppliers', 'truck', 'amber'),
   item('Purchase Orders', '/admin/purchase-orders', 'shoppingCart', 'blue'),

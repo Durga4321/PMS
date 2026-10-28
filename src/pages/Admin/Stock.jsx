@@ -17,9 +17,12 @@ import {
   getMedicineStock,
   getNearExpiryInventory,
   getOutOfStockInventory,
+  listMedicines,
   quarantineInventoryBatch,
   updateInventoryLevels,
-  getPharmacyAdminDashboard
+  getPharmacyAdminDashboard,
+  readLocalMedicines,
+  writeLocalMedicines
 } from '../../config/api'
 import './Stock.css'
 
@@ -191,6 +194,73 @@ function normalizeList(response) {
   return candidates.find(Array.isArray) || []
 }
 
+export function formatStockRecord(item, index = 0) {
+  const id = item?._id || item?.id || item?.medicineId || `med-${index + 1}`
+  const name = item?.medicineName || item?.name || item?.genericName || '-'
+  const generic = item?.genericName || '-'
+  const category = item?.category || item?.categoryName || 'General'
+  const dosage = item?.dosageForm || item?.form || 'Tablet'
+  const strength = item?.strength || '-'
+  const unit = item?.unit || 'Units'
+  const code = item?.medicineCode || item?.code || ''
+  const batchNo = item?.batchNo || item?.batchNumber || item?.batchId || code || `BATCH-${index + 1}`
+
+  const qty = Number(item?.quantity ?? item?.stock ?? item?.stockQuantity ?? item?.initialStockCount ?? item?.availableQty ?? item?.qty ?? 0) || 0
+  const minStock = Number(item?.minimumStock ?? item?.minStock ?? item?.minimumStockThreshold ?? 10)
+  const reorder = Number(item?.reorderLevel ?? item?.reorderStockLevel ?? 5)
+  const price = Number(item?.sellingPrice ?? item?.price ?? item?.mrp ?? 0)
+  const cost = Number(item?.purchasePrice ?? item?.costPrice ?? 0)
+
+  const rawExpiry = item?.expiryDate || item?.expiresAt || null
+  let expiryDate = '-'
+  let daysLeft = 999
+  if (rawExpiry) {
+    const dStr = String(rawExpiry)
+    expiryDate = dStr.includes('T') ? dStr.split('T')[0] : dStr
+    const diff = new Date(rawExpiry).getTime() - Date.now()
+    if (!isNaN(diff)) {
+      daysLeft = Math.ceil(diff / (24 * 60 * 60 * 1000))
+    }
+  }
+
+  let status = 'In Stock'
+  if (qty <= 0) status = 'Out of Stock'
+  else if (qty <= reorder) status = 'Low Stock'
+  if (daysLeft <= 0) status = 'Expired'
+  else if (daysLeft <= 30 && status === 'In Stock') status = 'Near Expiry'
+
+  return {
+    ...item,
+    id,
+    _id: id,
+    medicineId: id,
+    medicineName: name,
+    name,
+    genericName: generic,
+    category,
+    dosageForm: dosage,
+    strength,
+    unit,
+    code,
+    medicineCode: code,
+    batchNo,
+    batchNumber: batchNo,
+    quantity: qty,
+    stock: qty,
+    availableQty: qty,
+    minimumStock: minStock,
+    minStock,
+    reorderLevel: reorder,
+    expiryDate,
+    daysLeft,
+    sellingPrice: price,
+    price,
+    costPrice: cost,
+    purchasePrice: cost,
+    status: item?.status && !['active', 'inactive'].includes(String(item.status).toLowerCase()) ? item.status : status,
+  }
+}
+
 export default function Stock({ initialView }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -210,10 +280,15 @@ export default function Stock({ initialView }) {
   }
 
   const [view, setView] = useState(getViewFromPath) // inventory, low, near, out, summary, transactions, valuation
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState(() => {
+    const local = readLocalMedicines()
+    return local.map((m, idx) => formatStockRecord(m, idx))
+  })
+  const [medicinesList, setMedicinesList] = useState(() => readLocalMedicines())
   const [summaryData, setSummaryData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
   
@@ -265,14 +340,53 @@ export default function Stock({ initialView }) {
 
   async function loadSummaryMetrics() {
     try {
-      const response = await getPharmacyAdminDashboard()
-      const data = response?.data || response || {}
+      const [dashRes, medRes, invRes] = await Promise.allSettled([
+        getPharmacyAdminDashboard(),
+        listMedicines(),
+        getInventory(),
+      ])
+      const data = dashRes.status === 'fulfilled' ? (dashRes.value?.data?.dashboard || dashRes.value?.data || dashRes.value || {}) : {}
+      let meds = medRes.status === 'fulfilled' ? normalizeList(medRes.value) : []
+      if (!meds || !meds.length) {
+        meds = readLocalMedicines()
+      }
+      const inv = invRes.status === 'fulfilled' ? normalizeList(invRes.value) : []
+      const allStockItems = meds.length > 0 ? meds : (inv.length > 0 ? inv : readLocalMedicines())
+
+      const now = Date.now()
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+
+      const calcTotalMedicines = Math.max(meds.length, inv.length, allStockItems.length)
+      const inStockMeds = allStockItems.filter((item) => {
+        const qty = Number(item?.quantity ?? item?.stock ?? item?.stockQuantity ?? item?.initialStockCount ?? item?.qty ?? 0) || 0
+        const st = String(item?.status || '').toLowerCase()
+        return !st.includes('inactive') && !st.includes('out') && qty > 0
+      }).length
+      const calcTotalStock = inStockMeds > 0 ? inStockMeds : calcTotalMedicines
+      const calcLowStock = allStockItems.filter((item) => {
+        const qty = Number(item?.quantity ?? item?.stock ?? item?.stockQuantity ?? item?.initialStockCount ?? item?.qty ?? 0) || 0
+        const reorder = Number(item?.reorderLevel ?? item?.minStock ?? item?.minimumStock ?? 5)
+        return qty > 0 && qty <= reorder
+      }).length
+      const calcNearExpiry = allStockItems.filter((item) => {
+        const raw = item?.expiryDate || item?.expiresAt
+        if (!raw) return false
+        const diff = new Date(raw).getTime() - now
+        return !isNaN(diff) && diff > 0 && diff <= thirtyDaysMs
+      }).length
+      const calcExpired = allStockItems.filter((item) => {
+        const raw = item?.expiryDate || item?.expiresAt
+        if (!raw) return false
+        const diff = new Date(raw).getTime() - now
+        return !isNaN(diff) && diff <= 0
+      }).length
+
       setMetrics({
-        totalMedicines: Number(data?.totalMedicines || data?.medicinesCount || 0),
-        totalStock: Number(data?.totalStock || data?.totalInventoryQty || 0),
-        lowStock: Number(data?.lowStockMedicines || data?.lowStockCount || 0),
-        nearExpiry: Number(data?.nearExpiryBatches || data?.nearExpiryCount || 0),
-        expired: Number(data?.expiredBatches || data?.expiredCount || 0)
+        totalMedicines: Math.max(Number(data?.totalMedicines || data?.medicinesCount || 0), calcTotalMedicines),
+        totalStock: calcTotalStock,
+        lowStock: calcLowStock || Number(data?.lowStockMedicines || data?.lowStockCount || 0),
+        nearExpiry: calcNearExpiry || Number(data?.nearExpiryBatches || data?.nearExpiryCount || 0),
+        expired: calcExpired || Number(data?.expiredBatches || data?.expiredCount || 0)
       })
     } catch (e) {
       console.log('Unable to load Stock metrics:', e.message)
@@ -283,21 +397,149 @@ export default function Stock({ initialView }) {
     setLoading(true)
     setView(nextView)
     try {
-      const loaders = {
-        inventory: getInventory,
-        low: getLowStockInventory,
-        near: getNearExpiryInventory,
-        out: getOutOfStockInventory,
-        summary: getInventorySummary,
-        transactions: getInventoryTransactions,
-        valuation: getInventoryValuation,
-      }
-      const response = await loaders[nextView]()
       if (nextView === 'summary' || nextView === 'valuation') {
-        setSummaryData(response?.data || response)
+        const loaders = {
+          summary: getInventorySummary,
+          valuation: getInventoryValuation,
+        }
+        let response = null
+        try {
+          response = await loaders[nextView]()
+        } catch (e) {
+          console.warn(`Stock: ${nextView} loader failed:`, e.message)
+        }
+        const data = response?.data || response
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          setSummaryData(data)
+        } else {
+          const localMeds = readLocalMedicines()
+          let totalCost = 0
+          let potentialSales = 0
+          localMeds.forEach((item) => {
+            const qty = Number(item?.quantity ?? item?.stock ?? 0) || 0
+            const cost = Number(item?.purchasePrice ?? item?.costPrice ?? 0) || 0
+            const price = Number(item?.sellingPrice ?? item?.price ?? 0) || 0
+            totalCost += (qty * cost)
+            potentialSales += (qty * price)
+          })
+          const profit = Math.max(0, potentialSales - totalCost)
+          setSummaryData({
+            totalMedicines: localMeds.length,
+            totalInventoryValue: potentialSales || totalCost,
+            totalCostValue: totalCost,
+            potentialSellingValue: potentialSales,
+            estimatedProfit: profit,
+          })
+        }
         setItems([])
-      } else {
+      } else if (nextView === 'transactions') {
+        const response = await getInventoryTransactions().catch(() => [])
         setItems(normalizeList(response))
+        setSummaryData(null)
+      } else {
+        // For stock inventory views: 'inventory', 'low', 'near', 'out', 'expired'
+        // Always load full medicines catalogue (contains all uploaded/added medicines)
+        // AND backend inventory batches
+        const [medResponse, invResponse] = await Promise.allSettled([
+          listMedicines(),
+          nextView === 'low'
+            ? getLowStockInventory()
+            : nextView === 'near'
+            ? getNearExpiryInventory()
+            : nextView === 'out'
+            ? getOutOfStockInventory()
+            : getInventory(),
+        ])
+
+        if (medResponse.status === 'rejected') {
+          console.warn('Stock: listMedicines() rejected:', medResponse.reason)
+        }
+        if (invResponse.status === 'rejected') {
+          console.warn('Stock: inventory query rejected:', invResponse.reason)
+        }
+
+        let meds = medResponse.status === 'fulfilled' ? normalizeList(medResponse.value) : []
+        if (!meds || !meds.length) {
+          meds = readLocalMedicines()
+        }
+        setMedicinesList(meds)
+        const invList = invResponse.status === 'fulfilled' ? normalizeList(invResponse.value) : []
+
+        // Create quick lookup for medicines by id, code, and name
+        const medMap = new Map()
+        meds.forEach((m) => {
+          const id = String(m?.id || m?._id || m?.medicineId || '').trim().toLowerCase()
+          const code = String(m?.code || m?.medicineCode || '').trim().toLowerCase()
+          const name = String(m?.name || m?.medicineName || '').trim().toLowerCase()
+          if (id) medMap.set(`id:${id}`, m)
+          if (code) medMap.set(`code:${code}`, m)
+          if (name) medMap.set(`name:${name}`, m)
+        })
+
+        // Track which medicines are covered by existing batch rows
+        const coveredMedIds = new Set()
+
+        const enrichedBatches = invList.map((batch, idx) => {
+          const batchMedId = String(batch?.medicineId || batch?.medicine?.id || batch?._id || '').trim().toLowerCase()
+          const batchCode = String(batch?.code || batch?.medicineCode || '').trim().toLowerCase()
+          const batchName = String(batch?.medicineName || batch?.medicine?.name || batch?.name || '').trim().toLowerCase()
+
+          const linked = medMap.get(`id:${batchMedId}`) || medMap.get(`code:${batchCode}`) || medMap.get(`name:${batchName}`) || {}
+          if (batchMedId) coveredMedIds.add(`id:${batchMedId}`)
+          if (batchCode) coveredMedIds.add(`code:${batchCode}`)
+          if (batchName) coveredMedIds.add(`name:${batchName}`)
+
+          return formatStockRecord({ ...linked, ...batch }, idx)
+        })
+
+        // For all medicines from the catalogue that do not have separate batch rows,
+        // include them as stock inventory items so ALL uploaded medicines are present in stock!
+        const catalogueItems = []
+        meds.forEach((m, idx) => {
+          const id = String(m?.id || m?._id || m?.medicineId || '').trim().toLowerCase()
+          const code = String(m?.code || m?.medicineCode || '').trim().toLowerCase()
+          const name = String(m?.name || m?.medicineName || '').trim().toLowerCase()
+
+          const alreadyCovered = (id && coveredMedIds.has(`id:${id}`)) ||
+                                (code && coveredMedIds.has(`code:${code}`)) ||
+                                (name && coveredMedIds.has(`name:${name}`))
+
+          if (!alreadyCovered) {
+            catalogueItems.push(formatStockRecord(m, invList.length + idx))
+          }
+        })
+
+        let combined = [...enrichedBatches, ...catalogueItems]
+
+        // Filter based on view tabs
+        const now = Date.now()
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+
+        if (nextView === 'low') {
+          combined = combined.filter((item) => {
+            const qty = Number(item.quantity) || 0
+            const reorder = Number(item.reorderLevel) || 5
+            return qty > 0 && qty <= reorder
+          })
+        } else if (nextView === 'out') {
+          combined = combined.filter((item) => (Number(item.quantity) || 0) <= 0)
+        } else if (nextView === 'near') {
+          combined = combined.filter((item) => {
+            const raw = item.expiryDate
+            if (!raw || raw === '-') return false
+            const diff = new Date(raw).getTime() - now
+            return !isNaN(diff) && diff > 0 && diff <= thirtyDaysMs
+          })
+        } else if (nextView === 'expired') {
+          combined = combined.filter((item) => {
+            const raw = item.expiryDate
+            if (!raw || raw === '-') return false
+            const diff = new Date(raw).getTime() - now
+            return !isNaN(diff) && diff <= 0
+          })
+        }
+
+        setItems(combined)
         setSummaryData(null)
       }
     } catch (error) {
@@ -321,17 +563,103 @@ export default function Stock({ initialView }) {
     load(target)
   }, [location.pathname])
 
+  // Computed display metrics that always reflect current stock items and medicines catalogue
+  const displayMetrics = useMemo(() => {
+    const sourceItems = items.length > 0
+      ? items
+      : (medicinesList.length > 0 ? medicinesList.map((m, i) => formatStockRecord(m, i)) : readLocalMedicines().map((m, i) => formatStockRecord(m, i)))
+    
+    const now = Date.now()
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+
+    const totalMedicines = Math.max(sourceItems.length, metrics.totalMedicines || 0)
+    
+    // In-stock medicines count (active medicines with stock > 0, exactly matching Active Medicines in Medicines page)
+    const inStockItems = sourceItems.filter((it) => {
+      const qty = Number(it?.quantity ?? it?.stock ?? it?.stockQuantity ?? it?.initialStockCount ?? it?.qty ?? 0) || 0
+      const st = String(it?.status || '').toLowerCase()
+      return !st.includes('inactive') && !st.includes('out') && qty > 0
+    })
+    const totalStock = inStockItems.length > 0 ? inStockItems.length : totalMedicines
+
+    const lowStock = sourceItems.filter((it) => {
+      const qty = Number(it?.quantity ?? it?.stock ?? it?.stockQuantity ?? it?.initialStockCount ?? it?.qty ?? 0) || 0
+      const reorder = Number(it?.reorderLevel ?? it?.minStock ?? 5) || 5
+      return qty > 0 && qty <= reorder
+    }).length
+    const nearExpiry = sourceItems.filter((it) => {
+      const raw = it?.expiryDate
+      if (!raw || raw === '-') return false
+      const diff = new Date(raw).getTime() - now
+      return !isNaN(diff) && diff > 0 && diff <= thirtyDaysMs
+    }).length
+    const expired = sourceItems.filter((it) => {
+      const raw = it?.expiryDate
+      if (!raw || raw === '-') return false
+      const diff = new Date(raw).getTime() - now
+      return !isNaN(diff) && diff <= 0
+    }).length
+
+    const totalUnits = sourceItems.reduce((acc, it) => acc + (Number(it?.quantity ?? it?.stock ?? it?.stockQuantity ?? it?.initialStockCount ?? it?.qty ?? 0) || 0), 0)
+
+    return {
+      totalMedicines: totalMedicines || (metrics.totalMedicines || 0),
+      totalStock: totalStock || (metrics.totalStock || 0),
+      lowStock: lowStock || (metrics.lowStock || 0),
+      nearExpiry: nearExpiry || (metrics.nearExpiry || 0),
+      expired: expired || (metrics.expired || 0),
+      totalUnits
+    }
+  }, [items, medicinesList, metrics])
+
+  // Dynamic category list from items or medicinesList or readLocalMedicines
+  const categories = useMemo(() => {
+    const set = new Set()
+    const source = items.length > 0 ? items : (medicinesList.length > 0 ? medicinesList : readLocalMedicines())
+    source.forEach(item => {
+      const cat = item?.category || item?.categoryName
+      if (cat && cat !== '-' && cat !== 'General') set.add(cat)
+    })
+    return Array.from(set).sort()
+  }, [items, medicinesList])
+
+  // Full available medicines catalogue for dropdown selections
+  const availableMedicines = useMemo(() => {
+    if (medicinesList.length > 0) return medicinesList
+    if (items.length > 0) return items
+    return readLocalMedicines()
+  }, [medicinesList, items])
+
   // Filtered Inventory list
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const name = (item?.medicineName || item?.medicine?.name || item?.name || '').toLowerCase()
-      const batch = (item?.batchNo || item?.batchNumber || item?.batchId || '').toLowerCase()
-      const query = search.toLowerCase()
+      const name = (item?.medicineName || item?.name || '').toLowerCase()
+      const generic = (item?.genericName || '').toLowerCase()
+      const batch = (item?.batchNo || item?.batchNumber || item?.code || item?.medicineCode || '').toLowerCase()
+      const category = (item?.category || item?.categoryName || '').toLowerCase()
+      const dosage = (item?.dosageForm || '').toLowerCase()
+      const query = search.trim().toLowerCase()
       
-      const matchesSearch = name.includes(query) || batch.includes(query)
+      const matchesSearch = !query ||
+        name.includes(query) ||
+        generic.includes(query) ||
+        batch.includes(query) ||
+        category.includes(query) ||
+        dosage.includes(query)
       
-      const itemStatus = String(item?.status || 'In Stock').toLowerCase()
-      const matchesStatus = statusFilter === 'all' || itemStatus.includes(statusFilter.toLowerCase())
+      const matchesCategory = categoryFilter === 'all' || category === categoryFilter.toLowerCase()
+
+      const qty = Number(item?.quantity ?? item?.stock ?? 0)
+      const reorder = Number(item?.reorderLevel ?? 5)
+      const itemStatus = String(item?.status || '').toLowerCase()
+
+      let matchesStatus = statusFilter === 'all'
+      if (!matchesStatus) {
+        if (statusFilter === 'in stock') matchesStatus = qty > 0 && !itemStatus.includes('out') && !itemStatus.includes('inactive')
+        else if (statusFilter === 'low stock') matchesStatus = qty > 0 && qty <= reorder
+        else if (statusFilter === 'out of stock') matchesStatus = qty <= 0 || itemStatus.includes('out')
+        else matchesStatus = itemStatus.includes(statusFilter.toLowerCase())
+      }
       
       const daysLeft = Number(item?.daysLeft ?? 999)
       let matchesExpiry = true
@@ -339,9 +667,9 @@ export default function Stock({ initialView }) {
       if (expiryFilter === 'near') matchesExpiry = daysLeft > 0 && daysLeft <= 30
       if (expiryFilter === 'safe') matchesExpiry = daysLeft > 30
       
-      return matchesSearch && matchesStatus && matchesExpiry
+      return matchesSearch && matchesCategory && matchesStatus && matchesExpiry
     })
-  }, [items, search, statusFilter, expiryFilter])
+  }, [items, search, categoryFilter, statusFilter, expiryFilter])
 
   // Form Submissions
   async function handleAddStockSubmit(e) {
@@ -360,6 +688,24 @@ export default function Stock({ initialView }) {
         notes: stockForm.notes || undefined
       }
       const response = await addInventoryStock(body)
+
+      // Also update local cache so Medicines page and Stock cards reflect updated stock immediately
+      const allMeds = readLocalMedicines()
+      const targetIdx = allMeds.findIndex(m => String(m?.id || m?._id || m?.medicineId) === String(stockForm.medicineId))
+      if (targetIdx >= 0) {
+        const curStock = Number(allMeds[targetIdx].stock ?? allMeds[targetIdx].quantity ?? 0)
+        allMeds[targetIdx] = {
+          ...allMeds[targetIdx],
+          stock: curStock + Number(stockForm.quantity),
+          quantity: curStock + Number(stockForm.quantity),
+          initialStockCount: curStock + Number(stockForm.quantity),
+          ...(stockForm.expiryDate ? { expiryDate: stockForm.expiryDate } : {}),
+          ...(stockForm.costPrice ? { purchasePrice: Number(stockForm.costPrice), costPrice: Number(stockForm.costPrice) } : {}),
+          ...(stockForm.sellingPrice ? { sellingPrice: Number(stockForm.sellingPrice), price: Number(stockForm.sellingPrice) } : {})
+        }
+        writeLocalMedicines(allMeds)
+      }
+
       showToast(response?.message || 'Stock added successfully!')
       setAddStockOpen(false)
       setStockForm({
@@ -402,6 +748,23 @@ export default function Stock({ initialView }) {
         notes: adjustmentForm.notes || undefined
       }
       const response = await adjustInventoryWithReason(body)
+
+      // Update local cache for immediate two-way consistency
+      const allMeds = readLocalMedicines()
+      const targetIdx = allMeds.findIndex(m => String(m?.id || m?._id || m?.medicineId) === String(adjustmentForm.medicineId))
+      if (targetIdx >= 0) {
+        const curStock = Number(allMeds[targetIdx].stock ?? allMeds[targetIdx].quantity ?? 0)
+        const adjQty = Number(adjustmentForm.quantity)
+        const newStock = adjustmentForm.type === 'decrease' ? Math.max(0, curStock - adjQty) : curStock + adjQty
+        allMeds[targetIdx] = {
+          ...allMeds[targetIdx],
+          stock: newStock,
+          quantity: newStock,
+          initialStockCount: newStock,
+        }
+        writeLocalMedicines(allMeds)
+      }
+
       showToast(response?.message || 'Stock levels adjusted successfully!')
       setAdjustOpen(false)
       setAdjustmentForm({
@@ -430,6 +793,22 @@ export default function Stock({ initialView }) {
         maximumStock: Number(levelsForm.maximumStock),
         reorderLevel: Number(levelsForm.reorderLevel)
       })
+
+      // Update local cache
+      const allMeds = readLocalMedicines()
+      const targetIdx = allMeds.findIndex(m => String(m?.id || m?._id || m?.medicineId) === String(levelsForm.medicineId))
+      if (targetIdx >= 0) {
+        allMeds[targetIdx] = {
+          ...allMeds[targetIdx],
+          minimumStock: Number(levelsForm.minimumStock),
+          minStock: Number(levelsForm.minimumStock),
+          maximumStock: Number(levelsForm.maximumStock),
+          maxStock: Number(levelsForm.maximumStock),
+          reorderLevel: Number(levelsForm.reorderLevel),
+        }
+        writeLocalMedicines(allMeds)
+      }
+
       showToast(response?.message || 'Stock levels configured successfully!')
       setLevelsOpen(false)
       setLevelsForm({
@@ -453,6 +832,20 @@ export default function Stock({ initialView }) {
     setLoading(true)
     try {
       const response = await disposeInventoryBatch(batchNo, { reason: 'Expired stock disposal' })
+
+      // Update local cache
+      const allMeds = readLocalMedicines()
+      const targetIdx = allMeds.findIndex(m => (m?.batchNo && m.batchNo === batchNo) || (m?.code && m.code === batchNo) || (m?.id && m.id === batchNo))
+      if (targetIdx >= 0) {
+        allMeds[targetIdx] = {
+          ...allMeds[targetIdx],
+          stock: 0,
+          quantity: 0,
+          status: 'Disposed',
+        }
+        writeLocalMedicines(allMeds)
+      }
+
       showToast(response?.message || 'Batch disposed successfully.')
       await load(view)
       loadSummaryMetrics()
@@ -503,16 +896,27 @@ export default function Stock({ initialView }) {
   }
 
   // Dynamic getters for columns
-  const getMedicineName = (item) => item?.medicineName || item?.medicine?.name || item?.name || '-'
-  const getBatchNo = (item) => item?.batchNo || item?.batchNumber || '-'
-  const getQty = (item) => item?.quantity || item?.stock || item?.qty || 0
-  const getMinStock = (item) => item?.minimumStock ?? item?.minStock ?? 10
-  const getReorderLevel = (item) => item?.reorderLevel ?? 5
+  const getId = (item, index) => item?._id || item?.id || item?.batchId || item?.batchNo || item?.batchNumber || item?.transactionId || `${index}`
+  const getMedicineName = (item) => item?.medicineName || item?.name || item?.genericName || '-'
+  const getGenericName = (item) => item?.genericName || item?.medicine?.genericName || '-'
+  const getCategory = (item) => item?.category || item?.categoryName || item?.medicine?.category || 'General'
+  const getDosageForm = (item) => item?.dosageForm || item?.form || item?.medicine?.dosageForm || 'Tablet'
+  const getStrength = (item) => {
+    const s = item?.strength || item?.medicine?.strength || ''
+    const u = item?.unit || item?.medicine?.unit || ''
+    if (s && u) return `${s} (${u})`
+    return s || u || '-'
+  }
+  const getBatchNo = (item) => item?.batchNo || item?.batchNumber || item?.batchId || item?.code || item?.medicineCode || '-'
+  const getQty = (item) => Number(item?.quantity ?? item?.stock ?? item?.availableQty ?? item?.qty ?? 0)
+  const getMinStock = (item) => Number(item?.minimumStock ?? item?.minStock ?? 10)
+  const getReorderLevel = (item) => Number(item?.reorderLevel ?? 5)
   const getExpiryDate = (item) => {
     const d = item?.expiryDate || item?.expiresAt || '-'
-    return d.includes('T') ? d.split('T')[0] : d
+    if (typeof d === 'string' && d.includes('T')) return d.split('T')[0]
+    return d || '-'
   }
-  const getSellingPrice = (item) => `₹${item?.sellingPrice || item?.price || 0}`
+  const getSellingPrice = (item) => `₹${Number(item?.sellingPrice ?? item?.price ?? item?.mrp ?? 0)}`
 
   // Badge Status Class
   const getStatusBadge = (item) => {
@@ -594,7 +998,7 @@ export default function Stock({ initialView }) {
                 onClick={() => setAddStockOpen(true)}
               >
                 <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                + Add Stock
+                Add Stock
               </button>
               <button 
                 type="button" 
@@ -605,7 +1009,7 @@ export default function Stock({ initialView }) {
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
-                + Adjust Stock
+                Adjust Stock
               </button>
             </div>
             <button 
@@ -621,7 +1025,7 @@ export default function Stock({ initialView }) {
           {/* Top Summary Cards (Equal Sized Grid) */}
           <div className="stock-summary-grid-redesign">
             {SUMMARY_CARDS.map((card) => {
-              const value = metrics[card.metricKey] || 0
+              const value = displayMetrics[card.metricKey] ?? 0
               return (
                 <div 
                   key={card.id}
@@ -642,7 +1046,12 @@ export default function Stock({ initialView }) {
                   </div>
                   <div className="summary-card-info">
                     <label>{card.label}</label>
-                    <span className="summary-card-val">{value}</span>
+                    <span 
+                      className="summary-card-val"
+                      title={card.metricKey === 'totalStock' && displayMetrics.totalUnits ? `${displayMetrics.totalUnits.toLocaleString()} units total in stock` : undefined}
+                    >
+                      {value}
+                    </span>
                   </div>
                 </div>
               )
@@ -679,10 +1088,19 @@ export default function Stock({ initialView }) {
                 <input 
                   value={search} 
                   onChange={(e) => setSearch(e.target.value)} 
-                  placeholder="Search medicine, batch number..." 
+                  placeholder="Search medicine name, generic name, batch, category..." 
                 />
               </div>
               <div className="stock-filters">
+                <select 
+                  value={categoryFilter} 
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                >
+                  <option value="all">All Categories ({categories.length})</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
                 <select 
                   value={statusFilter} 
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -706,6 +1124,7 @@ export default function Stock({ initialView }) {
                   className="stock-btn stock-btn-secondary"
                   onClick={() => {
                     setSearch('')
+                    setCategoryFilter('all')
                     setStatusFilter('all')
                     setExpiryFilter('all')
                   }}
@@ -728,32 +1147,59 @@ export default function Stock({ initialView }) {
                 <div className="dispense-skeleton-line" style={{ width: '70%' }}></div>
               </div>
             ) : view === 'summary' ? (
-              <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ margin: '0 0 16px', color: '#0f172a' }}>Stock Summary Metrics</h3>
-                <pre style={{ fontSize: '13px', color: '#334155', margin: 0 }}>{JSON.stringify(summaryData || {}, null, 2)}</pre>
+              <div>
+                <div className="valuation-summary-row">
+                  <div className="valuation-metric">
+                    <label>Total Medicines</label>
+                    <span>{displayMetrics.totalMedicines}</span>
+                  </div>
+                  <div className="valuation-metric">
+                    <label>In-Stock Medicines</label>
+                    <span style={{ color: '#0ea5e9' }}>{displayMetrics.totalStock}</span>
+                  </div>
+                  <div className="valuation-metric">
+                    <label>Total Units in Stock</label>
+                    <span>{displayMetrics.totalUnits ? displayMetrics.totalUnits.toLocaleString() : 0}</span>
+                  </div>
+                  <div className="valuation-metric">
+                    <label>Low Stock Alerts</label>
+                    <span style={{ color: '#f59e0b' }}>{displayMetrics.lowStock}</span>
+                  </div>
+                </div>
+                <div className="valuation-summary-row" style={{ marginTop: '16px' }}>
+                  <div className="valuation-metric">
+                    <label>Total Categories</label>
+                    <span>{categories.length}</span>
+                  </div>
+                  <div className="valuation-metric">
+                    <label>Near Expiry Medicines</label>
+                    <span style={{ color: '#f97316' }}>{displayMetrics.nearExpiry}</span>
+                  </div>
+                  <div className="valuation-metric">
+                    <label>Expired Medicines</label>
+                    <span style={{ color: '#ef4444' }}>{displayMetrics.expired}</span>
+                  </div>
+                </div>
               </div>
             ) : view === 'valuation' ? (
               <div>
                 <div className="valuation-summary-row">
                   <div className="valuation-metric">
                     <label>Total Inventory Value</label>
-                    <span>₹{summaryData?.totalInventoryValue || summaryData?.totalCost || 0}</span>
+                    <span>₹{Number(summaryData?.totalInventoryValue || summaryData?.totalCost || 0).toLocaleString()}</span>
                   </div>
                   <div className="valuation-metric">
                     <label>Total Cost Value</label>
-                    <span>₹{summaryData?.totalCostValue || summaryData?.totalCost || 0}</span>
+                    <span>₹{Number(summaryData?.totalCostValue || summaryData?.totalCost || 0).toLocaleString()}</span>
                   </div>
                   <div className="valuation-metric">
                     <label>Potential Selling Value</label>
-                    <span>₹{summaryData?.potentialSellingValue || summaryData?.potentialSales || 0}</span>
+                    <span>₹{Number(summaryData?.potentialSellingValue || summaryData?.potentialSales || 0).toLocaleString()}</span>
                   </div>
                   <div className="valuation-metric">
                     <label>Estimated Profit</label>
-                    <span style={{ color: '#10b981' }}>₹{summaryData?.estimatedProfit || summaryData?.profit || 0}</span>
+                    <span style={{ color: '#10b981' }}>₹{Number(summaryData?.estimatedProfit || summaryData?.profit || 0).toLocaleString()}</span>
                   </div>
-                </div>
-                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <pre style={{ fontSize: '13px', color: '#334155', margin: 0 }}>{JSON.stringify(summaryData || {}, null, 2)}</pre>
                 </div>
               </div>
             ) : view === 'transactions' ? (
@@ -806,8 +1252,13 @@ export default function Stock({ initialView }) {
                 <table className="branch-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '60px' }}>S.No.</th>
-                      <th>Medicine</th>
+                      <th style={{ width: '55px' }}>S.No.</th>
+                      <th>Medicine Name</th>
+                      <th>Generic Name</th>
+                      <th>Category</th>
+                      <th>Dosage Form</th>
+                      <th>Strength</th>
+                      <th>Unit</th>
                       <th>Batch No.</th>
                       <th>Available Qty</th>
                       <th>Minimum Stock</th>
@@ -815,7 +1266,7 @@ export default function Stock({ initialView }) {
                       <th>Expiry Date</th>
                       <th>Selling Price</th>
                       <th>Stock Status</th>
-                      <th style={{ width: '180px' }}>Actions</th>
+                      <th style={{ width: '130px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -823,6 +1274,11 @@ export default function Stock({ initialView }) {
                       <tr key={getId(item, index)}>
                         <td>{index + 1}</td>
                         <td><div style={{ fontWeight: 600, color: '#1e293b' }}>{getMedicineName(item)}</div></td>
+                        <td>{getGenericName(item)}</td>
+                        <td>{getCategory(item)}</td>
+                        <td>{getDosageForm(item)}</td>
+                        <td>{item?.strength || '-'}</td>
+                        <td>{item?.unit || '-'}</td>
                         <td><code>{getBatchNo(item)}</code></td>
                         <td>{getQty(item)}</td>
                         <td>{getMinStock(item)}</td>
@@ -836,7 +1292,7 @@ export default function Stock({ initialView }) {
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan="10">
+                        <td colSpan="15">
                           <div className="dispense-empty-state">
                             <h3>No inventory found.</h3>
                             <p>Add medicine stock to start managing your pharmacy inventory.</p>
@@ -846,7 +1302,7 @@ export default function Stock({ initialView }) {
                               style={{ marginTop: '12px' }}
                               onClick={() => setAddStockOpen(true)}
                             >
-                              + Add Stock
+                              Add Stock
                             </button>
                           </div>
                         </td>
@@ -863,19 +1319,44 @@ export default function Stock({ initialView }) {
             <div className="stock-modal-overlay">
               <form onSubmit={handleAddStockSubmit} className="stock-modal-container">
                 <div className="stock-modal-header">
-                  <h2>+ Add Medicine Stock</h2>
+                  <h2>Add Medicine Stock</h2>
                   <button type="button" className="stock-modal-close" onClick={() => setAddStockOpen(false)}>&times;</button>
                 </div>
                 <div className="stock-modal-body">
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
-                      <label>Medicine ID *</label>
-                      <input 
-                        type="text" 
-                        value={stockForm.medicineId} 
-                        onChange={(e) => setStockForm({...stockForm, medicineId: e.target.value})} 
-                        required 
-                      />
+                      <label>Medicine *</label>
+                      {availableMedicines.length > 0 ? (
+                        <select 
+                          value={stockForm.medicineId} 
+                          onChange={(e) => {
+                            const val = e.target.value
+                            const found = availableMedicines.find(m => String(m?._id || m?.id) === val)
+                            setStockForm(prev => ({
+                              ...prev, 
+                              medicineId: val,
+                              sellingPrice: found?.sellingPrice ?? found?.price ?? prev.sellingPrice,
+                              costPrice: found?.purchasePrice ?? found?.costPrice ?? prev.costPrice
+                            }))
+                          }}
+                          required 
+                        >
+                          <option value="">-- Select Medicine ({availableMedicines.length} in catalogue) --</option>
+                          {availableMedicines.map((m, i) => (
+                            <option key={m?._id || m?.id || i} value={m?._id || m?.id || ''}>
+                              {m?.name || m?.medicineName || 'Unnamed'} {m?.genericName ? `(${m.genericName})` : ''} {m?.category ? `[${m.category}]` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input 
+                          type="text" 
+                          placeholder="Medicine ID"
+                          value={stockForm.medicineId} 
+                          onChange={(e) => setStockForm({...stockForm, medicineId: e.target.value})} 
+                          required 
+                        />
+                      )}
                     </div>
                     <div className="stock-form-group">
                       <label>Batch Number *</label>
@@ -970,13 +1451,28 @@ export default function Stock({ initialView }) {
                 <div className="stock-modal-body">
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
-                      <label>Medicine ID *</label>
-                      <input 
-                        type="text" 
-                        value={adjustmentForm.medicineId} 
-                        onChange={(e) => setAdjustmentForm({...adjustmentForm, medicineId: e.target.value})} 
-                        required 
-                      />
+                      <label>Medicine *</label>
+                      {availableMedicines.length > 0 ? (
+                        <select 
+                          value={adjustmentForm.medicineId} 
+                          onChange={(e) => setAdjustmentForm({...adjustmentForm, medicineId: e.target.value})} 
+                          required 
+                        >
+                          <option value="">-- Select Medicine ({availableMedicines.length} in catalogue) --</option>
+                          {availableMedicines.map((m, i) => (
+                            <option key={m?._id || m?.id || i} value={m?._id || m?.id || ''}>
+                              {m?.name || m?.medicineName || 'Unnamed'} {m?.genericName ? `(${m.genericName})` : ''} {m?.category ? `[${m.category}]` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input 
+                          type="text" 
+                          value={adjustmentForm.medicineId} 
+                          onChange={(e) => setAdjustmentForm({...adjustmentForm, medicineId: e.target.value})} 
+                          required 
+                        />
+                      )}
                     </div>
                     <div className="stock-form-group">
                       <label>Batch Number</label>
@@ -1043,11 +1539,13 @@ export default function Stock({ initialView }) {
                 </div>
                 <div className="stock-modal-body">
                   <div className="stock-form-group">
-                    <label>Medicine ID *</label>
+                    <label>Medicine *</label>
                     <input 
                       type="text" 
-                      value={levelsForm.medicineId} 
-                      onChange={(e) => setLevelsForm({...levelsForm, medicineId: e.target.value})} 
+                      value={(() => {
+                        const m = availableMedicines.find(med => String(med?.id || med?._id || med?.medicineId) === String(levelsForm.medicineId))
+                        return m ? `${m?.name || m?.medicineName || ''} (${levelsForm.medicineId})` : levelsForm.medicineId
+                      })()} 
                       required 
                       disabled 
                     />
@@ -1102,17 +1600,37 @@ export default function Stock({ initialView }) {
                   <div className="stock-detail-row">
                     <div className="stock-detail-item">
                       <label>Medicine Name</label>
-                      <span>{getMedicineName(viewingItem)}</span>
+                      <span style={{ fontWeight: 600 }}>{getMedicineName(viewingItem)}</span>
                     </div>
                     <div className="stock-detail-item">
-                      <label>Batch Number</label>
+                      <label>Generic Name</label>
+                      <span>{getGenericName(viewingItem)}</span>
+                    </div>
+                  </div>
+                  <div className="stock-detail-row">
+                    <div className="stock-detail-item">
+                      <label>Category</label>
+                      <span>{getCategory(viewingItem)}</span>
+                    </div>
+                    <div className="stock-detail-item">
+                      <label>Dosage Form</label>
+                      <span>{getDosageForm(viewingItem)}</span>
+                    </div>
+                  </div>
+                  <div className="stock-detail-row">
+                    <div className="stock-detail-item">
+                      <label>Strength & Unit</label>
+                      <span>{getStrength(viewingItem)}</span>
+                    </div>
+                    <div className="stock-detail-item">
+                      <label>Batch / Code</label>
                       <span><code>{getBatchNo(viewingItem)}</code></span>
                     </div>
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-detail-item">
                       <label>Available Quantity</label>
-                      <span>{getQty(viewingItem)} units</span>
+                      <span style={{ fontWeight: 600, color: '#0f172a' }}>{getQty(viewingItem)} {viewingItem?.unit || 'units'}</span>
                     </div>
                     <div className="stock-detail-item">
                       <label>Expiry Date</label>
@@ -1135,8 +1653,18 @@ export default function Stock({ initialView }) {
                       <span>{getSellingPrice(viewingItem)}</span>
                     </div>
                     <div className="stock-detail-item">
+                      <label>Cost Price</label>
+                      <span>₹{Number(viewingItem?.costPrice ?? viewingItem?.purchasePrice ?? 0)}</span>
+                    </div>
+                  </div>
+                  <div className="stock-detail-row">
+                    <div className="stock-detail-item">
                       <label>Status Badge</label>
                       <div style={{ marginTop: '4px' }}>{getStatusBadge(viewingItem)}</div>
+                    </div>
+                    <div className="stock-detail-item">
+                      <label>Storage Location</label>
+                      <span>{viewingItem?.storageLocation || '-'}</span>
                     </div>
                   </div>
                 </div>

@@ -64,6 +64,11 @@ function clearAuthSession() {
       localStorage.removeItem(assignmentKey)
     }
   })
+  sessionStorage.removeItem('__pms_admin_pending_auth')
+  sessionStorage.removeItem('workingBranchId')
+  localStorage.removeItem('workingBranchId')
+  sessionStorage.removeItem('workingPharmacyId')
+  localStorage.removeItem('workingPharmacyId')
 }
 
 function unwrapLogin(data) {
@@ -153,15 +158,32 @@ function Login() {
 
       storage.setItem(flow.tokenKey, token)
 
+      if (flow.role === 'pharmacy-admin') {
+        sessionStorage.setItem('__pms_admin_pending_auth', JSON.stringify({ email, password }))
+      }
+
       let storedUser = { ...user, role: user?.role || flow.role }
       if (flow.assignment) {
         try {
           const assignment = await flow.assignment()
           const assignmentData = assignment?.data || assignment
-          storage.setItem(flow.assignmentKey, JSON.stringify(assignmentData))
-          storedUser = { ...storedUser, ...assignmentData, role: storedUser.role }
+          // Merge with user data so pharmacyId is always populated
+          const merged = {
+            pharmacyId: assignmentData?.pharmacyId || assignmentData?.PharmacyId || user?.pharmacyId || user?.PharmacyId || assignmentData?.pharmacy?.id || assignmentData?.pharmacy?.pharmacyId || '',
+            branchId: assignmentData?.branchId || assignmentData?.BranchId || assignmentData?.mainBranchId || user?.branchId || user?.BranchId || '',
+            pharmacyName: assignmentData?.pharmacyName || assignmentData?.PharmacyName || user?.pharmacyName || '',
+            ...assignmentData,
+          }
+          storage.setItem(flow.assignmentKey, JSON.stringify(merged))
+          storedUser = { ...storedUser, ...merged, role: storedUser.role }
         } catch {
-          storage.removeItem(flow.assignmentKey)
+          // Assignment fetch failed — save what we can from the login user data
+          const fallback = {
+            pharmacyId: user?.pharmacyId || user?.PharmacyId || '',
+            branchId: user?.branchId || user?.BranchId || user?.mainBranchId || '',
+            pharmacyName: user?.pharmacyName || user?.PharmacyName || '',
+          }
+          if (fallback.pharmacyId) storage.setItem(flow.assignmentKey, JSON.stringify(fallback))
         }
       }
 

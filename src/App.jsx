@@ -17,6 +17,7 @@ import SuperAdminProfile from './pages/Super Admin/SuperAdminProfile'
 import AdminDashboard from './pages/Admin/AdminDashboard'
 import AdminUsers from './pages/Admin/Users'
 import AdminMedicines from './pages/Admin/Medicines'
+import AdminPharmacies from './pages/Admin/Pharmacies'
 import AdminBranches from './pages/Admin/Branches'
 import AdminStock from './pages/Admin/Stock'
 import AdminPrescriptions from './pages/Admin/Prescriptions'
@@ -55,9 +56,9 @@ function App() {
           <Route path="/superadmin/dashboard" element={<SuperAdminDashboard />} />
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
           <Route path="/super-admin/admins" element={<Admins />} />
-          <Route path="/super-admin/clinics/add" element={<Navigate to="/super-admin/branches" replace />} />
-          <Route path="/super-admin/clinics" element={<Navigate to="/super-admin/branches" replace />} />
-          <Route path="/super-admin/branches" element={<Branches />} />
+          <Route path="/super-admin/clinics/add" element={<Navigate to="/super-admin/dashboard" replace />} />
+          <Route path="/super-admin/clinics" element={<Navigate to="/super-admin/dashboard" replace />} />
+          <Route path="/super-admin/branches" element={<Navigate to="/super-admin/dashboard" replace />} />
           <Route path="/super-admin/users-permissions" element={<UsersPermissions />} />
           <Route path="/super-admin/roles" element={<UsersPermissions />} />
           <Route path="/superadmin/roles" element={<UsersPermissions />} />
@@ -77,6 +78,7 @@ function App() {
           <Route path="/admin/users" element={<AdminPermissionRoute module="Users"><AdminUsers /></AdminPermissionRoute>} />
           <Route path="/admin/users/add" element={<AdminPermissionRoute module="Users"><AdminUsers initialAdd={true} /></AdminPermissionRoute>} />
           <Route path="/admin/medicines" element={<AdminPermissionRoute module="Medicines"><AdminMedicines /></AdminPermissionRoute>} />
+          <Route path="/admin/pharmacies" element={<AdminPermissionRoute module="Pharmacies"><AdminPharmacies /></AdminPermissionRoute>} />
           <Route path="/admin/branches" element={<AdminPermissionRoute module="Branches"><AdminBranches /></AdminPermissionRoute>} />
           <Route path="/admin/stock" element={<AdminPermissionRoute module="Stock"><AdminStock /></AdminPermissionRoute>} />
           <Route path="/inventory" element={<AdminStock initialView="inventory" />} />

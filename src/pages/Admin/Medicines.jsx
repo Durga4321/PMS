@@ -20,7 +20,9 @@ import {
   searchMedicines,
   updateMedicine,
   validateMedicineImport,
-  getPharmacyAdminDashboard
+  getPharmacyAdminDashboard,
+  normalizeMedicineRecord,
+  writeLocalMedicines
 } from '../../config/api'
 import './Medicines.css'
 
@@ -61,25 +63,88 @@ function normalizeList(response) {
 }
 
 function getId(item) {
-  return item?._id || item?.id || item?.medicineId || item?.uuid
+  return item?._id || item?.id || item?.medicineId || item?.uuid || item?.Id || item?.MedicineId
 }
 
 function getName(item) {
-  return item?.name || item?.medicineName || item?.brandName || '-'
+  return item?.name || item?.medicineName || item?.brandName || item?.Name || item?.MedicineName || '-'
 }
 
 function getCategory(item) {
-  return item?.category || item?.categoryName || item?.type || '-'
+  return item?.category || item?.categoryName || item?.type || item?.Category || item?.CategoryName || '-'
 }
 
 function getDosageForm(item) {
-  return item?.dosageForm || item?.form || item?.medicineType || '-'
+  return item?.dosageForm || item?.form || item?.medicineType || item?.DosageForm || '-'
 }
 
 function getStatus(item) {
-  const value = item?.status ?? item?.isAvailable ?? item?.available
+  const value = item?.status ?? item?.isActive ?? item?.isAvailable ?? item?.available
   if (typeof value === 'boolean') return value ? 'Active' : 'Inactive'
   return value || 'Active'
+}
+
+function getSellingPrice(item) {
+  const candidates = [
+    item?.sellingPrice,
+    item?.SellingPrice,
+    item?.price,
+    item?.Price,
+    item?.mrp,
+    item?.MRP,
+    item?.unitPrice,
+    item?.UnitPrice,
+  ]
+  for (const val of candidates) {
+    const num = Number(val)
+    if (val !== undefined && val !== null && val !== '' && !isNaN(num) && num > 0) {
+      return num
+    }
+  }
+  return 0
+}
+
+function getStock(item) {
+  const candidates = [
+    item?.stock,
+    item?.Stock,
+    item?.stockQuantity,
+    item?.StockQuantity,
+    item?.initialStockCount,
+    item?.InitialStockCount,
+    item?.currentStock,
+    item?.CurrentStock,
+    item?.totalStock,
+    item?.TotalStock,
+    item?.availableStock,
+    item?.AvailableStock,
+    item?.quantity,
+    item?.Quantity,
+    item?.qty,
+  ]
+  for (const val of candidates) {
+    const num = Number(val)
+    if (val !== undefined && val !== null && val !== '' && !isNaN(num) && num > 0) {
+      return num
+    }
+  }
+  const unitMatch = String(item?.unit || item?.Unit || '').trim().match(/^(\d+)\s*(units?|tablets?|capsules?|strips?|bottles?|vials?|packs?)?$/i)
+  if (unitMatch && Number(unitMatch[1]) > 0) {
+    return Number(unitMatch[1])
+  }
+  for (const val of candidates) {
+    const num = Number(val)
+    if (val !== undefined && val !== null && val !== '' && !isNaN(num)) {
+      return num
+    }
+  }
+  return 0
+}
+
+function getReorderLevel(item) {
+  const val = item?.reorderLevel ?? item?.ReorderLevel ?? item?.reorderStockLevel ?? item?.ReorderStockLevel ?? item?.minStock ?? item?.minimumStock ?? item?.minimumStockThreshold
+  const num = Number(val)
+  return !isNaN(num) && num >= 0 ? num : 5
 }
 
 
@@ -139,7 +204,15 @@ function normalizeImportMedicine(row, index) {
     isAvailable: active,
     description,
     notes: description,
-    expiryDate: valueFrom(row, ['ExpiryDate', 'Expiry Date', 'expiryDate'], '') || null,
+    expiryDate: (() => {
+      const raw = valueFrom(row, ['ExpiryDate', 'Expiry Date', 'expiryDate'], '')
+      if (!raw) return null
+      if (raw instanceof Date && !isNaN(raw.getTime())) return raw.toISOString().split('T')[0]
+      const str = String(raw).trim()
+      if (!str) return null
+      const d = new Date(str)
+      return !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : str
+    })(),
   }
 }
 
@@ -279,18 +352,51 @@ export default function Medicines() {
   async function loadSummaryMetrics() {
     try {
       const response = await getPharmacyAdminDashboard()
-      const data = response?.data || response || {}
-      setMetrics({
-        total: Number(data?.totalMedicines || data?.medicinesCount || 0),
-        active: Number(data?.activeMedicines || data?.activeMedicinesCount || 0),
-        lowStock: Number(data?.lowStockMedicines || data?.lowStockCount || 0),
-        outStock: Number(data?.outOfStockMedicines || data?.outOfStockCount || 0),
-        categoriesCount: Number(data?.totalCategories || data?.categoriesCount || 0)
-      })
+      const data = response?.data?.dashboard || response?.data || response || {}
+      const total = Number(data?.totalMedicines || data?.medicinesCount || 0)
+      const active = Number(data?.activeMedicines || data?.activeMedicinesCount || 0)
+      const lowStock = Number(data?.lowStockMedicines || data?.lowStockCount || 0)
+      const outStock = Number(data?.outOfStockMedicines || data?.outOfStockCount || 0)
+      const categoriesCount = Number(data?.totalCategories || data?.categoriesCount || 0)
+      setMetrics(prev => ({
+        total: total > 0 ? total : prev.total,
+        active: active > 0 ? active : prev.active,
+        lowStock: lowStock > 0 ? lowStock : prev.lowStock,
+        outStock: outStock > 0 ? outStock : prev.outStock,
+        categoriesCount: categoriesCount > 0 ? categoriesCount : prev.categoriesCount
+      }))
     } catch (e) {
       console.log('Unable to load Medicines metrics:', e.message)
     }
   }
+
+  const computedMetrics = useMemo(() => {
+    if (medicines.length > 0) {
+      const uniqueCategories = new Set(
+        medicines.map((m) => getCategory(m)).filter((c) => c && c !== '-')
+      )
+      return {
+        total: medicines.length,
+        active: medicines.filter((m) => {
+          const st = String(getStatus(m)).toLowerCase()
+          return (st === 'active' || st === 'available') && getStock(m) > 0
+        }).length,
+        lowStock: medicines.filter((m) => {
+          const qty = getStock(m)
+          return qty > 0 && qty <= getReorderLevel(m)
+        }).length,
+        outStock: medicines.filter((m) => getStock(m) <= 0).length,
+        categoriesCount: Math.max(uniqueCategories.size, categories.length, metrics.categoriesCount),
+      }
+    }
+    return {
+      total: metrics.total,
+      active: metrics.active,
+      lowStock: metrics.lowStock,
+      outStock: metrics.outStock,
+      categoriesCount: Math.max(categories.length, metrics.categoriesCount),
+    }
+  }, [medicines, categories, metrics])
 
   async function loadLookups() {
     try {
@@ -313,17 +419,10 @@ export default function Medicines() {
       const params = { search: query, q: query, category, dosageForm }
       const response = query ? await searchMedicines(params) : await listMedicines(params)
       const list = normalizeList(response)
-      setMedicines(list)
-      // Fallback local counts calculation
-      if (list.length > 0) {
-        setMetrics(prev => ({
-          ...prev,
-          total: list.length,
-          active: list.filter(m => getStatus(m).toLowerCase() === 'active' || getStatus(m).toLowerCase() === 'available').length,
-          lowStock: list.filter(m => Number(m.stock || 0) > 0 && Number(m.stock || 0) <= Number(m.reorderLevel || 5)).length,
-          outStock: list.filter(m => Number(m.stock || 0) === 0).length
-        }))
+      if (list && list.length) {
+        writeLocalMedicines(list)
       }
+      setMedicines(list)
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
@@ -350,7 +449,17 @@ export default function Medicines() {
       const matchesDosage = !dosageForm || getDosageForm(medicine) === dosageForm
       
       const itemStatus = getStatus(medicine).toLowerCase()
-      const matchesStatus = statusFilter === 'all' || itemStatus.includes(statusFilter.toLowerCase())
+      const qty = getStock(medicine)
+      const reorder = getReorderLevel(medicine)
+      const filterVal = statusFilter.toLowerCase()
+      let matchesStatus = statusFilter === 'all'
+      if (!matchesStatus) {
+        if (filterVal === 'out of stock') matchesStatus = qty <= 0
+        else if (filterVal === 'low stock') matchesStatus = qty > 0 && qty <= reorder
+        else if (filterVal === 'inactive') matchesStatus = itemStatus.includes('inactive')
+        else if (filterVal === 'active') matchesStatus = !itemStatus.includes('inactive') && qty > 0
+        else matchesStatus = itemStatus.includes(filterVal)
+      }
       
       return matchesSearch && matchesCategory && matchesDosage && matchesStatus
     })
@@ -364,6 +473,8 @@ export default function Medicines() {
 
   function openEdit(medicine) {
     setEditing(medicine)
+    const priceVal = getSellingPrice(medicine)
+    const stockVal = getStock(medicine)
     setForm({
       name: getName(medicine),
       genericName: medicine?.genericName || '',
@@ -376,9 +487,9 @@ export default function Medicines() {
       packSize: medicine?.packSize || '',
       manufacturer: medicine?.manufacturer || '',
       purchasePrice: medicine?.purchasePrice !== undefined && medicine?.purchasePrice !== null ? String(medicine.purchasePrice) : '',
-      price: medicine?.sellingPrice || medicine?.price || medicine?.mrp || '',
+      price: priceVal > 0 ? String(priceVal) : '',
       gst: medicine?.gst !== undefined && medicine?.gst !== null ? String(medicine.gst) : '',
-      stock: medicine?.stockQuantity !== undefined ? String(medicine.stockQuantity) : (medicine?.stock || medicine?.quantity || ''),
+      stock: String(stockVal),
       minStock: medicine?.minStock || medicine?.minimumStock || '',
       maxStock: medicine?.maxStock || medicine?.maximumStock || '',
       reorderLevel: medicine?.reorderLevel || '',
@@ -397,11 +508,20 @@ export default function Medicines() {
     if (!validateForm()) return
  
     setSaving(true)
+
+    const stockVal = form.stock === '' ? 0 : Number(form.stock)
+    const purchasePriceVal = form.purchasePrice === '' ? 0 : Number(form.purchasePrice)
+    const sellingPriceVal = form.price === '' ? 0 : Number(form.price)
+    const gstVal = form.gst === '' ? 0 : Number(form.gst)
+    const minStockVal = form.minStock === '' ? undefined : Number(form.minStock)
+    const maxStockVal = form.maxStock === '' ? undefined : Number(form.maxStock)
+    const reorderVal = form.reorderLevel === '' ? undefined : Number(form.reorderLevel)
  
     const payload = {
       name: form.name?.trim(),
       medicineName: form.name?.trim(),
       genericName: form.genericName?.trim() || undefined,
+      code: form.code?.trim() || undefined,
       medicineCode: form.code?.trim() || undefined,
       brandName: form.brandName?.trim() || undefined,
       category: form.category?.trim(),
@@ -410,19 +530,32 @@ export default function Medicines() {
       unit: form.unit?.trim() || undefined,
       packSize: form.packSize?.trim() || undefined,
       manufacturer: form.manufacturer?.trim() || undefined,
-      initialStockCount: form.stock === '' ? 0 : Number(form.stock),
-      purchasePrice: form.purchasePrice === '' ? 0 : Number(form.purchasePrice),
-      sellingPrice: form.price === '' ? 0 : Number(form.price),
-      gst: form.gst === '' ? 0 : Number(form.gst),
+      initialStockCount: stockVal,
+      stock: stockVal,
+      stockQuantity: stockVal,
+      currentStock: stockVal,
+      quantity: stockVal,
+      purchasePrice: purchasePriceVal,
+      costPrice: purchasePriceVal,
+      sellingPrice: sellingPriceVal,
+      price: sellingPriceVal,
+      mrp: sellingPriceVal,
+      unitPrice: sellingPriceVal,
+      gst: gstVal,
       expiryDate: form.expiryDate || null,
       isActive: form.status === 'Active',
+      isAvailable: form.status === 'Active',
       status: form.status,
       prescriptionRequired: form.prescriptionRequired === 'Yes' || form.prescriptionRequired === true,
       description: form.notes?.trim() || undefined,
       notes: form.notes?.trim() || undefined,
-      minimumStockThreshold: form.minStock === '' ? undefined : Number(form.minStock),
-      maximumStock: form.maxStock === '' ? undefined : Number(form.maxStock),
-      reorderStockLevel: form.reorderLevel === '' ? undefined : Number(form.reorderLevel),
+      minimumStockThreshold: minStockVal,
+      minStock: minStockVal,
+      minimumStock: minStockVal,
+      maximumStock: maxStockVal,
+      maxStock: maxStockVal,
+      reorderStockLevel: reorderVal,
+      reorderLevel: reorderVal,
       storageLocation: form.storageLocation?.trim() || undefined,
       catalogueStatus: form.status
     }
@@ -430,74 +563,61 @@ export default function Medicines() {
     console.log('MEDICINE PAYLOAD:', payload)
  
     try {
-
         const isCreate = !editing
- 
-        const response = editing
+        const medId = editing ? getId(editing) : `med_${Date.now()}`
+        const optimisticRecord = normalizeMedicineRecord({
+          id: medId,
+          _id: medId,
+          medicineId: medId,
+          ...payload,
+        })
 
-            ? await updateMedicine(getId(editing), payload)
-
-            : await createMedicine(payload)
- 
-        setFormOpen(false)
-
-        setEditing(null)
-
-        setForm(emptyForm)
-
-        setFormErrors({})
- 
-        await loadMedicines()
-
-        loadSummaryMetrics()
- 
         if (isCreate) {
-
-            setShowSuccessAnim(true)
-
+          setMedicines((prev) => [optimisticRecord, ...prev.filter((m) => getId(m) !== medId)])
         } else {
-
-            showToast(
-
-                response?.message || 'Medicine updated successfully.'
-
-            )
-
+          setMedicines((prev) => prev.map((m) => getId(m) === medId ? { ...m, ...payload } : m))
         }
 
+        const response = editing
+            ? await updateMedicine(getId(editing), payload)
+            : await createMedicine(payload)
+
+        setFormOpen(false)
+        setEditing(null)
+        setForm(emptyForm)
+        setFormErrors({})
+
+        await loadMedicines()
+        loadSummaryMetrics()
+
+        if (isCreate) {
+            setShowSuccessAnim(true)
+        } else {
+            showToast(
+                response?.message || 'Medicine updated successfully.'
+            )
+        }
     } catch (error) {
-
         console.error('MEDICINE SAVE ERROR:', error)
-
         console.error('BACKEND RESPONSE:', error.response?.data)
- 
         showToast(
-
             error.response?.data?.message ||
-
             error.response?.data?.title ||
-
             error.message ||
-
             'Request failed. Please try again.',
-
             'error'
-
         )
-
     } finally {
-
         setSaving(false)
-
     }
-
 }
- 
 
   async function handleDelete(medicine) {
+    const medId = getId(medicine)
     if (!window.confirm(`Are you sure you want to delete ${getName(medicine)}? This cannot be undone.`)) return
+    setMedicines((prev) => prev.filter((m) => getId(m) !== medId))
     try {
-      const response = await deleteMedicine(getId(medicine))
+      const response = await deleteMedicine(medId)
       showToast(response?.message || 'Medicine deleted successfully.')
       await loadMedicines()
       loadSummaryMetrics()
@@ -506,11 +626,12 @@ export default function Medicines() {
     }
   }
 
-
   async function handleStatusChange(medicine) {
+    const medId = getId(medicine)
     const nextStatus = String(getStatus(medicine)).toLowerCase() === 'active' ? 'Inactive' : 'Active'
+    setMedicines((prev) => prev.map((m) => getId(m) === medId ? { ...m, status: nextStatus, isActive: nextStatus === 'Active', isAvailable: nextStatus === 'Active' } : m))
     try {
-      const response = await updateMedicine(getId(medicine), {
+      const response = await updateMedicine(medId, {
         ...medicine,
         status: nextStatus,
         isActive: nextStatus === 'Active',
@@ -522,6 +643,15 @@ export default function Medicines() {
     } catch (error) {
       showToast(error.message || 'Unable to update medicine status.', 'error')
     }
+  }
+
+  function resetImportState() {
+    setImportFile(null)
+    setImportId('')
+    setImportStats(null)
+    setImportRows([])
+    setFallbackImportRows([])
+    setImportProgress(null)
   }
 
   async function parseMedicineFile(file) {
@@ -538,13 +668,13 @@ export default function Medicines() {
     setFallbackImportRows(rows)
     setImportRows(rows.map((row) => ({ rowNumber: row.rowNumber, status: 'Ready', data: row })))
     setImportStats({ totalRows: rows.length, validRows: rows.length, duplicateRows: 0 })
-    setImportMessage('File validated successfully. Click Commit Import to upload these medicines.')
+    setImportMessage(`${rows.length} medicines ready. Click "Commit Import" to upload these medicines.`)
     showToast(`${rows.length} medicines ready. Click Commit Import to upload them.`)
   }
 
   // Import Actions
   async function handleImportValidation() {
-    if (!importFile) return showToast('Please select a CSV file first.', 'error')
+    if (!importFile) return showToast('Please select a medicine file first.', 'error')
     setLoading(true)
     try {
       const response = await validateMedicineImport(importFile, { skipInvalidRows: true, SkipInvalidRows: true })
@@ -558,15 +688,11 @@ export default function Medicines() {
       }
       showToast(response?.message || 'Medicine file validated successfully.')
     } catch (error) {
-      const message = String(error.message || '')
-      if (message.includes('HospitalId')) {
-        try {
-          await handleFallbackImport(importFile)
-        } catch (fallbackError) {
-          showToast(fallbackError.message || 'Unable to parse the selected medicine file.', 'error')
-        }
-      } else {
-        showToast(message, 'error')
+      console.warn('Backend validation failed, switching to direct parsing:', error)
+      try {
+        await handleFallbackImport(importFile)
+      } catch (fallbackError) {
+        showToast(fallbackError.message || error.message || 'Unable to parse the selected medicine file.', 'error')
       }
     } finally {
       setLoading(false)
@@ -575,88 +701,98 @@ export default function Medicines() {
 
   async function handleCommitImport() {
     if (loading) return
-    if (!importId && !fallbackImportRows.length) return showToast('Please validate a medicine file first.', 'error')
+    if (!importFile && !importId && !fallbackImportRows.length) {
+      return showToast('Please select a medicine file first.', 'error')
+    }
     setLoading(true)
     setImportErrors(null)
-    try {
-      if (fallbackImportRows.length) {
-        let created = 0
-        let completed = 0
-        const failed = []
-        const total = fallbackImportRows.length
-        const concurrency = 12
-        setImportProgress({ done: 0, total, created: 0, failed: 0 })
-        setImportMessage(`Importing medicines... 0/${total}`)
-        showToast(`Import started for ${total} medicines.`)
 
-        async function uploadRow(row) {
-          try {
-            await createMedicine(row)
-            created += 1
-          } catch (rowError) {
-            failed.push({ row: row.rowNumber, name: row.name, error: rowError.message || 'Upload failed' })
-          } finally {
-            completed += 1
-            if (completed === total || completed % 10 === 0) {
-              setImportProgress({ done: completed, total, created, failed: failed.length })
-              setImportMessage(`Importing medicines... ${completed}/${total}`)
-            }
-          }
-        }
-
-        let cursor = 0
-        const workers = Array.from({ length: Math.min(concurrency, total) }, async () => {
-          while (cursor < total) {
-            const row = fallbackImportRows[cursor]
-            cursor += 1
-            await uploadRow(row)
-          }
+    // If importId exists from backend validation, try backend commit first
+    if (importId) {
+      try {
+        const response = await commitMedicineImport(importId, {
+          updateExistingMedicines: true,
+          importSuppliers: true,
+          importStock: true,
+          skipInvalidRows: true,
+          duplicateBatchAction: 'Skip',
         })
-        await Promise.all(workers)
-        setImportProgress({ done: completed, total, created, failed: failed.length })
-
-        if (failed.length) {
-          setImportErrors(failed)
-          setImportMessage(`${created} medicines imported. ${failed.length} rows failed; view error details below.`)
-          showToast(`${created} medicines imported. ${failed.length} rows failed.`, created ? 'success' : 'error')
-          await loadMedicines()
-          loadSummaryMetrics()
-          return
-        }
-
-        showToast(`${created} medicines imported successfully.`)
+        setImportMessage(response?.message || 'Medicine import committed.')
+        showToast(response?.message || 'Medicine import committed.')
         setImportOpen(false)
-        setImportFile(null)
-        setImportId('')
-        setImportStats(null)
-        setImportRows([])
-        setFallbackImportRows([])
-        setImportProgress(null)
+        resetImportState()
         await loadMedicines()
         loadSummaryMetrics()
         return
+      } catch (backendError) {
+        console.warn('Backend commitMedicineImport failed, falling back to direct batch upload:', backendError.message)
       }
-      const response = await commitMedicineImport(importId, { updateExistingMedicines: true, importSuppliers: true, importStock: true, skipInvalidRows: true, duplicateBatchAction: 'Skip' })
-      setImportMessage(response?.message || 'Medicine import committed.')
-      showToast(response?.message || 'Medicine import committed.')
-      setImportOpen(false)
-      setImportFile(null)
-      setImportId('')
-      setImportStats(null)
-      setImportRows([])
-      setFallbackImportRows([])
-      setImportProgress(null)
+    }
+
+    // Direct batch upload (either from fallbackImportRows or parsed from importFile)
+    try {
+      let rowsToUpload = fallbackImportRows
+      if (!rowsToUpload || !rowsToUpload.length) {
+        if (importFile) {
+          rowsToUpload = await parseMedicineFile(importFile)
+          setFallbackImportRows(rowsToUpload)
+        }
+      }
+
+      if (!rowsToUpload || !rowsToUpload.length) {
+        throw new Error('No valid medicine rows found to import.')
+      }
+
+      let created = 0
+      let completed = 0
+      const failed = []
+      const total = rowsToUpload.length
+      const concurrency = 8
+      setImportProgress({ done: 0, total, created: 0, failed: 0 })
+      setImportMessage(`Importing medicines... 0/${total}`)
+      showToast(`Import started for ${total} medicines.`)
+
+      async function uploadRow(row) {
+        try {
+          await createMedicine(row)
+          created += 1
+        } catch (rowError) {
+          failed.push({ row: row.rowNumber, name: row.name, error: rowError.message || 'Upload failed' })
+        } finally {
+          completed += 1
+          if (completed === total || completed % 10 === 0) {
+            setImportProgress({ done: completed, total, created, failed: failed.length })
+            setImportMessage(`Importing medicines... ${completed}/${total}`)
+          }
+        }
+      }
+
+      let cursor = 0
+      const workers = Array.from({ length: Math.min(concurrency, total) }, async () => {
+        while (cursor < total) {
+          const row = rowsToUpload[cursor]
+          cursor += 1
+          await uploadRow(row)
+        }
+      })
+      await Promise.all(workers)
+      setImportProgress({ done: completed, total, created, failed: failed.length })
+
+      if (failed.length) {
+        setImportErrors(failed)
+        setImportMessage(`${created} medicines imported. ${failed.length} rows failed; view error details below.`)
+        showToast(`${created} medicines imported. ${failed.length} rows failed.`, created ? 'success' : 'error')
+      } else {
+        showToast(`${created} medicines imported successfully.`)
+        setImportOpen(false)
+        resetImportState()
+      }
+
       await loadMedicines()
       loadSummaryMetrics()
     } catch (error) {
-      const message = String(error.message || '')
-      if (message.includes('SkipInvalidRows') || message.includes('invalid rows')) {
-        setImportMessage('Import accepted. Valid rows will be imported and invalid rows are skipped automatically.')
-        showToast('Import accepted. Invalid rows are skipped automatically.')
-      } else {
-        setImportMessage(message || 'Unable to commit import.')
-        showToast(message || 'Unable to commit import.', 'error')
-      }
+      setImportMessage(error.message || 'Unable to import medicines.')
+      showToast(error.message || 'Unable to import medicines.', 'error')
     } finally {
       setLoading(false)
     }
@@ -717,10 +853,18 @@ export default function Medicines() {
   // Status Badge visual mapper
   const getStatusBadge = (medicine) => {
     const status = getStatus(medicine).toLowerCase()
-    const qty = Number(medicine?.stock || medicine?.quantity || 0)
-    const reorder = Number(medicine?.reorderLevel || 5)
+    const qty = getStock(medicine)
+    const reorder = getReorderLevel(medicine)
 
-    if (qty === 0) {
+    if (status.includes('inactive')) {
+      return (
+        <span className="branch-status" style={{ display: 'inline-flex', alignItems: 'center', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+          Inactive
+        </span>
+      )
+    }
+    if (qty <= 0) {
       return (
         <span className="branch-status expired" style={{ display: 'inline-flex', alignItems: 'center' }}>
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
@@ -733,14 +877,6 @@ export default function Medicines() {
         <span className="branch-status near-expiry" style={{ display: 'inline-flex', alignItems: 'center' }}>
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           Low Stock
-        </span>
-      )
-    }
-    if (status.includes('inactive')) {
-      return (
-        <span className="branch-status" style={{ display: 'inline-flex', alignItems: 'center', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}>
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
-          Inactive
         </span>
       )
     }
@@ -766,7 +902,7 @@ export default function Medicines() {
                 onClick={openCreate}
               >
                 <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                + Add Medicine
+                Add Medicine
               </button>
               <button 
                 type="button" 
@@ -784,7 +920,7 @@ export default function Medicines() {
             <button 
               type="button" 
               className="med-btn med-btn-secondary"
-              onClick={loadMedicines}
+              onClick={() => { loadMedicines(); loadSummaryMetrics(); loadLookups(); }}
             >
               <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh
@@ -799,7 +935,7 @@ export default function Medicines() {
               </div>
               <div className="med-summary-info">
                 <label>Total Medicines</label>
-                <span>{metrics.total}</span>
+                <span>{computedMetrics.total}</span>
               </div>
             </div>
             <div className="med-summary-card">
@@ -808,7 +944,7 @@ export default function Medicines() {
               </div>
               <div className="med-summary-info">
                 <label style={{ color: '#10b981' }}>Active Medicines</label>
-                <span style={{ color: '#10b981' }}>{metrics.active}</span>
+                <span style={{ color: '#10b981' }}>{computedMetrics.active}</span>
               </div>
             </div>
             <div className="med-summary-card">
@@ -817,7 +953,7 @@ export default function Medicines() {
               </div>
               <div className="med-summary-info">
                 <label style={{ color: '#f59e0b' }}>Low Stock</label>
-                <span style={{ color: '#f59e0b' }}>{metrics.lowStock}</span>
+                <span style={{ color: '#f59e0b' }}>{computedMetrics.lowStock}</span>
               </div>
             </div>
             <div className="med-summary-card">
@@ -826,7 +962,7 @@ export default function Medicines() {
               </div>
               <div className="med-summary-info">
                 <label style={{ color: '#ef4444' }}>Out of Stock</label>
-                <span style={{ color: '#ef4444' }}>{metrics.outStock}</span>
+                <span style={{ color: '#ef4444' }}>{computedMetrics.outStock}</span>
               </div>
             </div>
             <div className="med-summary-card">
@@ -835,7 +971,7 @@ export default function Medicines() {
               </div>
               <div className="med-summary-info">
                 <label style={{ color: '#6366f1' }}>Categories</label>
-                <span style={{ color: '#6366f1' }}>{metrics.categoriesCount}</span>
+                <span style={{ color: '#6366f1' }}>{computedMetrics.categoriesCount}</span>
               </div>
             </div>
           </div>
@@ -929,8 +1065,8 @@ export default function Medicines() {
                         <td>{getDosageForm(medicine)}</td>
                         <td>{medicine?.strength || '-'}</td>
                         <td>{medicine?.unit || '-'}</td>
-                        <td>₹{medicine?.price || medicine?.mrp || '0'}</td>
-                        <td>{medicine?.stock || medicine?.quantity || 0}</td>
+                        <td>₹{getSellingPrice(medicine)}</td>
+                        <td>{getStock(medicine)}</td>
                         <td>{getStatusBadge(medicine)}</td>
                         <td>
                           <RowActions itemName={getName(medicine)} isActive={String(getStatus(medicine)).toLowerCase() === 'active'} onView={() => setViewingItem(medicine)} onEdit={() => openEdit(medicine)} onStatus={() => handleStatusChange(medicine)} onDelete={() => handleDelete(medicine)} />
@@ -948,7 +1084,7 @@ export default function Medicines() {
                               style={{ marginTop: '12px' }}
                               onClick={openCreate}
                             >
-                              + Add Medicine
+                              Add Medicine
                             </button>
                           </div>
                         </td>
@@ -974,7 +1110,7 @@ export default function Medicines() {
                       </svg>
                     </div>
                     <div>
-                      <h2>{editing ? 'Update Medicine Profile' : '+ Add New Medicine'}</h2>
+                      <h2>{editing ? 'Update Medicine Profile' : 'Add New Medicine'}</h2>
                       <p>{editing ? 'Modify existing medicine details and inventory properties' : 'Create and configure a medicine record for hospital inventory'}</p>
                     </div>
                   </div>
@@ -1500,11 +1636,11 @@ export default function Medicines() {
                   <div className="med-detail-row">
                     <div className="med-detail-item">
                       <label>Selling Price (MRP)</label>
-                      <span>₹{viewingItem?.price || viewingItem?.mrp || '0'}</span>
+                      <span>₹{getSellingPrice(viewingItem)}</span>
                     </div>
                     <div className="med-detail-item">
                       <label>Current Stock</label>
-                      <span>{viewingItem?.stock || viewingItem?.quantity || 0} units</span>
+                      <span>{getStock(viewingItem)} units</span>
                     </div>
                   </div>
                   <div className="med-detail-row">
@@ -1514,7 +1650,7 @@ export default function Medicines() {
                     </div>
                     <div className="med-detail-item">
                       <label>Reorder Level</label>
-                      <span>{viewingItem?.reorderLevel || 5}</span>
+                      <span>{getReorderLevel(viewingItem)}</span>
                     </div>
                   </div>
                   <div className="med-detail-row">
@@ -1563,9 +1699,22 @@ export default function Medicines() {
                     <input 
                       type="file" 
                       accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" 
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0]
-                        if (file) setImportFile(file)
+                        if (file) {
+                          setImportFile(file)
+                          setImportErrors(null)
+                          setImportMessage(`Selected: ${file.name}. Reading data...`)
+                          try {
+                            const rows = await parseMedicineFile(file)
+                            setFallbackImportRows(rows)
+                            setImportRows(rows.map((row) => ({ rowNumber: row.rowNumber, status: 'Ready', data: row })))
+                            setImportStats({ totalRows: rows.length, validRows: rows.length, duplicateRows: 0 })
+                            setImportMessage(`${rows.length} medicines ready. Click "Commit Import" to upload them.`)
+                          } catch (parseErr) {
+                            console.warn('File preview parse notice:', parseErr)
+                          }
+                        }
                       }} 
                     />
                     <button 
@@ -1647,7 +1796,7 @@ export default function Medicines() {
                     type="button" 
                     className="med-btn med-btn-primary"
                     onClick={handleCommitImport}
-                    disabled={loading || (!importId && !fallbackImportRows.length)}
+                    disabled={loading || (!importFile && !importId && !fallbackImportRows.length)}
                   >
                     {loading ? (fallbackImportRows.length ? 'Importing...' : 'Please wait...') : 'Commit Import'}
                   </button>

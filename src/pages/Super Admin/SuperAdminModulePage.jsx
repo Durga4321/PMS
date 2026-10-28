@@ -36,15 +36,28 @@ function SuperAdminModulePage({ title, headers = [], rows = [], loading = false,
 
           <section className="super-admin-panel super-admin-module-panel">
             <div className="super-admin-module-header">
-              <div>
+              <div className="super-admin-module-title-wrap">
                 <h2>{title}</h2>
                 <p>{loading ? 'Loading data...' : error || ''}</p>
               </div>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label className="super-admin-module-filter">
-                  <span aria-hidden="true">Search</span>
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Filter ${title.toLowerCase()}...`} />
-                </label>
+              <div className="super-admin-module-controls">
+                <div className="super-admin-module-filter">
+                  <svg className="super-admin-filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={`Search ${title.toLowerCase()}...`}
+                    aria-label={`Search ${title.toLowerCase()}`}
+                  />
+                  {query ? (
+                    <button type="button" className="super-admin-filter-clear" onClick={() => setQuery('')} aria-label="Clear search">
+                      &times;
+                    </button>
+                  ) : null}
+                </div>
                 {action}
               </div>
             </div>

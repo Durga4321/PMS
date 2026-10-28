@@ -7,16 +7,18 @@ import {
   changePharmacistStatus,
   createPharmacist,
   deletePharmacist,
+  getPharmacist,
   getPharmacistPermissions,
   listPharmacyBranches,
   listPharmacists,
   resetPharmacistPassword,
   updatePharmacist,
   updatePharmacistPermissions,
+  scopedKey,
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 
-const emptyForm = { name: '', email: '', phone: '', password: '', branchId: '' }
+const emptyForm = { name: '', email: '', phone: '', branchId: '' }
 const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
 const permissionKeys = ['prescriptions', 'dispensing', 'stock', 'reports']
 
@@ -53,29 +55,18 @@ function readStoredJson(key) {
 }
 
 
+// The synthetic main branch is no longer needed as the backend API returns the main branch.
+// Retaining the function for compatibility but it now returns null to avoid duplication.
 function mainBranchFromPharmacy() {
-  const assignment = readStoredJson('pharmacyAdminAssignment') || {}
-  const user = readStoredJson('pharmacyAdminUser') || {}
-  const pharmacy = assignment.pharmacy || user.pharmacy || {}
-  const branchId = assignment.branchId || assignment.BranchId || assignment.branch?.id || assignment.branch?.branchId || user.branchId || user.BranchId || user.branch?.id || user.branch?.branchId
-  const id = branchId
-  const pharmacyName = assignment.pharmacyName || pharmacy.name || user.pharmacyName || user.pharmacy?.name || assignment.branchName || user.branchName
-  if (!pharmacyName) return null
-  return {
-    id,
-    branchId: id,
-    name: pharmacyName,
-    branchName: `${pharmacyName} - Main Branch`,
-    pharmacyName,
-    isMainBranch: true,
-  }
+  return null;
 }
 function storedBranchId() {
   const working = sessionStorage.getItem('workingBranchId') || localStorage.getItem('workingBranchId')
   if (working) return working
   const assignment = readStoredJson('pharmacyAdminAssignment') || {}
   const user = readStoredJson('pharmacyAdminUser') || {}
-  return assignment.branchId || assignment.BranchId || assignment.branch?.id || assignment.branch?.branchId || user.branchId || user.BranchId || user.branch?.id || user.branch?.branchId || ''
+  const pharmacy = assignment.pharmacy || user.pharmacy || {}
+  return assignment.branchId || assignment.BranchId || assignment.branch?.id || assignment.branch?.branchId || user.branchId || user.BranchId || user.branch?.id || user.branch?.branchId || assignment.pharmacyId || assignment.PharmacyId || pharmacy.id || user.pharmacyId || ''
 }
 
 function getName(item) {
@@ -86,18 +77,20 @@ const LOCAL_PHONES_KEY = 'pms_pharmacist_phones'
 
 function getLocalPhones() {
   try {
-    return JSON.parse(localStorage.getItem(LOCAL_PHONES_KEY) || '{}')
+    const key = scopedKey(LOCAL_PHONES_KEY)
+    return JSON.parse(localStorage.getItem(key) || '{}')
   } catch {
     return {}
   }
 }
 
-function saveLocalPhone(key, phone) {
-  if (!key || !phone) return
+function saveLocalPhone(phoneKey, phone) {
+  if (!phoneKey || !phone) return
   try {
+    const key = scopedKey(LOCAL_PHONES_KEY)
     const map = getLocalPhones()
-    map[String(key)] = String(phone).trim()
-    localStorage.setItem(LOCAL_PHONES_KEY, JSON.stringify(map))
+    map[String(phoneKey)] = String(phone).trim()
+    localStorage.setItem(key, JSON.stringify(map))
   } catch {}
 }
 
@@ -202,7 +195,6 @@ function Users({ initialAdd = false }) {
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
-  const [showPassword, setShowPassword] = useState(false)
   const [showTempPassword, setShowTempPassword] = useState(false)
   const [formOpen, setFormOpen] = useState(isAddRoute)
   const [form, setForm] = useState(emptyForm)
@@ -210,27 +202,27 @@ function Users({ initialAdd = false }) {
   const [permissions, setPermissions] = useState({})
   const [resetting, setResetting] = useState(null)
   const [temporaryPassword, setTemporaryPassword] = useState('')
-  const mainBranch = useMemo(() => mainBranchFromPharmacy(), [])
+  const [viewing, setViewing] = useState(null)
+  // Branch options derived directly from API data; removed synthetic main branch to avoid duplicates.
   const branchOptions = useMemo(() => {
-    const options = mainBranch ? [mainBranch, ...branches] : branches
-    const seen = new Set()
-    return options.filter((branch) => {
-      const id = String(branchIdOf(branch) || '')
-      if (!id || seen.has(id)) return false
-      seen.add(id)
-      return true
-    })
-  }, [mainBranch, branches])
+    const seen = new Set();
+    // Ensure uniqueness by branch ID.
+    return branches.filter((branch) => {
+      const id = String(branchIdOf(branch) || '');
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [branches])
 
   useEffect(() => {
     if (location.pathname.endsWith('/add')) {
       setEditing(null)
-      setShowPassword(false)
-      setForm((prev) => ({ name: '', email: '', phone: '', password: '', branchId: prev.branchId || storedBranchId() }))
+      setForm((prev) => ({ name: '', email: '', phone: '', branchId: prev.branchId || storedBranchId() }))
       setFormErrors({})
       setFormOpen(true)
       const timer = setTimeout(() => {
-        setForm((prev) => (editing ? prev : { name: '', email: '', phone: '', password: '', branchId: prev.branchId || storedBranchId() }))
+        setForm((prev) => (editing ? prev : { name: '', email: '', phone: '', branchId: prev.branchId || storedBranchId() }))
       }, 50)
       return () => clearTimeout(timer)
     }
@@ -270,20 +262,20 @@ function Users({ initialAdd = false }) {
   useEffect(() => {
     let mounted = true
     async function loadBranchesForForm() {
-      if (!isAddRoute && !formOpen) return
       setBranchesLoading(true)
       try {
         const response = await listPharmacyBranches()
         const list = normalizeList(response)
         if (!mounted) return
-        setBranches(list)
+        setBranches(list);
         setForm((prev) => {
-          const existing = prev.branchId || storedBranchId()
-          const fallback = existing || branchIdOf(mainBranchFromPharmacy()) || branchIdOf(list[0])
-          return { ...prev, branchId: fallback ? String(fallback) : '' }
+          const existing = prev.branchId || storedBranchId();
+          // Use the first available branch as fallback if none selected.
+          const fallback = existing || (list.length ? branchIdOf(list[0]) : '');
+          return { ...prev, branchId: fallback ? String(fallback) : '' };
         })
       } catch (error) {
-        if (mounted) showToast(error.message || 'Unable to load branches for pharmacist assignment.', 'error')
+        if (mounted && formOpen) showToast(error.message || 'Unable to load branches for pharmacist assignment.', 'error')
       } finally {
         if (mounted) setBranchesLoading(false)
       }
@@ -320,17 +312,6 @@ function Users({ initialAdd = false }) {
       }
     }
 
-    if (!editing) {
-      const passVal = form.password
-      if (!passVal) {
-        errs.password = 'Password is required for new accounts.'
-      } else if (passVal.length < 6) {
-        errs.password = 'Password must be at least 6 characters.'
-      }
-    } else if (form.password && form.password.length < 6) {
-      errs.password = 'Password must be at least 6 characters.'
-    }
-
     setFormErrors(errs)
     const firstKey = Object.keys(errs)[0]
     if (firstKey) {
@@ -342,7 +323,6 @@ function Users({ initialAdd = false }) {
 
   function openCreate() {
     setEditing(null)
-    setShowPassword(false)
     setForm({ ...emptyForm, branchId: storedBranchId() })
     setFormErrors({})
     setFormOpen(true)
@@ -351,15 +331,34 @@ function Users({ initialAdd = false }) {
     }
   }
 
+  async function openView(pharmacist) {
+    setViewing(pharmacist)
+    const id = getId(pharmacist)
+    if (id) {
+      try {
+        const res = await getPharmacist(id)
+        const fresh = res?.data?.pharmacist || res?.data || res?.pharmacist || res
+        if (fresh) {
+          setViewing((prev) => (prev && getId(prev) === id ? { ...prev, ...fresh } : prev))
+          const freshPhone = getPhone(fresh)
+          if (freshPhone) {
+            saveLocalPhone(id, freshPhone)
+            if (fresh.email) saveLocalPhone(fresh.email, freshPhone)
+          }
+        }
+      } catch (e) {
+        // Continue with initial data
+      }
+    }
+  }
+
   async function openEdit(pharmacist) {
     setEditing(pharmacist)
-    setShowPassword(false)
     const currentPhone = getPhone(pharmacist)
     setForm({
       name: getName(pharmacist),
       email: pharmacist?.email || pharmacist?.user?.email || pharmacist?.userId?.email || '',
       phone: currentPhone,
-      password: '',
       branchId: pharmacist?.branchId || pharmacist?.BranchId || pharmacist?.branch?.id || pharmacist?.branch?.branchId || storedBranchId(),
     })
     setFormErrors({})
@@ -391,7 +390,6 @@ function Users({ initialAdd = false }) {
   function closeForm() {
     setFormOpen(false)
     setEditing(null)
-    setShowPassword(false)
     setForm({ ...emptyForm, branchId: storedBranchId() })
     setFormErrors({})
     if (location.pathname.endsWith('/add')) {
@@ -410,25 +408,26 @@ function Users({ initialAdd = false }) {
       setSaving(false)
       return
     }
+    const selectedBranch = branchOptions.find((b) => String(branchIdOf(b)) === String(form.branchId))
+    let numericBranchId = Number(form.branchId)
+    if (!Number.isSafeInteger(numericBranchId) || numericBranchId <= 0) {
+      const candidate = selectedBranch?.BranchId || selectedBranch?.branchId || selectedBranch?.id
+      if (Number.isSafeInteger(Number(candidate)) && Number(candidate) > 0) {
+        numericBranchId = Number(candidate)
+      } else {
+        numericBranchId = 1
+      }
+    }
+
     const payload = {
       name: form.name.trim(),
       email: form.email.trim(),
-      phone: phoneVal,
-      mobile: phoneVal,
       mobileNumber: phoneVal,
-      phoneNumber: phoneVal,
-      contactNumber: phoneVal,
-      contact: phoneVal,
-      mobileNo: phoneVal,
-      ...(form.branchId ? { branchId: Number(form.branchId), BranchId: Number(form.branchId) } : {}),
-      ...(form.password ? { password: form.password } : {}),
+      branchId: numericBranchId,
     }
 
     try {
       const response = editing ? await updatePharmacist(getId(editing), payload) : await createPharmacist(payload)
-      if (editing && form.branchId) {
-        await assignPharmacistToAdminPharmacy(getId(editing), { branchId: Number(form.branchId), BranchId: Number(form.branchId) })
-      }
       const targetId = editing ? getId(editing) : getId(response?.data || response?.pharmacist || response)
       if (targetId && phoneVal) {
         saveLocalPhone(targetId, phoneVal)
@@ -617,7 +616,7 @@ function Users({ initialAdd = false }) {
           <div className="branch-panel-heading">
             <div>
               <h2>{editing ? 'Edit Pharmacist Profile' : 'New Pharmacist Registration'}</h2>
-              <p>Fields marked with * are required. Credentials will be used for pharmacist portal login.</p>
+              <p>Fields marked with * are required.</p>
             </div>
             <button className="btn-primary pharmacist-header-submit" type="submit" form="pharmacist-create-form" disabled={saving}>
               {saving ? 'Saving...' : editing ? 'Save Changes' : 'Create Pharmacist'}
@@ -704,47 +703,15 @@ function Users({ initialAdd = false }) {
                 >
                   <option value="">{branchesLoading ? 'Loading branches...' : branchOptions.length ? 'Select branch' : 'Create a sub branch first'}</option>
                   {branchOptions.map((branch) => {
-                    const id = branchIdOf(branch)
-                    const label = branch?.isMainBranch ? `${branchNameOf(branch)} - Main Branch` : `${branchNameOf(branch)} - Sub Branch`
-                    return id ? <option key={id} value={id}>{label}</option> : null
+                    const id = branchIdOf(branch);
+                    // Determine label based on explicit flag or name heuristic.
+                    const isMain = branch?.isMainBranch || (branch?.branchName && /main\s*branch/i.test(branch.branchName));
+                    const label = `${branchNameOf(branch)} - ${isMain ? 'Main' : 'Sub'} Branch`;
+                    return id ? <option key={id} value={id}>{label}</option> : null;
                   })}
                 </select>
                 {formErrors.branchId && (
                   <span className="form-error-msg">{formErrors.branchId}</span>
-                )}
-              </div>
-
-              <div className="pharmacist-form-field">
-                <label htmlFor="user-password">
-                  Password {editing ? '(Leave blank to keep current)' : '*'}
-                </label>
-                <div className="password-input-wrap">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    id="user-password"
-                    name="pharmacist_new_password"
-                    autoComplete="new-password"
-                    value={form.password}
-                    onChange={(event) => {
-                      setForm({ ...form, password: event.target.value })
-                      if (formErrors.password) setFormErrors({ ...formErrors, password: '' })
-                    }}
-                    className={formErrors.password ? 'has-error' : ''}
-                    placeholder={editing ? '••••••••' : 'Minimum 6 characters'}
-                    required={!editing}
-                  />
-                  <button
-                    type="button"
-                    className="password-toggle-btn"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    <PasswordIcon visible={showPassword} />
-                  </button>
-                </div>
-                {formErrors.password && (
-                  <span className="form-error-msg">{formErrors.password}</span>
                 )}
               </div>
             </div>
@@ -782,7 +749,7 @@ function Users({ initialAdd = false }) {
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: '6px' }}>
               <path d="M12 5v14M5 12h14" />
             </svg>
-            + Add Pharmacist
+            Add Pharmacist
           </button>
         </div>
 
@@ -801,6 +768,7 @@ function Users({ initialAdd = false }) {
           <table className="branch-table">
             <thead>
               <tr>
+                <th style={{ width: '80px' }}>ID</th>
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
@@ -810,13 +778,26 @@ function Users({ initialAdd = false }) {
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan="6" style={{ textAlign: 'center', padding: '24px' }}>Loading pharmacists...</td></tr> : null}
-              {!loading && filtered.length ? filtered.map((pharmacist) => (
-                <tr key={getId(pharmacist)}>
+              {loading ? <tr><td colSpan="7" style={{ textAlign: 'center', padding: '24px' }}>Loading pharmacists...</td></tr> : null}
+              {!loading && filtered.length ? filtered.map((pharmacist, index) => (
+                <tr key={getId(pharmacist) || index}>
+                  <td>
+                    <span style={{ fontWeight: 700, color: '#334155' }}>
+                      {getId(pharmacist) || index + 1}
+                    </span>
+                  </td>
                   <td style={{ fontWeight: 600 }}>{getName(pharmacist)}</td>
                   <td>{pharmacist?.email || '-'}</td>
                   <td>{getPhone(pharmacist) || '-'}</td>
-                  <td>{pharmacist?.pharmacy?.name || pharmacist?.pharmacyName || pharmacist?.branchName || 'Main Pharmacy'}</td>
+                  <td>
+                    {pharmacist?.branchName ||
+                      (pharmacist?.branchId && branchOptions.find((b) => String(branchIdOf(b)) === String(pharmacist.branchId))
+                        ? branchNameOf(branchOptions.find((b) => String(branchIdOf(b)) === String(pharmacist.branchId)))
+                        : '') ||
+                      pharmacist?.pharmacy?.name ||
+                      pharmacist?.pharmacyName ||
+                      'Main Branch'}
+                  </td>
                   <td>
                     <button
                       type="button"
@@ -842,11 +823,11 @@ function Users({ initialAdd = false }) {
                     </button>
                   </td>
                   <td className="pharmacist-actions">
-                    <RowActions itemName={getName(pharmacist)} isActive={isPharmacistActive(pharmacist)} onView={() => openEdit(pharmacist)} onEdit={() => openEdit(pharmacist)} onStatus={() => handleStatus(pharmacist)} onDelete={() => handleDelete(pharmacist)} statusDisabled={togglingId === getId(pharmacist)} />
+                    <RowActions itemName={getName(pharmacist)} isActive={isPharmacistActive(pharmacist)} onView={() => openView(pharmacist)} onEdit={() => openEdit(pharmacist)} onStatus={() => handleStatus(pharmacist)} onDelete={() => handleDelete(pharmacist)} statusDisabled={togglingId === getId(pharmacist)} />
                   </td>
                 </tr>
               )) : null}
-              {!loading && !filtered.length ? <tr><td colSpan="6" style={{ textAlign: 'center', padding: '28px', color: '#64748b' }}>No pharmacists found.</td></tr> : null}
+              {!loading && !filtered.length ? <tr><td colSpan="7" style={{ textAlign: 'center', padding: '28px', color: '#64748b' }}>No pharmacists found.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -920,6 +901,90 @@ function Users({ initialAdd = false }) {
               <button className="btn-primary" type="submit">Set Password</button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {/* View Pharmacist Modal */}
+      {viewing ? (
+        <div className="sa-modal-backdrop" onClick={() => setViewing(null)}>
+          <div className="sa-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <div className="sa-modal-header">
+              <h2>Pharmacist Details: {getName(viewing)}</h2>
+              <button type="button" className="sa-modal-close" onClick={() => setViewing(null)} aria-label="Close">
+                &times;
+              </button>
+            </div>
+            <div className="sa-modal-body">
+              <div className="sa-modal-grid">
+                <div className="sa-modal-field">
+                  <label>Full Name</label>
+                  <span>{getName(viewing)}</span>
+                </div>
+                <div className="sa-modal-field">
+                  <label>Pharmacist ID</label>
+                  <span><code>{getId(viewing) || '-'}</code></span>
+                </div>
+                <div className="sa-modal-field">
+                  <label>Email Address</label>
+                  <span>{viewing?.email || viewing?.user?.email || viewing?.userId?.email || '-'}</span>
+                </div>
+                <div className="sa-modal-field">
+                  <label>Phone Number</label>
+                  <span>{getPhone(viewing) || '-'}</span>
+                </div>
+                <div className="sa-modal-field">
+                  <label>Pharmacy</label>
+                  <span>
+                    {viewing?.pharmacyName ||
+                      viewing?.pharmacy?.name ||
+                      viewing?.PharmacyName ||
+                      readStoredJson('pharmacyAdminAssignment')?.pharmacyName ||
+                      readStoredJson('pharmacyAdminUser')?.pharmacyName ||
+                      mainBranch?.pharmacyName ||
+                      '-'}
+                  </span>
+                </div>
+                <div className="sa-modal-field">
+                  <label>Assigned Branch</label>
+                  <span>
+                    {(branchOptions.find((b) => String(branchIdOf(b)) === String(viewing?.branchId || viewing?.BranchId || viewing?.branch?.id))
+                      ? branchNameOf(branchOptions.find((b) => String(branchIdOf(b)) === String(viewing?.branchId || viewing?.BranchId || viewing?.branch?.id)))
+                      : '') ||
+                      viewing?.branchName ||
+                      viewing?.branch?.name ||
+                      'Main Branch'}
+                  </span>
+                </div>
+                <div className="sa-modal-field">
+                  <label>Status</label>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: isPharmacistActive(viewing) ? '#16a34a' : '#dc2626' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isPharmacistActive(viewing) ? '#16a34a' : '#dc2626' }} />
+                    {getStatus(viewing)}
+                  </span>
+                </div>
+                <div className="sa-modal-field">
+                  <label>Role</label>
+                  <span>{viewing?.role || 'Pharmacist'}</span>
+                </div>
+              </div>
+            </div>
+            <div className="sa-modal-footer">
+              <button type="button" className="sa-btn-secondary" onClick={() => setViewing(null)}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="sa-btn-primary"
+                onClick={() => {
+                  const target = viewing
+                  setViewing(null)
+                  openEdit(target)
+                }}
+              >
+                Edit Pharmacist
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </AdminLayout>
