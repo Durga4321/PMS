@@ -179,7 +179,7 @@ export default function AdminPharmacies() {
     try {
       const deletedIds = readDeletedPharmacyIds()
 
-      // 1. First try to load the Pharmacy Admin's registered pharmacy
+      // 1. Try to load the Pharmacy Admin's registered pharmacy
       let adminPharmacy = null
       try {
         const res = await getPharmacyAdminPharmacy()
@@ -188,19 +188,30 @@ export default function AdminPharmacies() {
         // Not registered yet or other role
       }
 
+      // 2. Read locally created pharmacies
+      const localItems = readLocalPharmacies().filter((p) => !deletedIds.includes(String(idOf(p))))
+
+      // 3. Merge admin pharmacy with local pharmacies (deduplicate by id)
+      const merged = []
+      const seenIds = new Set()
+
       if (adminPharmacy && !deletedIds.includes(String(idOf(adminPharmacy)))) {
         const unwrapped = unwrapPharmacy(adminPharmacy)
-        const localList = readLocalPharmacies().filter((p) => !deletedIds.includes(String(idOf(p))))
-        const id = idOf(unwrapped)
-        const filtered = localList.filter((p) => String(idOf(p)) !== String(id))
-        writeLocalPharmacies([unwrapped, ...filtered])
-        setPharmacies([unwrapped])
-        return
+        const id = String(idOf(unwrapped) || '')
+        if (id) seenIds.add(id)
+        merged.push(unwrapped)
       }
 
-      // 2. Fallback to current admin's isolated local storage
-      const localItems = readLocalPharmacies().filter((p) => !deletedIds.includes(String(idOf(p))))
-      setPharmacies(localItems)
+      for (const p of localItems) {
+        const id = String(idOf(p) || '')
+        if (id && seenIds.has(id)) continue
+        if (id) seenIds.add(id)
+        merged.push(p)
+      }
+
+      // Update local cache with merged list
+      if (merged.length) writeLocalPharmacies(merged)
+      setPharmacies(merged)
     } catch (requestError) {
       console.log('Unable to load pharmacies from API, reading local cache:', requestError.message)
       const deletedIds = readDeletedPharmacyIds()

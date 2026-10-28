@@ -109,48 +109,78 @@ function SuperAdminDashboard() {
   function loadDashboard() {
     setLoading(true)
     setError('')
+    let hasData = false
+    const show = () => { if (!hasData) { hasData = true; setLoading(false) } }
 
-    Promise.allSettled([
-      getPharmacySuperAdminDashboard(),
-      listPharmacyAdmins(),
-      getPharmacySuperAdminDashboardAnalytics(),
-      getPharmacySuperAdminDashboardExpiryAlerts(),
-      getPharmacySuperAdminDashboardLowStock(),
-      getSuperAdminPharmacies({ page: 1, pageSize: 100 }),
-    ])
-      .then(([dashboardResult, adminsResult, analyticsResult, expiryResult, lowStockResult, pharmaciesResult]) => {
-        // Build dashboard from whatever succeeded — don't fail completely if one call times out
-        const dashboard = dashboardResult.status === 'fulfilled' ? unwrap(dashboardResult.value) : {}
-        const analytics = analyticsResult.status === 'fulfilled' ? unwrap(analyticsResult.value) : {}
-        const expiry = expiryResult.status === 'fulfilled' ? unwrap(expiryResult.value) : {}
-        const lowStock = lowStockResult.status === 'fulfilled' ? unwrap(lowStockResult.value) : {}
-
-        let parsedPharmacies = []
-        if (pharmaciesResult?.status === 'fulfilled') {
-          const raw = pharmaciesResult.value?.data?.pharmacies || pharmaciesResult.value?.pharmacies || pharmaciesResult.value?.data?.admins || pharmaciesResult.value?.data || pharmaciesResult.value || []
-          parsedPharmacies = (Array.isArray(raw) ? raw : []).map((item) => item?.admin || item?.data?.admin || item?.data || item || {})
-        }
-        if (!parsedPharmacies.length && adminsResult.status === 'fulfilled') {
-          parsedPharmacies = pharmacyRows(adminsResult.value)
-        }
-
-        setData({
-          ...dashboard,
-          analytics,
-          pharmacies: parsedPharmacies,
-          expiryAlerts: items(expiry, ['expiryAlerts', 'nearExpiryMedicines', 'nearExpiryInventory', 'items', 'results', 'data']),
-          medicineInventory: items(lowStock, ['lowStock', 'lowStockMedicines', 'items', 'results', 'data']),
-        })
-
-        // Only show error if ALL calls failed
-        const allFailed = [dashboardResult, adminsResult, analyticsResult, expiryResult, lowStockResult, pharmaciesResult].every((r) => r.status === 'rejected')
-        if (allFailed) {
-          setError(dashboardResult.reason?.message || 'Unable to load dashboard. Please check your connection and try again.')
-        }
-
-        if (adminsResult.status === 'fulfilled') setAdminTotal(adminCount(adminsResult.value))
+    // Fire each call independently — first one to complete unblocks the UI
+    getPharmacySuperAdminDashboard()
+      .then((res) => {
+        const dashboard = unwrap(res)
+        setData((prev) => ({ ...(prev || {}), ...dashboard }))
+        show()
       })
-      .finally(() => setLoading(false))
+      .catch(() => {})
+
+    listPharmacyAdmins()
+      .then((res) => {
+        setAdminTotal(adminCount(res))
+        const rows = pharmacyRows(res)
+        setData((prev) => {
+          const merged = { ...(prev || {})}
+          if (!merged.pharmacies?.length) merged.pharmacies = rows
+          return merged
+        })
+        show()
+      })
+      .catch(() => {})
+
+    getPharmacySuperAdminDashboardAnalytics()
+      .then((res) => {
+        setData((prev) => ({ ...(prev || {}), analytics: unwrap(res) }))
+        show()
+      })
+      .catch(() => {})
+
+    getPharmacySuperAdminDashboardExpiryAlerts()
+      .then((res) => {
+        const expiry = unwrap(res)
+        setData((prev) => ({
+          ...(prev || {}),
+          expiryAlerts: items(expiry, ['expiryAlerts', 'nearExpiryMedicines', 'nearExpiryInventory', 'items', 'results', 'data']),
+        }))
+        show()
+      })
+      .catch(() => {})
+
+    getPharmacySuperAdminDashboardLowStock()
+      .then((res) => {
+        const lowStock = unwrap(res)
+        setData((prev) => ({
+          ...(prev || {}),
+          medicineInventory: items(lowStock, ['lowStock', 'lowStockMedicines', 'items', 'results', 'data']),
+        }))
+        show()
+      })
+      .catch(() => {})
+
+    getSuperAdminPharmacies({ page: 1, pageSize: 100 })
+      .then((res) => {
+        const raw = res?.data?.pharmacies || res?.pharmacies || res?.data?.admins || res?.data || res || []
+        const parsed = (Array.isArray(raw) ? raw : []).map((item) => item?.admin || item?.data?.admin || item?.data || item || {})
+        if (parsed.length) {
+          setData((prev) => ({ ...(prev || {}), pharmacies: parsed }))
+        }
+        show()
+      })
+      .catch(() => {})
+
+    // Safety: if ALL calls fail, stop loading after timeout
+    setTimeout(() => {
+      if (!hasData) {
+        setLoading(false)
+        setError('Unable to load dashboard. Please check your connection and try again.')
+      }
+    }, 45000)
   }
 
   useEffect(() => {
@@ -445,6 +475,7 @@ function SuperAdminDashboard() {
             </section>
           </>
         )}
+
       </main>
     </div>
   )

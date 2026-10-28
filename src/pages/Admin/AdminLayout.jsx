@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import UserProfileMenu from '../../components/UserProfileMenu'
 import AdminSidebar from './AdminSidebar'
 import { adminNavigation } from './adminNavigation'
 import { hasPermission, readAdminPermissions } from '../../config/permissions'
+import { getPharmacyAdminAssignmentStatus } from '../../config/api'
 import './AdminTopbar.css'
 import './admin.css'
 
@@ -33,6 +34,29 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
   const branchName = assignment?.branchName || assignment?.branch?.name || assignment?.pharmacyName || assignment?.pharmacy?.name || 'Admin Console'
   const permissions = readAdminPermissions()
   const visibleNavigation = useMemo(() => adminNavigation.filter((item) => item.label === 'Dashboard' || hasPermission(permissions, item.label, 'view')), [permissions])
+
+  // Re-fetch and persist assignment on every page load so tenant headers (X-Pharmacy-Id) are always populated
+  useEffect(() => {
+    getPharmacyAdminAssignmentStatus()
+      .then((res) => {
+        const data = res?.data || res || {}
+        const pharmacyId = data?.pharmacyId || data?.PharmacyId || data?.pharmacy?.id || data?.pharmacy?.pharmacyId || ''
+        const branchId = data?.branchId || data?.BranchId || data?.mainBranchId || data?.branch?.id || ''
+        const existing = readStoredValue('pharmacyAdminAssignment') || {}
+        const merged = { ...existing, ...data, pharmacyId: pharmacyId || existing.pharmacyId || '', branchId: branchId || existing.branchId || '' }
+        sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(merged))
+        localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(merged))
+        if (pharmacyId) {
+          sessionStorage.setItem('workingPharmacyId', String(pharmacyId))
+          localStorage.setItem('workingPharmacyId', String(pharmacyId))
+        }
+        if (branchId) {
+          sessionStorage.setItem('workingBranchId', String(branchId))
+          localStorage.setItem('workingBranchId', String(branchId))
+        }
+      })
+      .catch(() => {})
+  }, [])
   
   const results = useMemo(() => {
     const value = query.trim().toLowerCase()

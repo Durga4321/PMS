@@ -283,7 +283,8 @@ export default function AdminBranches() {
     setError('')
     try {
       const response = await listPharmacyBranches()
-      setBranches(listFrom(response))
+      const isDeletedRecord = (b) => Boolean(b?.isDeleted || b?.IsDeleted || b?.deletedAt || b?.DeletedAt || b?.deletedOn || b?.DeletedOn)
+      setBranches(listFrom(response).filter((b) => !isDeletedRecord(b)))
     } catch (requestError) {
       setBranches([])
       console.log('Branch list API failed:', requestError.message)
@@ -327,7 +328,6 @@ export default function AdminBranches() {
   }
 
   function openEdit(branch) {
-    if (branch?.isMainBranch) return
     setCurrentBranch(branch)
     setError('')
     setForm({
@@ -418,7 +418,6 @@ export default function AdminBranches() {
   }
 
   async function toggleStatus(branch) {
-    if (branch?.isMainBranch) return
     const id = idOf(branch)
     if (!id) return
     const nextActive = !isActive(branch)
@@ -434,17 +433,28 @@ export default function AdminBranches() {
   }
 
   async function deleteBranch(branch) {
-    if (branch?.isMainBranch) return
     const id = idOf(branch)
     if (!id || !window.confirm(`Delete ${nameOf(branch)}?`)) return
-    setBranches((items) => items.filter((item) => idOf(item) !== id))
+    setError('')
     try {
       await deletePharmacyBranch(id)
-      showToast('Sub branch deleted successfully.')
     } catch (requestError) {
-      setError(requestError.message || 'Unable to delete sub branch.')
-      loadBranches()
+      const msg = requestError.message || 'Unable to delete branch from the database.'
+      setError(msg)
+      showToast(msg, 'error')
+      await loadBranches()
+      return
     }
+    // Clear working branch selection if it pointed to the deleted branch
+    if (String(sessionStorage.getItem('workingBranchId') || '') === String(id)) {
+      sessionStorage.removeItem('workingBranchId')
+      sessionStorage.removeItem('workingBranch')
+      localStorage.removeItem('workingBranchId')
+    }
+    if (branch?.isMainBranch) setMainBranch(null)
+    setBranches((items) => items.filter((item) => idOf(item) !== id))
+    await loadBranches()
+    showToast('Branch deleted successfully.')
   }
 
   const [workingBranchId, setWorkingBranchId] = useState(() => sessionStorage.getItem('workingBranchId') || '')
@@ -460,9 +470,7 @@ export default function AdminBranches() {
 
   const rows = useMemo(() => displayBranches.map((branch, index) => {
     const id = idOf(branch) || index
-    const actions = branch?.isMainBranch
-      ? <RowActions key={`actions-${id}`} itemName={nameOf(branch)} isActive={true} onView={() => openView(branch)} />
-      : <RowActions key={`actions-${id}`} itemName={nameOf(branch)} isActive={isActive(branch)} onView={() => openView(branch)} onEdit={() => openEdit(branch)} onStatus={() => toggleStatus(branch)} onDelete={() => deleteBranch(branch)} />
+    const actions = <RowActions key={`actions-${id}`} itemName={nameOf(branch)} isActive={isActive(branch)} onView={() => openView(branch)} onEdit={() => openEdit(branch)} onStatus={() => toggleStatus(branch)} onDelete={branch?.isMainBranch ? undefined : () => deleteBranch(branch)} />
     return [
       <span className="branches-serial" key="serial">{index + 1}</span>,
       <BranchNameCell key="branch" branch={branch} index={index} pharmacies={pharmacies} />,
