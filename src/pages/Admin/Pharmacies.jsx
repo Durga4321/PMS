@@ -3,6 +3,7 @@ import AdminLayout from './AdminLayout'
 import RowActions from '../../components/RowActions'
 import { useToast } from '../../components/ToastProvider'
 import {
+  getPharmacySettings,
   changeSuperAdminPharmacyStatus,
   createSuperAdminPharmacy,
   deleteSuperAdminPharmacy,
@@ -122,7 +123,10 @@ function addressOf(item) {
 
 function statusOf(item) {
   const p = unwrapPharmacy(item)
-  const value = p.accountStatus || p.status || p.isActive
+  const flag = p.isActive ?? p.IsActive
+  if (typeof flag === 'boolean') return flag ? 'Active' : 'Inactive'
+  if (flag === 0 || flag === 1) return flag ? 'Active' : 'Inactive'
+  const value = p.status ?? p.Status ?? p.accountStatus
   if (typeof value === 'boolean') return value ? 'Active' : 'Inactive'
   return text(value, 'Active')
 }
@@ -186,6 +190,18 @@ export default function AdminPharmacies() {
         adminPharmacy = res?.pharmacy || res?.data?.pharmacy || (res?.id || res?.pharmacyId ? res : null)
       } catch (adminErr) {
         // Not registered yet or other role
+      }
+
+      // 1b. The real active/inactive flag lives in pharmacy settings
+      if (adminPharmacy) {
+        try {
+          const sRes = await getPharmacySettings({ authRole: 'pharmacyAdmin' })
+          const settings = sRes?.settings || sRes?.data?.settings || sRes?.data || sRes || {}
+          const flag = settings.isActive ?? settings.IsActive
+          if (typeof flag === 'boolean') {
+            adminPharmacy = { ...unwrapPharmacy(adminPharmacy), isActive: flag, status: flag ? 'Active' : 'Inactive' }
+          }
+        } catch {}
       }
 
       // 2. Read locally created pharmacies
@@ -298,6 +314,7 @@ export default function AdminPharmacies() {
         const id = idOf(editingPharmacy)
         if (id) removeDeletedPharmacyId(id)
         let updatedSuccess = false
+        const isActive = String(form.status || 'Active').toLowerCase() === 'active'
         try {
           await updateSuperAdminPharmacy(id, { ...payload, isActive })
           updatedSuccess = true
@@ -414,17 +431,34 @@ export default function AdminPharmacies() {
     const nextStatus = nextActive ? 'Active' : 'Inactive'
 
     if (/^\d+$/.test(String(id))) {
+      let saved = false
+      let lastError = null
+      // Pharmacy admin: status is stored in pharmacy settings. Send the full settings object
+      // so other fields are not wiped, with the new isActive flag.
       try {
-        await changeSuperAdminPharmacyStatus(id, { isActive: nextActive, status: nextStatus })
-      } catch {
+        const sRes = await getPharmacySettings({ authRole: 'pharmacyAdmin' })
+        const current = sRes?.settings || sRes?.data?.settings || sRes?.data || sRes || {}
+        await updatePharmacySettings({
+          ...current,
+          pharmacyName: current.pharmacyName || pharmacyName(pharmacy),
+          isActive: nextActive,
+        })
+        saved = true
+      } catch (err) {
+        lastError = err
+      }
+      if (!saved) {
         try {
-          await updatePharmacySettings({
-            pharmacyName: pharmacyName(pharmacy),
-            isActive: nextActive,
-          })
+          await changeSuperAdminPharmacyStatus(id, { isActive: nextActive, status: nextStatus })
+          saved = true
         } catch (err) {
-          console.log('Status API failed, updating locally:', err.message)
+          lastError = lastError || err
         }
+      }
+      if (!saved) {
+        showToast(lastError?.message || 'Unable to update pharmacy status.', 'error')
+        await loadPharmacies()
+        return
       }
     }
 

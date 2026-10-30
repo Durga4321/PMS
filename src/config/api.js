@@ -551,7 +551,10 @@ function saveMedicineToCache(payload = {}, responseData = null) {
     ...(maxStockVal !== undefined && maxStockVal !== '' ? { maxStock: Number(maxStockVal) } : {}),
     ...(reorderVal !== undefined && reorderVal !== '' ? { reorderLevel: Number(reorderVal) } : {}),
     ...(payload?.gst !== undefined && payload?.gst !== '' ? { gst: Number(payload.gst) } : {}),
-    ...(payload?.expiryDate ? { expiryDate: payload.expiryDate } : {}),
+    ...((() => {
+      const e = payload?.expiryDate || payload?.ExpiryDate || payload?.expiresAt || payload?.ExpiresAt || payload?.expiry || payload?.Expiry
+      return e ? { expiryDate: e } : {}
+    })()),
     ...(payload?.unit ? { unit: payload.unit } : {}),
     ...(payload?.packSize ? { packSize: payload.packSize } : {}),
     ...(payload?.strength ? { strength: payload.strength } : {}),
@@ -669,7 +672,7 @@ export function normalizeMedicineRecord(item) {
     minStock: !isNaN(resolvedMinStock) ? resolvedMinStock : 10,
     minimumStock: !isNaN(resolvedMinStock) ? resolvedMinStock : 10,
     reorderLevel: !isNaN(resolvedReorder) ? resolvedReorder : 5,
-    expiryDate: item?.expiryDate || item?.ExpiryDate || cached?.expiryDate || null,
+    expiryDate: item?.expiryDate || item?.ExpiryDate || item?.expiresAt || item?.ExpiresAt || item?.expiry || item?.Expiry || item?.batch?.expiryDate || cached?.expiryDate || null,
     gst: item?.gst ?? item?.GST ?? cached?.gst ?? 0,
     notes: item?.notes || item?.Notes || item?.description || item?.Description || cached?.notes || '',
   }
@@ -1631,7 +1634,8 @@ export function cleanPharmacyAdminSettingsPayload(payload = {}) {
   const license = payload.licenseNumber || payload.LicenseNumber || currentSettings.licenseNumber || null
   const gst = payload.gstNumber || payload.GSTNumber || currentSettings.gstNumber || null
   const address = payload.address || payload.Address || currentSettings.address || null
-  const isActive = payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true)
+  const storedActive = currentSettings.isActive ?? currentSettings.IsActive
+  const isActive = payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.IsActive !== undefined ? Boolean(payload.IsActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : (typeof storedActive === 'boolean' ? storedActive : true)))
 
   return {
     pharmacyName: name,

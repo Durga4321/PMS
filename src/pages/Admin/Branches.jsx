@@ -10,6 +10,7 @@ import {
   listPharmacyBranches,
   updatePharmacyBranch,
   getPharmacySettings,
+  updatePharmacySettings,
   getPharmacyAdminPharmacy,
   scopedKey,
   migrateLegacyCache,
@@ -401,7 +402,42 @@ export default function AdminBranches() {
         country: form.country ? form.country.trim() : 'India',
         postalCode: form.postalCode ? form.postalCode.trim() : '',
       }
-      if (isEditing) await updatePharmacyBranch(idOf(currentBranch), payload)
+      if (isEditing) {
+        const editId = idOf(currentBranch)
+        const isMain = Boolean(currentBranch?.isMainBranch) || Number(editId) === 1
+        let branchSaved = false
+        let branchError = null
+        if (/^\d+$/.test(String(editId))) {
+          try {
+            await updatePharmacyBranch(editId, payload)
+            branchSaved = true
+          } catch (err) {
+            branchError = err
+          }
+        }
+        // Main branch details are also derived from pharmacy settings, so keep them in sync
+        if (isMain) {
+          try {
+            const sRes = await getPharmacySettings({ authRole: 'pharmacyAdmin' })
+            const current = sRes?.settings || sRes?.data?.settings || sRes?.data || sRes || {}
+            await updatePharmacySettings({
+              ...current,
+              phoneNumber: payload.phone || current.phoneNumber,
+              emailAddress: payload.email || current.emailAddress,
+              address: payload.address || current.address,
+              isActive: current.isActive ?? current.IsActive ?? true,
+            }, { authRole: 'pharmacyAdmin' })
+            branchSaved = true
+          } catch (err) {
+            branchError = branchError || err
+          }
+          loadMainBranchDetails()
+        }
+        if (!branchSaved) throw branchError || new Error('Unable to update branch.')
+        const patch = (item) => (idOf(item) === editId ? { ...item, ...payload } : item)
+        setBranches((items) => items.map(patch))
+        if (isMain) setMainBranch((m) => (m ? { ...m, ...payload } : m))
+      }
       else await createPharmacyBranch(payload)
       setModal(null)
       setCurrentBranch(null)

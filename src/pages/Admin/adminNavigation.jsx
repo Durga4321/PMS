@@ -1,4 +1,4 @@
-import SidebarIcon from '../../components/SidebarIcon'
+﻿import SidebarIcon from '../../components/SidebarIcon'
 
 const item = (label, path, iconName, color) => ({
   label,
@@ -18,8 +18,6 @@ export const adminNavigation = [
   item('Suppliers', '/admin/suppliers', 'truck', 'amber'),
   item('Purchase Orders', '/admin/purchase-orders', 'shoppingCart', 'blue'),
   item('Stock Transfers', '/admin/stock-transfers', 'arrowLeftRight', 'cyan'),
-  item('Prescriptions', '/admin/prescriptions', 'fileText', 'purple'),
-  item('Dispensing', '/admin/dispensing', 'clipboardCheck', 'rose'),
   item('Expiry Alerts', '/admin/expiry-alerts', 'triangleAlert', 'red'),
   item('Reports', '/admin/reports', 'barChart3', 'purple'),
   item('Settings', '/admin/settings', 'cog', 'cyan'),
