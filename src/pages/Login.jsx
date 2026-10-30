@@ -140,6 +140,38 @@ function Login() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
+  // Drop very large string fields (e.g. base64 images) so the user record stays small
+  function compactUser(value) {
+    if (Array.isArray(value)) return value.map(compactUser)
+    if (!value || typeof value !== 'object') return typeof value === 'string' && value.length > 20000 ? '' : value
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, compactUser(v)]))
+  }
+
+  // setItem that frees space from large non-auth cache entries when storage is full
+  function safeSetItem(storage, key, value) {
+    try {
+      storage.setItem(key, value)
+      return
+    } catch (err) {
+      if (!/quota/i.test(String(err?.name || err?.message))) throw err
+    }
+    const protectedKey = (k) => /token|assignment|user|auth/i.test(k)
+    for (const store of [localStorage, sessionStorage]) {
+      const entries = Object.keys(store)
+        .filter((k) => !protectedKey(k))
+        .map((k) => [k, (store.getItem(k) || '').length])
+        .sort((a, b) => b[1] - a[1])
+      for (const [k] of entries) {
+        store.removeItem(k)
+        try {
+          storage.setItem(key, value)
+          return
+        } catch {}
+      }
+    }
+    storage.setItem(key, value)
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
@@ -201,7 +233,7 @@ function Login() {
         } catch {}
       }
 
-      storage.setItem(flow.userKey, JSON.stringify(storedUser))
+      safeSetItem(storage, flow.userKey, JSON.stringify(compactUser(storedUser)))
 
       showToast('Welcome back to your dashboard.', 'success', response?.message || loginData?.message || 'Login successful')
       navigate(flow.dashboardPath, { replace: true })

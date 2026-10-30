@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
-import { disposeInventoryBatch, getExpiredInventory, getNearExpiryInventory, getNearExpiryInventoryDetails } from '../../config/api'
+import { listMedicines, disposeInventoryBatch } from '../../config/api'
 import AdminLayout from './AdminLayout'
 
 function normalizeList(response) {
@@ -15,15 +15,59 @@ function normalizeList(response) {
   return []
 }
 
+export const EXPIRY_ALERT_DAYS = 10
+
+function expiryOf(item) {
+  return item?.expiryDate || item?.ExpiryDate || item?.expiresAt || item?.expiry || item?.Expiry || item?.batch?.expiryDate || ''
+}
+
+function daysLeftOf(item) {
+  if (item?.daysLeft !== undefined && item?.daysLeft !== null && item?.daysLeft !== '') return Number(item.daysLeft)
+  const raw = expiryOf(item)
+  if (!raw) return null
+  const exp = new Date(raw)
+  if (isNaN(exp)) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  exp.setHours(0, 0, 0, 0)
+  return Math.round((exp - today) / 86400000)
+}
+
+function formatDate(raw) {
+  if (!raw) return '-'
+  const d = new Date(raw)
+  return isNaN(d) ? String(raw) : d.toISOString().slice(0, 10)
+}
+
+function stockOf(item) {
+  const keys = ['stock', 'Stock', 'stockQuantity', 'StockQuantity', 'currentStock', 'CurrentStock', 'availableStock', 'AvailableStock', 'totalStock', 'TotalStock', 'quantity', 'Quantity', 'qty', 'initialStockCount', 'InitialStockCount']
+  for (const k of keys) {
+    const v = item?.[k]
+    if (v !== undefined && v !== null && v !== '' && !isNaN(Number(v))) return Number(v)
+  }
+  return 0
+}
+
+function getMedicineName(item) {
+  return item?.medicineName || item?.medicine?.name || item?.name || item?.Name || 'medicine'
+}
+
 function getId(item, index) {
-  return item?._id || item?.id || item?.batchId || `${item?.medicineName || 'expiry'}-${index}`
+  return item?._id || item?.id || item?.medicineId || item?.batchId || `${getMedicineName(item)}-${index}`
+}
+
+function formatDaysLeft(daysLeft) {
+  if (daysLeft === null || daysLeft === undefined) return '-'
+  if (daysLeft < 0) return `Expired ${Math.abs(daysLeft)} day(s) ago`
+  if (daysLeft === 0) return 'Expires today'
+  return `${daysLeft} day(s)`
 }
 
 export default function ExpiryAlerts() {
   const navigate = useNavigate()
   const { showToast } = useToast()
-  const [mode, setMode] = useState('near')
-  const [items, setItems] = useState([])
+  const [mode, setMode] = useState('alerts') // 'alerts' (all), 'near', 'expired'
+  const [allAlerts, setAllAlerts] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -31,13 +75,14 @@ export default function ExpiryAlerts() {
 
   async function handleDispose(item) {
     const batchNo = item?.batchNo || item?.batchNumber
-    if (!window.confirm(`Are you sure you want to dispose expired batch: ${batchNo || 'selected batch'}?`)) return
+    const medName = getMedicineName(item)
+    if (!window.confirm(`Are you sure you want to dispose expired medicine: ${medName} (batch: ${batchNo || 'N/A'})?`)) return
     try {
       if (batchNo) {
         await disposeInventoryBatch(batchNo, { reason: 'Expired medicine alert disposal' })
       }
-      setItems((current) => current.filter((it) => (it?.batchNo || it?.batchNumber) !== batchNo))
-      showToast(`Batch ${batchNo || ''} disposed successfully.`, 'success')
+      setAllAlerts((current) => current.filter((it) => (it?.id || it?._id) !== (item?.id || item?._id)))
+      showToast(`Medicine ${medName} removed from alerts.`, 'success')
     } catch (err) {
       showToast(err.message || 'Error disposing batch.', 'error')
     }
@@ -48,68 +93,107 @@ export default function ExpiryAlerts() {
     navigate('/admin/stock')
   }
 
-  async function load(nextMode = mode) {
-    setMode(nextMode)
+  async function loadAlerts() {
     setLoading(true)
     try {
-      const response = nextMode === 'expired'
-        ? await getExpiredInventory()
-        : nextMode === 'details'
-          ? await getNearExpiryInventoryDetails()
-          : await getNearExpiryInventory()
-      setItems(normalizeList(response))
-      showToast(`Expiry list (${nextMode}) refreshed.`)
+      const response = await listMedicines({ page: 1, pageSize: 1000 })
+      const alerts = normalizeList(response)
+        .map((m) => {
+          const daysLeft = daysLeftOf(m)
+          return {
+            ...m,
+            medicineName: getMedicineName(m),
+            quantity: stockOf(m),
+            expiryDate: expiryOf(m),
+            daysLeft,
+            status: daysLeft !== null && daysLeft < 0 ? 'expired' : 'near expiry',
+          }
+        })
+        .filter((m) => m.daysLeft !== null && m.daysLeft <= EXPIRY_ALERT_DAYS)
+        .sort((a, b) => a.daysLeft - b.daysLeft)
+
+      setAllAlerts(alerts)
     } catch (error) {
-      showToast(error.message, 'error')
+      showToast(error.message || 'Unable to load medicines.', 'error')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    load('near')
+    loadAlerts()
   }, [])
 
+  // Counts for each tab
+  const nearCount = useMemo(() => allAlerts.filter((m) => m.daysLeft >= 0).length, [allAlerts])
+  const expiredCount = useMemo(() => allAlerts.filter((m) => m.daysLeft < 0).length, [allAlerts])
+  const totalCount = allAlerts.length
+
+  // Filter by tab
+  const tabItems = useMemo(() => {
+    if (mode === 'near') return allAlerts.filter((m) => m.daysLeft >= 0)
+    if (mode === 'expired') return allAlerts.filter((m) => m.daysLeft < 0)
+    return allAlerts
+  }, [allAlerts, mode])
+
+  // Filter by search & status dropdown
   const filteredItems = useMemo(() => {
-    return items.filter(item => {
-      const name = (item?.medicineName || item?.medicine?.name || item?.name || '').toLowerCase()
+    return tabItems.filter((item) => {
+      const name = (item?.medicineName || item?.name || '').toLowerCase()
       const batch = (item?.batchNo || item?.batchNumber || item?.batchId || '').toLowerCase()
       const query = search.toLowerCase()
-      
       const matchesSearch = name.includes(query) || batch.includes(query)
-      
-      const itemStatus = String(item?.status || mode).toLowerCase()
+
+      const itemStatus = String(item?.status || '').toLowerCase()
       const matchesStatus = statusFilter === 'all' || itemStatus.includes(statusFilter)
-      
+
       return matchesSearch && matchesStatus
     })
-  }, [items, search, statusFilter, mode])
+  }, [tabItems, search, statusFilter])
 
   function getStatusLabel(item) {
-    const status = String(item?.status || mode).toLowerCase()
-    if (status.includes('expired')) return 'Expired'
-    if (status.includes('near') || status.includes('warning')) return 'Near Expiry'
+    if (item?.daysLeft !== null && item?.daysLeft < 0) return 'Expired'
+    if (item?.daysLeft !== null && item?.daysLeft <= EXPIRY_ALERT_DAYS) return 'Near Expiry'
     return 'Safe'
   }
 
   function getStatusClass(item) {
-    const status = String(item?.status || mode).toLowerCase()
-    if (status.includes('expired')) return 'expired'
-    if (status.includes('near') || status.includes('warning')) return 'near-expiry'
+    if (item?.daysLeft !== null && item?.daysLeft < 0) return 'expired'
+    if (item?.daysLeft !== null && item?.daysLeft <= EXPIRY_ALERT_DAYS) return 'near-expiry'
     return 'active'
   }
 
   return (
     <AdminLayout activeLabel="Expiry Alerts" title="Expiry Inventory" subtitle="Track medicines that are near expiry or already expired.">
       <section className="branch-panel">
-        
         <div className="branch-panel-heading" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
           <div className="expiry-tabs-card-grid">
-            <button 
-              type="button" 
+            {/* Tab 1: All Expiry Alerts */}
+            <button
+              type="button"
+              className={`expiry-tab-card ${mode === 'alerts' ? 'active' : ''}`}
+              style={{ '--card-accent': '#dc2626', '--card-bg': '#fee2e2', '--card-border': 'rgba(220, 38, 38, 0.25)' }}
+              onClick={() => setMode('alerts')}
+            >
+              <div className="expiry-card-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div className="expiry-card-text">
+                <span>Expiry Alerts ({totalCount})</span>
+                <small>All near expiry &amp; expired</small>
+              </div>
+            </button>
+
+            {/* Tab 2: Near Expiry Only */}
+            <button
+              type="button"
               className={`expiry-tab-card ${mode === 'near' ? 'active' : ''}`}
               style={{ '--card-accent': '#f97316', '--card-bg': '#ffedd5', '--card-border': 'rgba(249, 115, 22, 0.25)' }}
-              onClick={() => load('near')}
+              onClick={() => setMode('near')}
             >
               <div className="expiry-card-icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -118,36 +202,17 @@ export default function ExpiryAlerts() {
                 </svg>
               </div>
               <div className="expiry-card-text">
-                <span>Near Expiry</span>
-                <small>Approaching Expiration</small>
+                <span>Near Expiry ({nearCount})</span>
+                <small>Expiring within {EXPIRY_ALERT_DAYS} days</small>
               </div>
             </button>
 
-            <button 
-              type="button" 
-              className={`expiry-tab-card ${mode === 'details' ? 'active' : ''}`}
-              style={{ '--card-accent': '#0ea5e9', '--card-bg': '#e0f2fe', '--card-border': 'rgba(14, 165, 233, 0.25)' }}
-              onClick={() => load('details')}
-            >
-              <div className="expiry-card-icon-wrap">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                </svg>
-              </div>
-              <div className="expiry-card-text">
-                <span>Near Expiry Details</span>
-                <small>Detailed Batch Audit</small>
-              </div>
-            </button>
-
-            <button 
-              type="button" 
+            {/* Tab 3: Expired Only */}
+            <button
+              type="button"
               className={`expiry-tab-card ${mode === 'expired' ? 'active' : ''}`}
               style={{ '--card-accent': '#ef4444', '--card-bg': '#fee2e2', '--card-border': 'rgba(239, 68, 68, 0.25)' }}
-              onClick={() => load('expired')}
+              onClick={() => setMode('expired')}
             >
               <div className="expiry-card-icon-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -159,14 +224,15 @@ export default function ExpiryAlerts() {
                 </svg>
               </div>
               <div className="expiry-card-text">
-                <span>Expired</span>
-                <small>Expired Stock List</small>
+                <span>Expired ({expiredCount})</span>
+                <small>Expired medicines only</small>
               </div>
             </button>
           </div>
-          <button 
-            type="button" 
-            onClick={() => load(mode)}
+
+          <button
+            type="button"
+            onClick={loadAlerts}
             style={{
               height: '38px',
               padding: '0 16px',
@@ -179,33 +245,37 @@ export default function ExpiryAlerts() {
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '6px',
             }}
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+            </svg>
             Refresh
           </button>
         </div>
 
         <div className="medicine-filters" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
           <div className="report-search-input-wrap" style={{ flex: 1, maxWidth: '320px', position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon" style={{ position: 'absolute', left: '12px', width: '15px', height: '15px', stroke: '#94a3b8', fill: 'none', strokeWidth: 2 }}><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-            <input 
-              value={search} 
-              onChange={(e) => setSearch(e.target.value)} 
-              placeholder="Search medicine, batch number..." 
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon" style={{ position: 'absolute', left: '12px', width: '15px', height: '15px', stroke: '#94a3b8', fill: 'none', strokeWidth: 2 }}>
+              <circle cx="11" cy="11" r="6" />
+              <path d="m16 16 4 4" />
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search medicine, batch number..."
               style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px' }}
             />
           </div>
-          <select 
-            value={statusFilter} 
+          <select
+            value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             style={{ height: '38px', padding: '0 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', background: '#fff', outline: 'none' }}
           >
             <option value="all">All Statuses</option>
             <option value="near">Near Expiry</option>
             <option value="expired">Expired</option>
-            <option value="active">Safe</option>
           </select>
         </div>
 
@@ -226,35 +296,49 @@ export default function ExpiryAlerts() {
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.length ? filteredItems.map((item, index) => (
-                  <tr key={getId(item, index)}>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#1e293b' }}>
-                        {item?.medicineName || item?.medicine?.name || item?.name || '-'}
-                      </div>
-                    </td>
-                    <td><code>{item?.batchNo || item?.batchNumber || item?.batchId || '-'}</code></td>
-                    <td>{item?.quantity || item?.stock || item?.qty || 0}</td>
-                    <td>{item?.expiryDate || item?.expiresAt || '-'}</td>
-                    <td>
-                      <span style={{ fontWeight: 500, color: (item?.daysLeft ?? 30) <= 0 ? '#ef4444' : '#f59e0b' }}>
-                        {item?.daysLeft ?? '-'}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`branch-status ${getStatusClass(item)}`}>
-                        {getStatusLabel(item)}
-                      </span>
-                    </td>
-                    <td>
-                      <RowActions itemName={getMedicineName(item)} onView={() => setViewingItem(item)} onEdit={() => handleEdit(item)} statusDisabled={true} onDelete={() => handleDispose(item)} />
-                    </td>
-                  </tr>
-                )) : (
+                {filteredItems.length ? (
+                  filteredItems.map((item, index) => (
+                    <tr key={getId(item, index)}>
+                      <td>
+                        <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                          {item?.medicineName || item?.name || '-'}
+                        </div>
+                      </td>
+                      <td>
+                        <code>{item?.batchNo || item?.batchNumber || item?.batchId || '-'}</code>
+                      </td>
+                      <td>{item?.quantity ?? 0}</td>
+                      <td>{formatDate(expiryOf(item))}</td>
+                      <td>
+                        <span style={{ fontWeight: 500, color: (item?.daysLeft ?? 30) < 0 ? '#ef4444' : '#f59e0b' }}>
+                          {formatDaysLeft(item?.daysLeft)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`branch-status ${getStatusClass(item)}`}>
+                          {getStatusLabel(item)}
+                        </span>
+                      </td>
+                      <td>
+                        <RowActions
+                          itemName={getMedicineName(item)}
+                          onView={() => setViewingItem(item)}
+                          onEdit={() => handleEdit(item)}
+                          statusDisabled={true}
+                          onDelete={() => handleDispose(item)}
+                        />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
                   <tr>
                     <td colSpan="7" style={{ textAlign: 'center', padding: '40px 20px' }}>
-                      <div style={{ color: '#64748b', fontSize: '15px', fontWeight: 600 }}>No expiry medicines found.</div>
-                      <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>All checkups complete. No stocks match the selected horizon.</div>
+                      <div style={{ color: '#64748b', fontSize: '15px', fontWeight: 600 }}>
+                        {mode === 'near' ? 'No near-expiry medicines found.' : mode === 'expired' ? 'No expired medicines found.' : 'No expiry alert medicines found.'}
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
+                        All checkups complete.
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -274,7 +358,7 @@ export default function ExpiryAlerts() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
                     <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Medicine Name</label>
-                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>{viewingItem.medicineName || viewingItem.name || '-'}</p>
+                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>{getMedicineName(viewingItem)}</p>
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Batch Number</label>
@@ -282,15 +366,17 @@ export default function ExpiryAlerts() {
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Quantity Remaining</label>
-                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>{viewingItem.quantity || viewingItem.stock || 0} units</p>
+                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>{viewingItem.quantity ?? stockOf(viewingItem)} units</p>
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Expiry Date</label>
-                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#ef4444', fontSize: '14px' }}>{viewingItem.expiryDate || viewingItem.expiresAt || '-'}</p>
+                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#ef4444', fontSize: '14px' }}>{formatDate(expiryOf(viewingItem))}</p>
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Days Remaining</label>
-                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#f59e0b', fontSize: '14px' }}>{viewingItem.daysLeft ?? '-'} days</p>
+                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: (viewingItem.daysLeft ?? 30) < 0 ? '#ef4444' : '#f59e0b', fontSize: '14px' }}>
+                      {formatDaysLeft(viewingItem.daysLeft)}
+                    </p>
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Status</label>
@@ -309,6 +395,3 @@ export default function ExpiryAlerts() {
     </AdminLayout>
   )
 }
-
-
-

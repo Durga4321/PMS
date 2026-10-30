@@ -7,6 +7,7 @@ import {
   addInventoryStock,
   adjustInventoryWithReason,
   disposeInventoryBatch,
+  getExpiredInventory,
   getInventory,
   getInventoryBatch,
   getInventorySummary,
@@ -194,6 +195,26 @@ function normalizeList(response) {
   return candidates.find(Array.isArray) || []
 }
 
+function parseFlexibleDate(raw) {
+  if (!raw) return null
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw
+  const s = String(raw).trim()
+  if (!s || s === '-') return null
+  let d = new Date(s)
+  if (!isNaN(d.getTime())) return d
+  const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+  if (dmy) {
+    d = new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`)
+    if (!isNaN(d.getTime())) return d
+  }
+  const my = s.match(/^(\d{1,2})[/-](\d{4})$/)
+  if (my) {
+    d = new Date(`${my[2]}-${my[1].padStart(2, '0')}-01`)
+    if (!isNaN(d.getTime())) return d
+  }
+  return null
+}
+
 export function formatStockRecord(item, index = 0) {
   const id = item?._id || item?.id || item?.medicineId || `med-${index + 1}`
   const name = item?.medicineName || item?.name || item?.genericName || '-'
@@ -205,29 +226,32 @@ export function formatStockRecord(item, index = 0) {
   const code = item?.medicineCode || item?.code || ''
   const batchNo = item?.batchNo || item?.batchNumber || item?.batchId || code || `BATCH-${index + 1}`
 
-  const qty = Number(item?.quantity ?? item?.stock ?? item?.stockQuantity ?? item?.initialStockCount ?? item?.availableQty ?? item?.qty ?? 0) || 0
+  const qty = Number(item?.quantity ?? item?.Quantity ?? item?.stock ?? item?.Stock ?? item?.currentStock ?? item?.CurrentStock ?? item?.availableStock ?? item?.AvailableStock ?? item?.totalStock ?? item?.TotalStock ?? item?.stockQuantity ?? item?.StockQuantity ?? item?.initialStockCount ?? item?.InitialStockCount ?? item?.availableQty ?? item?.qty ?? 0) || 0
   const minStock = Number(item?.minimumStock ?? item?.minStock ?? item?.minimumStockThreshold ?? 10)
   const reorder = Number(item?.reorderLevel ?? item?.reorderStockLevel ?? 5)
   const price = Number(item?.sellingPrice ?? item?.price ?? item?.mrp ?? 0)
   const cost = Number(item?.purchasePrice ?? item?.costPrice ?? 0)
 
-  const rawExpiry = item?.expiryDate || item?.expiresAt || null
+  const rawExpiry = item?.expiryDate || item?.ExpiryDate || item?.expiresAt || item?.ExpiresAt || item?.expiry || item?.Expiry || item?.batch?.expiryDate || null
   let expiryDate = '-'
   let daysLeft = 999
-  if (rawExpiry) {
-    const dStr = String(rawExpiry)
-    expiryDate = dStr.includes('T') ? dStr.split('T')[0] : dStr
-    const diff = new Date(rawExpiry).getTime() - Date.now()
-    if (!isNaN(diff)) {
-      daysLeft = Math.ceil(diff / (24 * 60 * 60 * 1000))
-    }
+  const expDate = parseFlexibleDate(rawExpiry)
+  if (expDate) {
+    expiryDate = expDate.toISOString().slice(0, 10)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const target = new Date(expDate)
+    target.setHours(0, 0, 0, 0)
+    daysLeft = Math.round((target - today) / (24 * 60 * 60 * 1000))
+  } else if (item?.daysLeft !== undefined && item?.daysLeft !== null && !isNaN(Number(item.daysLeft))) {
+    daysLeft = Number(item.daysLeft)
   }
 
   let status = 'In Stock'
   if (qty <= 0) status = 'Out of Stock'
   else if (qty <= reorder) status = 'Low Stock'
   if (daysLeft <= 0) status = 'Expired'
-  else if (daysLeft <= 30 && status === 'In Stock') status = 'Near Expiry'
+  else if (daysLeft <= 30) status = 'Near Expiry'
 
   return {
     ...item,
@@ -257,7 +281,7 @@ export function formatStockRecord(item, index = 0) {
     price,
     costPrice: cost,
     purchasePrice: cost,
-    status: item?.status && !['active', 'inactive'].includes(String(item.status).toLowerCase()) ? item.status : status,
+    status: daysLeft <= 0 ? 'Expired' : (item?.status && !['active', 'inactive'].includes(String(item.status).toLowerCase()) ? item.status : status),
   }
 }
 
@@ -340,10 +364,11 @@ export default function Stock({ initialView }) {
 
   async function loadSummaryMetrics() {
     try {
-      const [dashRes, medRes, invRes] = await Promise.allSettled([
+      const [dashRes, medRes, invRes, expInvRes] = await Promise.allSettled([
         getPharmacyAdminDashboard(),
         listMedicines(),
         getInventory(),
+        getExpiredInventory(),
       ])
       const data = dashRes.status === 'fulfilled' ? (dashRes.value?.data?.dashboard || dashRes.value?.data || dashRes.value || {}) : {}
       let meds = medRes.status === 'fulfilled' ? normalizeList(medRes.value) : []
@@ -351,7 +376,9 @@ export default function Stock({ initialView }) {
         meds = readLocalMedicines()
       }
       const inv = invRes.status === 'fulfilled' ? normalizeList(invRes.value) : []
-      const allStockItems = meds.length > 0 ? meds : (inv.length > 0 ? inv : readLocalMedicines())
+      const expInv = expInvRes.status === 'fulfilled' ? normalizeList(expInvRes.value) : []
+      const combinedInv = [...inv, ...expInv]
+      const allStockItems = meds.length > 0 ? meds : (combinedInv.length > 0 ? combinedInv : readLocalMedicines())
 
       const now = Date.now()
       const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
@@ -369,16 +396,18 @@ export default function Stock({ initialView }) {
         return qty > 0 && qty <= reorder
       }).length
       const calcNearExpiry = allStockItems.filter((item) => {
-        const raw = item?.expiryDate || item?.expiresAt
-        if (!raw) return false
-        const diff = new Date(raw).getTime() - now
-        return !isNaN(diff) && diff > 0 && diff <= thirtyDaysMs
+        const raw = item?.expiryDate || item?.ExpiryDate || item?.expiresAt || item?.ExpiresAt || item?.expiry || item?.Expiry
+        const d = parseFlexibleDate(raw)
+        if (!d) return false
+        const diff = d.getTime() - now
+        return diff > 0 && diff <= thirtyDaysMs
       }).length
       const calcExpired = allStockItems.filter((item) => {
-        const raw = item?.expiryDate || item?.expiresAt
-        if (!raw) return false
-        const diff = new Date(raw).getTime() - now
-        return !isNaN(diff) && diff <= 0
+        const raw = item?.expiryDate || item?.ExpiryDate || item?.expiresAt || item?.ExpiresAt || item?.expiry || item?.Expiry
+        const d = parseFlexibleDate(raw)
+        if (!d) return false
+        const diff = d.getTime() - now
+        return diff <= 0
       }).length
 
       setMetrics({
@@ -440,15 +469,25 @@ export default function Stock({ initialView }) {
         // For stock inventory views: 'inventory', 'low', 'near', 'out', 'expired'
         // Always load full medicines catalogue (contains all uploaded/added medicines)
         // AND backend inventory batches
-        const [medResponse, invResponse] = await Promise.allSettled([
+        const isExpiredView = nextView === 'expired'
+        const isNearView = nextView === 'near'
+        const isLowView = nextView === 'low'
+        const isOutView = nextView === 'out'
+
+        const [medResponse, invResponse, expInvResponse] = await Promise.allSettled([
           listMedicines(),
-          nextView === 'low'
+          isLowView
             ? getLowStockInventory()
-            : nextView === 'near'
+            : isNearView
             ? getNearExpiryInventory()
-            : nextView === 'out'
+            : isOutView
             ? getOutOfStockInventory()
+            : isExpiredView
+            ? getExpiredInventory()
             : getInventory(),
+          !isLowView && !isNearView && !isOutView && !isExpiredView
+            ? getExpiredInventory().catch(() => [])
+            : Promise.resolve([]),
         ])
 
         if (medResponse.status === 'rejected') {
@@ -463,7 +502,19 @@ export default function Stock({ initialView }) {
           meds = readLocalMedicines()
         }
         setMedicinesList(meds)
-        const invList = invResponse.status === 'fulfilled' ? normalizeList(invResponse.value) : []
+        let invList = invResponse.status === 'fulfilled' ? normalizeList(invResponse.value) : []
+        if (expInvResponse && expInvResponse.status === 'fulfilled') {
+          const expiredBatches = normalizeList(expInvResponse.value)
+          if (expiredBatches && expiredBatches.length) {
+            const existingBatchIds = new Set(invList.map((b) => String(b?.id || b?._id || b?.batchId || b?.batchNo || '')))
+            expiredBatches.forEach((eb) => {
+              const ebId = String(eb?.id || eb?._id || eb?.batchId || eb?.batchNo || '')
+              if (!ebId || !existingBatchIds.has(ebId)) {
+                invList.push(eb)
+              }
+            })
+          }
+        }
 
         // Create quick lookup for medicines by id, code, and name
         const medMap = new Map()
@@ -480,16 +531,17 @@ export default function Stock({ initialView }) {
         const coveredMedIds = new Set()
 
         const enrichedBatches = invList.map((batch, idx) => {
-          const batchMedId = String(batch?.medicineId || batch?.medicine?.id || batch?._id || '').trim().toLowerCase()
-          const batchCode = String(batch?.code || batch?.medicineCode || '').trim().toLowerCase()
-          const batchName = String(batch?.medicineName || batch?.medicine?.name || batch?.name || '').trim().toLowerCase()
+          const batchMedId = String(batch?.medicineId || batch?.MedicineId || batch?.medicine?.id || batch?.medicine?._id || batch?.medicine?.medicineId || '').trim().toLowerCase()
+          const batchCode = String(batch?.code || batch?.medicineCode || batch?.MedicineCode || '').trim().toLowerCase()
+          const batchName = String(batch?.medicineName || batch?.MedicineName || batch?.medicine?.name || batch?.name || '').trim().toLowerCase()
 
           const linked = medMap.get(`id:${batchMedId}`) || medMap.get(`code:${batchCode}`) || medMap.get(`name:${batchName}`) || {}
           if (batchMedId) coveredMedIds.add(`id:${batchMedId}`)
           if (batchCode) coveredMedIds.add(`code:${batchCode}`)
           if (batchName) coveredMedIds.add(`name:${batchName}`)
 
-          return formatStockRecord({ ...linked, ...batch }, idx)
+          const mergedExpiry = batch?.expiryDate || batch?.ExpiryDate || batch?.expiresAt || batch?.ExpiresAt || batch?.expiry || batch?.Expiry || batch?.batch?.expiryDate || linked?.expiryDate || linked?.ExpiryDate || linked?.expiresAt || linked?.ExpiresAt || linked?.expiry || linked?.Expiry || null
+          return formatStockRecord({ ...linked, ...batch, expiryDate: mergedExpiry }, idx)
         })
 
         // For all medicines from the catalogue that do not have separate batch rows,
@@ -516,27 +568,21 @@ export default function Stock({ initialView }) {
         const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
 
         if (nextView === 'low') {
-          combined = combined.filter((item) => {
-            const qty = Number(item.quantity) || 0
-            const reorder = Number(item.reorderLevel) || 5
-            return qty > 0 && qty <= reorder
-          })
+          setStatusFilter('low stock')
+          setExpiryFilter('all')
+          setView('inventory')
         } else if (nextView === 'out') {
-          combined = combined.filter((item) => (Number(item.quantity) || 0) <= 0)
+          setStatusFilter('out of stock')
+          setExpiryFilter('all')
+          setView('inventory')
         } else if (nextView === 'near') {
-          combined = combined.filter((item) => {
-            const raw = item.expiryDate
-            if (!raw || raw === '-') return false
-            const diff = new Date(raw).getTime() - now
-            return !isNaN(diff) && diff > 0 && diff <= thirtyDaysMs
-          })
+          setExpiryFilter('near')
+          setStatusFilter('all')
+          setView('inventory')
         } else if (nextView === 'expired') {
-          combined = combined.filter((item) => {
-            const raw = item.expiryDate
-            if (!raw || raw === '-') return false
-            const diff = new Date(raw).getTime() - now
-            return !isNaN(diff) && diff <= 0
-          })
+          setExpiryFilter('expired')
+          setStatusFilter('all')
+          setView('inventory')
         }
 
         setItems(combined)
@@ -550,8 +596,37 @@ export default function Stock({ initialView }) {
   }
 
   function handleNavigate(route, targetView) {
-    setView(targetView)
-    load(targetView)
+    if (targetView === 'summary' || targetView === 'valuation' || targetView === 'transactions') {
+      setView(targetView)
+      load(targetView)
+      if (location.pathname !== route) {
+        navigate(route)
+      }
+      return
+    }
+
+    setView('inventory')
+    setCategoryFilter('all')
+    setSearch('')
+
+    if (targetView === 'expired') {
+      setExpiryFilter('expired')
+      setStatusFilter('all')
+    } else if (targetView === 'near') {
+      setExpiryFilter('near')
+      setStatusFilter('all')
+    } else if (targetView === 'low') {
+      setStatusFilter('low stock')
+      setExpiryFilter('all')
+    } else if (targetView === 'out') {
+      setStatusFilter('out of stock')
+      setExpiryFilter('all')
+    } else {
+      setStatusFilter('all')
+      setExpiryFilter('all')
+    }
+
+    load('inventory')
     if (location.pathname !== route) {
       navigate(route)
     }
@@ -661,11 +736,33 @@ export default function Stock({ initialView }) {
         else matchesStatus = itemStatus.includes(statusFilter.toLowerCase())
       }
       
-      const daysLeft = Number(item?.daysLeft ?? 999)
+      const rawDays = item?.daysLeft
+      let daysLeft = (rawDays !== undefined && rawDays !== null && !isNaN(Number(rawDays))) ? Number(rawDays) : 999
+      if (daysLeft === 999 && item?.expiryDate && item?.expiryDate !== '-') {
+        const d = parseFlexibleDate(item.expiryDate)
+        if (d) {
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const target = new Date(d)
+          target.setHours(0, 0, 0, 0)
+          daysLeft = Math.round((target - today) / (24 * 60 * 60 * 1000))
+        }
+      }
+
+      const st = String(item?.status || '').toLowerCase()
+      const isExpired = daysLeft <= 0 || st.includes('expired')
+      const isNear = !isExpired && ((daysLeft > 0 && daysLeft <= 30) || st.includes('near'))
+
       let matchesExpiry = true
-      if (expiryFilter === 'expired') matchesExpiry = daysLeft <= 0
-      if (expiryFilter === 'near') matchesExpiry = daysLeft > 0 && daysLeft <= 30
-      if (expiryFilter === 'safe') matchesExpiry = daysLeft > 30
+      if (expiryFilter === 'all') {
+        matchesExpiry = true
+      } else if (expiryFilter === 'all_expiry') {
+        matchesExpiry = isExpired || isNear
+      } else if (expiryFilter === 'expired') {
+        matchesExpiry = isExpired
+      } else if (expiryFilter === 'near') {
+        matchesExpiry = isNear
+      }
       
       return matchesSearch && matchesCategory && matchesStatus && matchesExpiry
     })
@@ -1105,7 +1202,7 @@ export default function Stock({ initialView }) {
                   value={statusFilter} 
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
-                  <option value="all">All Status</option>
+                  <option value="all">All Stock Status</option>
                   <option value="in stock">In Stock</option>
                   <option value="low stock">Low Stock</option>
                   <option value="out of stock">Out of Stock</option>
@@ -1114,10 +1211,10 @@ export default function Stock({ initialView }) {
                   value={expiryFilter} 
                   onChange={(e) => setExpiryFilter(e.target.value)}
                 >
-                  <option value="all">All Expiry Status</option>
+                  <option value="all">All Status</option>
+                  <option value="all_expiry">All Expiry Status</option>
                   <option value="expired">Expired</option>
                   <option value="near">Near Expiry</option>
-                  <option value="safe">Safe</option>
                 </select>
                 <button 
                   type="button" 
