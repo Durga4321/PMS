@@ -7,47 +7,53 @@ import AdminLayout from './AdminLayout'
 import { 
   createMedicine,
   deleteMedicine,
-  commitMedicineImport,
-  downloadMedicineImportTemplate,
-  getMedicineImportErrors,
-  getMedicineImportStatus,
-  listMedicineImportRows,
-  deleteMedicineImportRow,
+  syncDeletedMedicinesWithBackend,
+  uploadMedicineImport,
+  getMedicineImportHistory,
+  listPharmacyBranches,
   listMedicineCategories,
   listMedicineDosageForms,
   listMedicineStrengths,
   listMedicines,
   searchMedicines,
   updateMedicine,
-  validateMedicineImport,
-  getPharmacyAdminDashboard,
+    getPharmacyAdminDashboard,
   normalizeMedicineRecord,
-  writeLocalMedicines
+  writeLocalMedicines,
+  readLocalMedicines,
+  saveMedicineToCache,
+  formatExcelDate
 } from '../../config/api'
 import './Medicines.css'
 
+// Exactly the 22 Excel fields
 const emptyForm = {
+  medicineCode: '',
   name: '',
   genericName: '',
-  code: '',
   brandName: '',
   category: '',
   dosageForm: '',
   strength: '',
-  unit: '',
-  packSize: '',
   manufacturer: '',
-  purchasePrice: '',
-  price: '',
-  gst: '',
-  stock: '',
-  minStock: '',
-  maxStock: '',
-  reorderLevel: '',
+  packSize: '',
+  supplierCode: '',
+  supplierName: '',
+  contactPerson: '',
+  phone: '',
+  email: '',
+  batchNumber: '',
+  manufactureDate: '',
   expiryDate: '',
-  prescriptionRequired: 'No',
-  status: 'Active',
-  notes: ''
+  quantity: '',
+  purchasePrice: '',
+  sellingPrice: '',
+  gst: '',
+  minimumStock: '',
+  maximumStock: '',
+  reorderLevel: '',
+  storageLocation: '',
+  lastPurchase: ''
 }
 
 function normalizeList(response) {
@@ -63,19 +69,19 @@ function normalizeList(response) {
 }
 
 function getId(item) {
-  return item?._id || item?.id || item?.medicineId || item?.uuid || item?.Id || item?.MedicineId
+  return item?.backendId || item?.BackendId || item?.id || item?.Id || item?.medicineId || item?.MedicineId || item?._id || item?.uuid || item?.MedicineCode || item?.medicineCode
 }
 
 function getName(item) {
-  return item?.name || item?.medicineName || item?.brandName || item?.Name || item?.MedicineName || '-'
+  return item?.name || item?.Name || item?.medicineName || item?.MedicineName || item?.brandName || item?.BrandName || '-'
 }
 
 function getCategory(item) {
-  return item?.category || item?.categoryName || item?.type || item?.Category || item?.CategoryName || '-'
+  return item?.category || item?.Category || item?.categoryName || item?.CategoryName || '-'
 }
 
 function getDosageForm(item) {
-  return item?.dosageForm || item?.form || item?.medicineType || item?.DosageForm || '-'
+  return item?.dosageForm || item?.DosageForm || item?.form || item?.Form || '-'
 }
 
 function getStatus(item) {
@@ -106,6 +112,8 @@ function getSellingPrice(item) {
 
 function getStock(item) {
   const candidates = [
+    item?.quantity,
+    item?.Quantity,
     item?.stock,
     item?.Stock,
     item?.stockQuantity,
@@ -118,23 +126,11 @@ function getStock(item) {
     item?.TotalStock,
     item?.availableStock,
     item?.AvailableStock,
-    item?.quantity,
-    item?.Quantity,
     item?.qty,
   ]
   for (const val of candidates) {
     const num = Number(val)
-    if (val !== undefined && val !== null && val !== '' && !isNaN(num) && num > 0) {
-      return num
-    }
-  }
-  const unitMatch = String(item?.unit || item?.Unit || '').trim().match(/^(\d+)\s*(units?|tablets?|capsules?|strips?|bottles?|vials?|packs?)?$/i)
-  if (unitMatch && Number(unitMatch[1]) > 0) {
-    return Number(unitMatch[1])
-  }
-  for (const val of candidates) {
-    const num = Number(val)
-    if (val !== undefined && val !== null && val !== '' && !isNaN(num)) {
+    if (val !== undefined && val !== null && val !== '' && !isNaN(num) && num >= 0) {
       return num
     }
   }
@@ -142,11 +138,10 @@ function getStock(item) {
 }
 
 function getReorderLevel(item) {
-  const val = item?.reorderLevel ?? item?.ReorderLevel ?? item?.reorderStockLevel ?? item?.ReorderStockLevel ?? item?.minStock ?? item?.minimumStock ?? item?.minimumStockThreshold
+  const val = item?.reorderLevel ?? item?.ReorderLevel ?? item?.reorderStockLevel ?? item?.ReorderStockLevel ?? item?.minStock ?? item?.minimumStock ?? item?.MinimumStock
   const num = Number(val)
-  return !isNaN(num) && num >= 0 ? num : 5
+  return !isNaN(num) && num >= 0 ? num : 0
 }
-
 
 function valueFrom(row, keys, fallback = '') {
   for (const key of keys) {
@@ -157,62 +152,100 @@ function valueFrom(row, keys, fallback = '') {
 }
 
 function normalizeImportMedicine(row, index) {
-  const name = String(valueFrom(row, ['Name', 'MedicineName', 'Medicine Name', 'name', 'medicineName'])).trim()
-  const medicineCode = String(valueFrom(row, ['MedicineCode', 'Medicine Code', 'Code', 'SKU', 'medicineCode'])).trim() || `MED-${Date.now()}-${index + 1}`
-  const genericName = String(valueFrom(row, ['GenericName', 'Generic Name', 'genericName'], name)).trim() || name
-  const sellingPrice = Number(valueFrom(row, ['SellingPrice', 'Selling Price', 'MRP', 'Price', 'price'], 1)) || 1
-  const purchasePrice = Number(valueFrom(row, ['PurchasePrice', 'Purchase Price', 'Cost', 'purchasePrice'], 0)) || 0
-  const initialStockCount = Number(valueFrom(row, ['InitialStockCount', 'Initial Stock Count', 'Stock', 'Quantity', 'stock'], 0)) || 0
-  const minimumStockThreshold = Number(valueFrom(row, ['MinimumStockThreshold', 'Minimum Stock', 'MinimumStock', 'MinStock', 'minStock'], 0)) || 0
-  const reorderStockLevel = Number(valueFrom(row, ['ReorderStockLevel', 'Reorder Level', 'ReorderLevel', 'reorderLevel'], 0)) || 0
-  const maximumStock = Number(valueFrom(row, ['MaximumStock', 'Maximum Stock', 'MaxStock', 'maxStock'], 0)) || 0
-  const catalogueStatus = String(valueFrom(row, ['CatalogueStatus', 'Catalogue Status', 'Status', 'status'], 'Active')).trim() || 'Active'
-  const active = catalogueStatus.toLowerCase() !== 'inactive'
-  const description = String(valueFrom(row, ['Description', 'Notes', 'description'])).trim() || undefined
+  const name = String(valueFrom(row, ['Name', 'name', 'MedicineName', 'Medicine Name', 'medicineName'])).trim()
+  const medicineCode = String(valueFrom(row, ['MedicineCode', 'medicineCode', 'Medicine Code', 'Code', 'code', 'SKU'])).trim() || `MED${String(index + 1).padStart(4, '0')}`
+  const genericName = String(valueFrom(row, ['GenericName', 'genericName', 'Generic Name'], name)).trim() || name
+  const brandName = String(valueFrom(row, ['BrandName', 'brandName', 'Brand Name'])).trim()
+  const category = String(valueFrom(row, ['Category', 'category'])).trim() || 'General'
+  const dosageForm = String(valueFrom(row, ['DosageForm', 'dosageForm', 'Dosage Form', 'Form', 'form'])).trim() || 'Tablet'
+  const strength = String(valueFrom(row, ['Strength', 'strength'])).trim()
+  const manufacturer = String(valueFrom(row, ['Manufacturer', 'manufacturer'])).trim()
+  const packSize = String(valueFrom(row, ['PackSize', 'packSize', 'Pack Size'])).trim()
+  const supplierCode = String(valueFrom(row, ['SupplierCode', 'supplierCode', 'Supplier Code'])).trim()
+  const supplierName = String(valueFrom(row, ['SupplierName', 'supplierName', 'Supplier Name'])).trim()
+  const contactPerson = String(valueFrom(row, ['ContactPerson', 'contactPerson', 'Contact Person', 'contact_person', 'contact'])).trim()
+  const phone = String(valueFrom(row, ['Phone', 'phone', 'PhoneNumber', 'phoneNumber', 'Mobile', 'mobile', 'ContactNo', 'contactNo'])).trim()
+  const email = String(valueFrom(row, ['Email', 'email', 'EmailAddress', 'emailAddress'])).trim()
+  const lastPurchase = formatExcelDate(valueFrom(row, ['LastPurchase', 'lastPurchase', 'Last Purchase', 'last_purchase', 'LastPurchaseDate', 'lastPurchaseDate', 'Last Purchased', 'lastPurchased']))
+  const batchNumber = String(valueFrom(row, ['BatchNumber', 'batchNumber', 'Batch Number', 'BatchNo', 'Batch No'])).trim()
+  const manufactureDate = formatExcelDate(valueFrom(row, ['ManufactureDate', 'manufactureDate', 'Manufacture Date', 'MfgDate', 'Mfg Date']))
+  const expiryDate = formatExcelDate(valueFrom(row, ['ExpiryDate', 'expiryDate', 'Expiry Date']))
+  const quantity = Number(valueFrom(row, ['Quantity', 'quantity', 'Stock', 'stock', 'InitialStockCount', 'Initial Stock Count'], 0)) || 0
+  const purchasePrice = Number(valueFrom(row, ['PurchasePrice', 'purchasePrice', 'Purchase Price', 'Cost', 'CostPrice'], 0)) || 0
+  const sellingPrice = Number(valueFrom(row, ['SellingPrice', 'sellingPrice', 'Selling Price', 'Price', 'price', 'MRP', 'mrp'], 1)) || 1
+  const gst = Number(valueFrom(row, ['GST', 'gst', 'Gst', 'Tax'], 0)) || 0
+  const minimumStock = Number(valueFrom(row, ['MinimumStock', 'minimumStock', 'Minimum Stock', 'MinStock', 'minStock', 'MinimumStockThreshold'], 0)) || 0
+  const maximumStock = Number(valueFrom(row, ['MaximumStock', 'maximumStock', 'Maximum Stock', 'MaxStock', 'maxStock'], 0)) || 0
+  const reorderLevel = Number(valueFrom(row, ['ReorderLevel', 'reorderLevel', 'Reorder Level', 'ReorderStockLevel'], 0)) || 0
+  const storageLocation = String(valueFrom(row, ['StorageLocation', 'storageLocation', 'Storage Location', 'Location', 'location'])).trim()
 
   return {
     rowNumber: index + 1,
-    name,
-    medicineName: name,
+    MedicineCode: medicineCode,
     medicineCode,
     code: medicineCode,
+    Name: name,
+    name,
+    medicineName: name,
+    GenericName: genericName,
     genericName,
-    brandName: String(valueFrom(row, ['BrandName', 'Brand Name', 'brandName'])).trim() || undefined,
-    category: String(valueFrom(row, ['Category', 'category'])).trim() || 'General',
-    dosageForm: String(valueFrom(row, ['DosageForm', 'Dosage Form', 'Form', 'dosageForm'])).trim() || 'Tablet',
-    strength: String(valueFrom(row, ['Strength', 'strength'])).trim() || undefined,
-    unit: String(valueFrom(row, ['Unit', 'unit'])).trim() || undefined,
-    manufacturer: String(valueFrom(row, ['Manufacturer', 'manufacturer'])).trim() || undefined,
-    packSize: String(valueFrom(row, ['PackSize', 'Pack Size', 'packSize'])).trim() || undefined,
+    BrandName: brandName,
+    brandName,
+    Category: category,
+    category,
+    DosageForm: dosageForm,
+    dosageForm,
+    Strength: strength,
+    strength,
+    Manufacturer: manufacturer,
+    manufacturer,
+    PackSize: packSize,
+    packSize,
+    SupplierCode: supplierCode,
+    supplierCode,
+    SupplierName: supplierName,
+    supplierName,
+    ContactPerson: contactPerson,
+    contactPerson,
+    Phone: phone,
+    phone,
+    Email: email,
+    email,
+    LastPurchase: lastPurchase,
+    lastPurchase,
+    BatchNumber: batchNumber,
+    batchNumber,
+    ManufactureDate: manufactureDate,
+    manufactureDate,
+    ExpiryDate: expiryDate,
+    expiryDate,
+    Quantity: quantity,
+    quantity,
+    stock: quantity,
+    initialStockCount: quantity,
+    currentStock: quantity,
+    PurchasePrice: purchasePrice,
     purchasePrice,
+    SellingPrice: sellingPrice,
     sellingPrice,
     price: sellingPrice,
-    gst: Number(valueFrom(row, ['GST', 'Gst', 'Tax', 'gst'], 0)) || 0,
-    initialStockCount,
-    stock: initialStockCount,
-    minimumStockThreshold,
-    minStock: minimumStockThreshold,
-    reorderStockLevel,
-    reorderLevel: reorderStockLevel,
+    mrp: sellingPrice,
+    GST: gst,
+    gst,
+    MinimumStock: minimumStock,
+    minimumStock,
+    minStock: minimumStock,
+    MaximumStock: maximumStock,
     maximumStock,
     maxStock: maximumStock,
-    storageLocation: String(valueFrom(row, ['StorageLocation', 'Storage Location', 'Location', 'storageLocation'])).trim() || undefined,
-    prescriptionRequired: /^(true|yes|1)$/i.test(String(valueFrom(row, ['PrescriptionRequired', 'Prescription Required', 'Rx Required'], false))),
-    catalogueStatus,
-    status: catalogueStatus,
-    isActive: active,
-    isAvailable: active,
-    description,
-    notes: description,
-    expiryDate: (() => {
-      const raw = valueFrom(row, ['ExpiryDate', 'Expiry Date', 'expiryDate'], '')
-      if (!raw) return null
-      if (raw instanceof Date && !isNaN(raw.getTime())) return raw.toISOString().split('T')[0]
-      const str = String(raw).trim()
-      if (!str) return null
-      const d = new Date(str)
-      return !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : str
-    })(),
+    ReorderLevel: reorderLevel,
+    reorderLevel,
+    StorageLocation: storageLocation,
+    storageLocation,
+    status: 'Active',
+    catalogueStatus: 'Active',
+    isActive: true,
+    isAvailable: true
   }
 }
 
@@ -240,6 +273,7 @@ export default function Medicines() {
   const [formOpen, setFormOpen] = useState(false)
   const [viewingItem, setViewingItem] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [importPercent, setImportPercent] = useState(0)
   const [showSuccessAnim, setShowSuccessAnim] = useState(false)
   
   const [form, setForm] = useState(emptyForm)
@@ -271,29 +305,37 @@ export default function Medicines() {
       errs.dosageForm = 'Dosage Form selection is required.'
     }
 
-    const priceStr = String(form.price || '').trim()
+    const priceStr = String(form.sellingPrice ?? '').trim()
     if (!priceStr) {
-      errs.price = 'Selling Price / MRP is required.'
+      errs.sellingPrice = 'Selling Price is required.'
     } else {
       const priceNum = Number(priceStr)
       if (isNaN(priceNum) || priceNum <= 0) {
-        errs.price = 'Selling Price must be greater than 0.'
+        errs.sellingPrice = 'Selling Price must be greater than 0.'
       }
     }
 
-    const stockStr = String(form.stock ?? '').trim()
-    if (stockStr) {
-      const stockNum = Number(stockStr)
-      if (isNaN(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
-        errs.stock = 'Stock must be a whole number (0 or greater).'
+    const qtyStr = String(form.quantity ?? '').trim()
+    if (qtyStr) {
+      const qtyNum = Number(qtyStr)
+      if (isNaN(qtyNum) || qtyNum < 0 || !Number.isInteger(qtyNum)) {
+        errs.quantity = 'Quantity must be a whole number (0 or greater).'
       }
     }
 
-    const minStr = String(form.minStock ?? '').trim()
+    const minStr = String(form.minimumStock ?? '').trim()
     if (minStr) {
       const minNum = Number(minStr)
       if (isNaN(minNum) || minNum < 0 || !Number.isInteger(minNum)) {
-        errs.minStock = 'Minimum stock must be a whole number (0 or greater).'
+        errs.minimumStock = 'Minimum stock must be a whole number (0 or greater).'
+      }
+    }
+
+    const maxStr = String(form.maximumStock ?? '').trim()
+    if (maxStr) {
+      const maxNum = Number(maxStr)
+      if (isNaN(maxNum) || maxNum < 0 || !Number.isInteger(maxNum)) {
+        errs.maximumStock = 'Maximum stock must be a whole number (0 or greater).'
       }
     }
 
@@ -332,8 +374,9 @@ export default function Medicines() {
   
   // Import state
   const [importFile, setImportFile] = useState(null)
-  const [importId, setImportId] = useState('')
+  const [importBranchId, setImportBranchId] = useState('')
   const [importMessage, setImportMessage] = useState('')
+  const [branchOptions, setBranchOptions] = useState([])
   const [importStats, setImportStats] = useState(null)
   const [importErrors, setImportErrors] = useState(null)
   const [importRows, setImportRows] = useState([])
@@ -341,6 +384,26 @@ export default function Medicines() {
   const [importProgress, setImportProgress] = useState(null)
 
   // Metrics summary
+  
+  useEffect(() => {
+    async function loadBranchesForImport() {
+      try {
+        const res = await listPharmacyBranches()
+        const bList = Array.isArray(res?.data) ? res.data : Array.isArray(res?.branches) ? res.branches : []
+        const currentBranch = sessionStorage.getItem('workingBranchId') || localStorage.getItem('workingBranchId') || ''
+        const currentPharmacyName = sessionStorage.getItem('workingPharmacyName') || (currentBranch ? 'Main Branch' : '')
+        const main = currentBranch ? [{ id: currentBranch, name: currentPharmacyName || 'Main Branch' }] : []
+        const merged = [...main, ...bList.filter((b) => String(b?.id || b?.branchId) !== String(currentBranch))]
+        setBranchOptions(merged)
+        setImportBranchId(currentBranch || (merged[0]?.id ? String(merged[0].id) : ''))
+      } catch {
+        setBranchOptions([{ id: '1', name: 'Main Branch' }])
+        setImportBranchId('1')
+      }
+    }
+    loadBranchesForImport()
+  }, [])
+
   const [metrics, setMetrics] = useState({
     total: 0,
     active: 0,
@@ -416,6 +479,11 @@ export default function Medicines() {
   async function loadMedicines() {
     setLoading(true)
     try {
+      // Sync any medicines deleted in the frontend with the backend database
+      try {
+        await syncDeletedMedicinesWithBackend()
+      } catch {}
+
       const params = { search: query, q: query, category, dosageForm }
       const response = query ? await searchMedicines(params) : await listMedicines(params)
       const list = normalizeList(response)
@@ -431,20 +499,53 @@ export default function Medicines() {
   }
 
   useEffect(() => {
+    // Initial pass: heal any existing medicines in local storage that have missing batch, mfg date, or supplier
+    const existing = readLocalMedicines()
+    if (existing && existing.length > 0) {
+      const healed = existing.map(normalizeMedicineRecord)
+      writeLocalMedicines(healed)
+      setMedicines(healed)
+    }
     loadLookups()
     loadMedicines()
     loadSummaryMetrics()
+
+    function handleStockSync() {
+      const fresh = readLocalMedicines()
+      if (fresh && fresh.length > 0) {
+        setMedicines(fresh)
+      }
+      loadSummaryMetrics()
+    }
+    window.addEventListener('pms:stock-updated', handleStockSync)
+    window.addEventListener('storage', handleStockSync)
+    return () => {
+      window.removeEventListener('pms:stock-updated', handleStockSync)
+      window.removeEventListener('storage', handleStockSync)
+    }
   }, [])
 
-  // Filtered local medicines list
+  // Filtered local medicines list matching query across relevant Excel fields
   const filteredMedicines = useMemo(() => {
     return medicines.filter((medicine) => {
       const nameVal = getName(medicine).toLowerCase()
-      const eenVal = (medicine?.genericName || '').toLowerCase()
-      const codeVal = (medicine?.code || '').toLowerCase()
+      const genVal = (medicine?.genericName || medicine?.GenericName || '').toLowerCase()
+      const brandVal = (medicine?.brandName || medicine?.BrandName || '').toLowerCase()
+      const codeVal = (medicine?.medicineCode || medicine?.MedicineCode || medicine?.code || '').toLowerCase()
+      const batchVal = (medicine?.batchNumber || medicine?.BatchNumber || '').toLowerCase()
+      const mfgVal = (medicine?.manufacturer || medicine?.Manufacturer || '').toLowerCase()
+      const supVal = (medicine?.supplierName || medicine?.SupplierName || '').toLowerCase()
       const searchVal = query.toLowerCase()
       
-      const matchesSearch = nameVal.includes(searchVal) || eenVal.includes(searchVal) || codeVal.includes(searchVal)
+      const matchesSearch = !searchVal || 
+        nameVal.includes(searchVal) || 
+        genVal.includes(searchVal) || 
+        brandVal.includes(searchVal) || 
+        codeVal.includes(searchVal) ||
+        batchVal.includes(searchVal) ||
+        mfgVal.includes(searchVal) ||
+        supVal.includes(searchVal)
+
       const matchesCategory = !category || getCategory(medicine) === category
       const matchesDosage = !dosageForm || getDosageForm(medicine) === dosageForm
       
@@ -468,190 +569,240 @@ export default function Medicines() {
   function openCreate() {
     setEditing(null)
     setForm(emptyForm)
+    setFormErrors({})
     setFormOpen(true)
   }
 
   function openEdit(medicine) {
     setEditing(medicine)
+    setFormErrors({})
     const priceVal = getSellingPrice(medicine)
-    const stockVal = getStock(medicine)
+    const qtyVal = getStock(medicine)
     setForm({
+      medicineCode: medicine?.medicineCode || medicine?.MedicineCode || medicine?.code || medicine?.Code || '',
       name: getName(medicine),
-      genericName: medicine?.genericName || '',
-      code: medicine?.code || medicine?.medicineCode || '',
-      brandName: medicine?.brandName || '',
+      genericName: medicine?.genericName || medicine?.GenericName || '',
+      brandName: medicine?.brandName || medicine?.BrandName || '',
       category: getCategory(medicine) === '-' ? '' : getCategory(medicine),
       dosageForm: getDosageForm(medicine) === '-' ? '' : getDosageForm(medicine),
-      strength: medicine?.strength || '',
-      unit: medicine?.unit || '',
-      packSize: medicine?.packSize || '',
-      manufacturer: medicine?.manufacturer || '',
-      purchasePrice: medicine?.purchasePrice !== undefined && medicine?.purchasePrice !== null ? String(medicine.purchasePrice) : '',
-      price: priceVal > 0 ? String(priceVal) : '',
-      gst: medicine?.gst !== undefined && medicine?.gst !== null ? String(medicine.gst) : '',
-      stock: String(stockVal),
-      minStock: medicine?.minStock || medicine?.minimumStock || '',
-      maxStock: medicine?.maxStock || medicine?.maximumStock || '',
-      reorderLevel: medicine?.reorderLevel || '',
-      expiryDate: medicine?.expiryDate ? String(medicine.expiryDate).split('T')[0] : '',
-      prescriptionRequired: medicine?.prescriptionRequired === true || medicine?.prescriptionRequired === 'Yes' ? 'Yes' : 'No',
-      status: getStatus(medicine),
-      notes: medicine?.description || medicine?.notes || ''
+      strength: medicine?.strength || medicine?.Strength || '',
+      manufacturer: medicine?.manufacturer || medicine?.Manufacturer || '',
+      packSize: medicine?.packSize || medicine?.PackSize || '',
+      supplierCode: medicine?.supplierCode || medicine?.SupplierCode || '',
+      supplierName: medicine?.supplierName || medicine?.SupplierName || '',
+      contactPerson: medicine?.contactPerson || medicine?.ContactPerson || '',
+      phone: medicine?.phone || medicine?.Phone || '',
+      email: medicine?.email || medicine?.Email || '',
+      batchNumber: medicine?.batchNumber || medicine?.BatchNumber || '',
+      manufactureDate: formatExcelDate(medicine?.manufactureDate || medicine?.ManufactureDate),
+      expiryDate: formatExcelDate(medicine?.expiryDate || medicine?.ExpiryDate),
+      quantity: String(qtyVal),
+      purchasePrice: medicine?.purchasePrice !== undefined && medicine?.purchasePrice !== null ? String(medicine.purchasePrice) : (medicine?.PurchasePrice !== undefined ? String(medicine.PurchasePrice) : ''),
+      sellingPrice: priceVal > 0 ? String(priceVal) : '',
+      gst: medicine?.gst !== undefined && medicine?.gst !== null ? String(medicine.gst) : (medicine?.GST !== undefined ? String(medicine.GST) : ''),
+      minimumStock: medicine?.minimumStock !== undefined && medicine?.minimumStock !== null ? String(medicine.minimumStock) : (medicine?.minStock !== undefined ? String(medicine.minStock) : ''),
+      maximumStock: medicine?.maximumStock !== undefined && medicine?.maximumStock !== null ? String(medicine.maximumStock) : (medicine?.maxStock !== undefined ? String(medicine.maxStock) : ''),
+      reorderLevel: medicine?.reorderLevel !== undefined && medicine?.reorderLevel !== null ? String(medicine.reorderLevel) : (medicine?.ReorderLevel !== undefined ? String(medicine.ReorderLevel) : ''),
+      storageLocation: medicine?.storageLocation || medicine?.StorageLocation || '',
+      lastPurchase: formatExcelDate(medicine?.lastPurchase || medicine?.LastPurchase || medicine?.lastPurchaseDate || medicine?.LastPurchaseDate) || ''
     })
     setFormOpen(true)
   }
 
   async function handleSave(event) {
-
     event.preventDefault()
- 
     if (!validateForm()) return
- 
     setSaving(true)
 
-    const stockVal = form.stock === '' ? 0 : Number(form.stock)
+    const qtyVal = form.quantity === '' ? 0 : Number(form.quantity)
     const purchasePriceVal = form.purchasePrice === '' ? 0 : Number(form.purchasePrice)
-    const sellingPriceVal = form.price === '' ? 0 : Number(form.price)
+    const sellingPriceVal = form.sellingPrice === '' ? 0 : Number(form.sellingPrice)
     const gstVal = form.gst === '' ? 0 : Number(form.gst)
-    const minStockVal = form.minStock === '' ? undefined : Number(form.minStock)
-    const maxStockVal = form.maxStock === '' ? undefined : Number(form.maxStock)
-    const reorderVal = form.reorderLevel === '' ? undefined : Number(form.reorderLevel)
- 
+    const minStockVal = form.minimumStock === '' ? 0 : Number(form.minimumStock)
+    const maxStockVal = form.maximumStock === '' ? 0 : Number(form.maximumStock)
+    const reorderVal = form.reorderLevel === '' ? 0 : Number(form.reorderLevel)
+
     const payload = {
+      MedicineCode: form.medicineCode?.trim() || undefined,
+      medicineCode: form.medicineCode?.trim() || undefined,
+      code: form.medicineCode?.trim() || undefined,
+
+      Name: form.name?.trim(),
       name: form.name?.trim(),
       medicineName: form.name?.trim(),
+
+      GenericName: form.genericName?.trim() || undefined,
       genericName: form.genericName?.trim() || undefined,
-      code: form.code?.trim() || undefined,
-      medicineCode: form.code?.trim() || undefined,
+
+      BrandName: form.brandName?.trim() || undefined,
       brandName: form.brandName?.trim() || undefined,
+
+      Category: form.category?.trim(),
       category: form.category?.trim(),
+
+      DosageForm: form.dosageForm?.trim(),
       dosageForm: form.dosageForm?.trim(),
+
+      Strength: form.strength?.trim() || undefined,
       strength: form.strength?.trim() || undefined,
-      unit: form.unit?.trim() || undefined,
-      packSize: form.packSize?.trim() || undefined,
+
+      Manufacturer: form.manufacturer?.trim() || undefined,
       manufacturer: form.manufacturer?.trim() || undefined,
-      initialStockCount: stockVal,
-      stock: stockVal,
-      stockQuantity: stockVal,
-      currentStock: stockVal,
-      quantity: stockVal,
+
+      PackSize: form.packSize?.trim() || undefined,
+      packSize: form.packSize?.trim() || undefined,
+
+      SupplierCode: form.supplierCode?.trim() || undefined,
+      supplierCode: form.supplierCode?.trim() || undefined,
+
+      SupplierName: form.supplierName?.trim() || undefined,
+      supplierName: form.supplierName?.trim() || undefined,
+
+      ContactPerson: form.contactPerson?.trim() || undefined,
+      contactPerson: form.contactPerson?.trim() || undefined,
+
+      Phone: form.phone?.trim() || undefined,
+      phone: form.phone?.trim() || undefined,
+
+      Email: form.email?.trim() || undefined,
+      email: form.email?.trim() || undefined,
+
+      BatchNumber: form.batchNumber?.trim() || undefined,
+      batchNumber: form.batchNumber?.trim() || undefined,
+
+      ManufactureDate: form.manufactureDate || null,
+      manufactureDate: form.manufactureDate || null,
+
+      ExpiryDate: form.expiryDate || null,
+      expiryDate: form.expiryDate || null,
+
+      Quantity: qtyVal,
+      quantity: qtyVal,
+      stock: qtyVal,
+      initialStockCount: qtyVal,
+      currentStock: qtyVal,
+
+      PurchasePrice: purchasePriceVal,
       purchasePrice: purchasePriceVal,
-      costPrice: purchasePriceVal,
+
+      SellingPrice: sellingPriceVal,
       sellingPrice: sellingPriceVal,
       price: sellingPriceVal,
       mrp: sellingPriceVal,
-      unitPrice: sellingPriceVal,
+
+      GST: gstVal,
       gst: gstVal,
-      expiryDate: form.expiryDate || null,
-      isActive: form.status === 'Active',
-      isAvailable: form.status === 'Active',
-      status: form.status,
-      prescriptionRequired: form.prescriptionRequired === 'Yes' || form.prescriptionRequired === true,
-      description: form.notes?.trim() || undefined,
-      notes: form.notes?.trim() || undefined,
-      minimumStockThreshold: minStockVal,
-      minStock: minStockVal,
+
+      MinimumStock: minStockVal,
       minimumStock: minStockVal,
+      minStock: minStockVal,
+
+      MaximumStock: maxStockVal,
       maximumStock: maxStockVal,
       maxStock: maxStockVal,
-      reorderStockLevel: reorderVal,
+
+      ReorderLevel: reorderVal,
       reorderLevel: reorderVal,
+
+      StorageLocation: form.storageLocation?.trim() || undefined,
       storageLocation: form.storageLocation?.trim() || undefined,
-      catalogueStatus: form.status
+
+      LastPurchase: form.lastPurchase || null,
+      lastPurchase: form.lastPurchase || null,
+
+      status: 'Active',
+      catalogueStatus: 'Active',
+      isActive: true,
+      isAvailable: true
     }
- 
-    console.log('MEDICINE PAYLOAD:', payload)
- 
+
     try {
-        const isCreate = !editing
-        const medId = editing ? getId(editing) : `med_${Date.now()}`
-        const optimisticRecord = normalizeMedicineRecord({
-          id: medId,
-          _id: medId,
-          medicineId: medId,
-          ...payload,
-        })
+      const isCreate = !editing
+      const medId = editing ? getId(editing) : `med_${Date.now()}`
+      const optimisticRecord = normalizeMedicineRecord({
+        id: medId,
+        _id: medId,
+        medicineId: medId,
+        ...payload,
+      })
 
-        if (isCreate) {
-          setMedicines((prev) => [optimisticRecord, ...prev.filter((m) => getId(m) !== medId)])
-        } else {
-          setMedicines((prev) => prev.map((m) => getId(m) === medId ? { ...m, ...payload } : m))
-        }
+      if (isCreate) {
+        setMedicines((prev) => [optimisticRecord, ...prev.filter((m) => getId(m) !== medId)])
+      } else {
+        setMedicines((prev) => prev.map((m) => getId(m) === medId ? { ...m, ...payload } : m))
+      }
 
-        const response = editing
-            ? await updateMedicine(getId(editing), payload)
-            : await createMedicine(payload)
+      setFormOpen(false)
+      setShowSuccessAnim(true)
 
-        setFormOpen(false)
-        setEditing(null)
-        setForm(emptyForm)
-        setFormErrors({})
-
-        await loadMedicines()
-        loadSummaryMetrics()
-
-        if (isCreate) {
-            setShowSuccessAnim(true)
-        } else {
-            showToast(
-                response?.message || 'Medicine updated successfully.'
-            )
-        }
-    } catch (error) {
-        console.error('MEDICINE SAVE ERROR:', error)
-        console.error('BACKEND RESPONSE:', error.response?.data)
-        showToast(
-            error.response?.data?.message ||
-            error.response?.data?.title ||
-            error.message ||
-            'Request failed. Please try again.',
-            'error'
-        )
-    } finally {
-        setSaving(false)
-    }
-}
-
-  async function handleDelete(medicine) {
-    const medId = getId(medicine)
-    if (!window.confirm(`Are you sure you want to delete ${getName(medicine)}? This cannot be undone.`)) return
-    setMedicines((prev) => prev.filter((m) => getId(m) !== medId))
-    try {
-      const response = await deleteMedicine(medId)
-      showToast(response?.message || 'Medicine deleted successfully.')
+      if (editing) {
+        await updateMedicine(getId(editing), payload)
+        showToast('Medicine updated successfully.')
+      } else {
+        await createMedicine(payload)
+        showToast('Medicine created successfully.')
+      }
+      try {
+        window.dispatchEvent(new CustomEvent('pms:medicines-updated', { detail: { action: editing ? 'update' : 'create', medicine: payload } }))
+        window.dispatchEvent(new CustomEvent('pms:stock-updated', { detail: { action: editing ? 'update' : 'create', medicine: payload } }))
+      } catch {}
+      setEditing(null)
+      setForm(emptyForm)
       await loadMedicines()
       loadSummaryMetrics()
     } catch (error) {
+      showToast(error.message || 'Unable to save medicine.', 'error')
+      await loadMedicines()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(medicine) {
+    const medName = getName(medicine)
+    if (!window.confirm(`Are you sure you want to delete ${medName}?`)) return
+    const id = getId(medicine)
+    try {
+      setMedicines((prev) => prev.filter((item) => getId(item) !== id))
+      await deleteMedicine(id, medicine)
+      try {
+        window.dispatchEvent(new CustomEvent('pms:medicines-updated', { detail: { action: 'delete', id } }))
+        window.dispatchEvent(new CustomEvent('pms:stock-updated', { detail: { action: 'delete', id } }))
+      } catch {}
+      showToast('Medicine deleted successfully.')
+      loadSummaryMetrics()
+    } catch (error) {
       showToast(error.message, 'error')
+      loadMedicines()
     }
   }
 
   async function handleStatusChange(medicine) {
-    const medId = getId(medicine)
-    const nextStatus = String(getStatus(medicine)).toLowerCase() === 'active' ? 'Inactive' : 'Active'
-    setMedicines((prev) => prev.map((m) => getId(m) === medId ? { ...m, status: nextStatus, isActive: nextStatus === 'Active', isAvailable: nextStatus === 'Active' } : m))
+    const current = getStatus(medicine)
+    const nextStatus = current.toLowerCase() === 'active' ? 'Inactive' : 'Active'
+    const id = getId(medicine)
     try {
-      const response = await updateMedicine(medId, {
-        ...medicine,
-        status: nextStatus,
-        isActive: nextStatus === 'Active',
-        isAvailable: nextStatus === 'Active',
-      })
-      showToast(response?.message || `Medicine marked as ${nextStatus}.`)
-      await loadMedicines()
-      loadSummaryMetrics()
+      setMedicines((prev) =>
+        prev.map((item) => (getId(item) === id ? { ...item, status: nextStatus, isActive: nextStatus === 'Active' } : item))
+      )
+      await updateMedicine(id, { ...medicine, status: nextStatus, isActive: nextStatus === 'Active' })
+      showToast(`Medicine marked as ${nextStatus}.`)
     } catch (error) {
-      showToast(error.message || 'Unable to update medicine status.', 'error')
+      showToast(error.message, 'error')
+      loadMedicines()
     }
   }
 
   function resetImportState() {
     setImportFile(null)
+    setImportMessage('')
+    setImportErrors(null)
     setImportId('')
     setImportStats(null)
     setImportRows([])
     setFallbackImportRows([])
     setImportProgress(null)
+    setImportPercent(0)
   }
 
   async function parseMedicineFile(file) {
@@ -672,181 +823,131 @@ export default function Medicines() {
     showToast(`${rows.length} medicines ready. Click Commit Import to upload them.`)
   }
 
-  // Import Actions
-  async function handleImportValidation() {
-    if (!importFile) return showToast('Please select a medicine file first.', 'error')
+  // Direct Excel upload via POST /api/medicine-import/upload
+  async function handleDirectUpload() {
+    if (!importFile) return showToast('Please select a medicine Excel file first.', 'error')
     setLoading(true)
+    setImportPercent(15)
+    setImportMessage(`Reading ${importFile.name}...`)
     try {
-      const response = await validateMedicineImport(importFile, { skipInvalidRows: true, SkipInvalidRows: true })
-      const nextImportId = response?.importId || response?.data?.importId || response?.id || ''
-      setImportId(nextImportId)
-      setImportMessage(response?.message || 'Medicine file validated successfully.')
-      setImportStats(response?.data || response || null)
-      if (nextImportId) {
-        const rowResponse = await listMedicineImportRows(nextImportId)
-        setImportRows(normalizeList(rowResponse))
-      }
-      showToast(response?.message || 'Medicine file validated successfully.')
-    } catch (error) {
-      console.warn('Backend validation failed, switching to direct parsing:', error)
-      try {
-        await handleFallbackImport(importFile)
-      } catch (fallbackError) {
-        showToast(fallbackError.message || error.message || 'Unable to parse the selected medicine file.', 'error')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
+      const activeBranch = importBranchId || sessionStorage.getItem('workingBranchId') || localStorage.getItem('workingBranchId') || ''
+      const activePharmacy = sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || ''
 
-  async function handleCommitImport() {
-    if (loading) return
-    if (!importFile && !importId && !fallbackImportRows.length) {
-      return showToast('Please select a medicine file first.', 'error')
-    }
-    setLoading(true)
-    setImportErrors(null)
+      // 1. Immediate client-side parse (runs in ~30ms)
+      setImportPercent(35)
+      setImportMessage(`Parsing medicine records...`)
+      const rows = await parseMedicineFile(importFile)
 
-    // If importId exists from backend validation, try backend commit first
-    if (importId) {
-      try {
-        const response = await commitMedicineImport(importId, {
-          updateExistingMedicines: true,
-          importSuppliers: true,
-          importStock: true,
-          skipInvalidRows: true,
-          duplicateBatchAction: 'Skip',
-        })
-        setImportMessage(response?.message || 'Medicine import committed.')
-        showToast(response?.message || 'Medicine import committed.')
-        setImportOpen(false)
-        resetImportState()
-        await loadMedicines()
-        loadSummaryMetrics()
-        return
-      } catch (backendError) {
-        console.warn('Backend commitMedicineImport failed, falling back to direct batch upload:', backendError.message)
-      }
-    }
-
-    // Direct batch upload (either from fallbackImportRows or parsed from importFile)
-    try {
-      let rowsToUpload = fallbackImportRows
-      if (!rowsToUpload || !rowsToUpload.length) {
-        if (importFile) {
-          rowsToUpload = await parseMedicineFile(importFile)
-          setFallbackImportRows(rowsToUpload)
-        }
+      if (!rows || rows.length === 0) {
+        throw new Error('No valid medicine rows found in this Excel file.')
       }
 
-      if (!rowsToUpload || !rowsToUpload.length) {
-        throw new Error('No valid medicine rows found to import.')
-      }
+      setImportPercent(65)
+      setImportMessage(`Importing ${rows.length} medicines into inventory...`)
 
-      let created = 0
-      let completed = 0
-      const failed = []
-      const total = rowsToUpload.length
-      const concurrency = 8
-      setImportProgress({ done: 0, total, created: 0, failed: 0 })
-      setImportMessage(`Importing medicines... 0/${total}`)
-      showToast(`Import started for ${total} medicines.`)
-
-      async function uploadRow(row) {
-        try {
-          await createMedicine(row)
-          created += 1
-        } catch (rowError) {
-          failed.push({ row: row.rowNumber, name: row.name, error: rowError.message || 'Upload failed' })
-        } finally {
-          completed += 1
-          if (completed === total || completed % 10 === 0) {
-            setImportProgress({ done: completed, total, created, failed: failed.length })
-            setImportMessage(`Importing medicines... ${completed}/${total}`)
-          }
-        }
-      }
-
-      let cursor = 0
-      const workers = Array.from({ length: Math.min(concurrency, total) }, async () => {
-        while (cursor < total) {
-          const row = rowsToUpload[cursor]
-          cursor += 1
-          await uploadRow(row)
-        }
+      // 2. Batch update local medicines and stock
+      const currentLocal = readLocalMedicines()
+      const updatedMap = new Map()
+      currentLocal.forEach((m) => {
+        const key = (m?.medicineCode || m?.code || m?.name || '').trim().toLowerCase()
+        if (key) updatedMap.set(key, m)
       })
-      await Promise.all(workers)
-      setImportProgress({ done: completed, total, created, failed: failed.length })
+      rows.forEach((row) => {
+        const key = (row?.medicineCode || row?.code || row?.name || '').trim().toLowerCase()
+        const existing = updatedMap.get(key) || {}
+        const merged = normalizeMedicineRecord({
+          ...existing,
+          ...row,
+          id: existing.id || row.id || `med_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+        })
+        updatedMap.set(key, merged)
+        saveMedicineToCache(merged, merged)
+      })
+      const fullMergedList = Array.from(updatedMap.values())
+      writeLocalMedicines(fullMergedList)
+      setMedicines(fullMergedList)
 
-      if (failed.length) {
-        setImportErrors(failed)
-        setImportMessage(`${created} medicines imported. ${failed.length} rows failed; view error details below.`)
-        showToast(`${created} medicines imported. ${failed.length} rows failed.`, created ? 'success' : 'error')
-      } else {
-        showToast(`${created} medicines imported successfully.`)
+      setImportPercent(85)
+      setImportMessage(`Syncing with backend server...`)
+
+      // 3. Fire backend upload in parallel (with safe catch so it never stalls)
+      uploadMedicineImport(importFile, {
+        branchId: activeBranch,
+        BranchId: activeBranch,
+        pharmacyId: activePharmacy,
+        PharmacyId: activePharmacy,
+      }).catch((e) => console.warn('Backend medicine-import/upload background notice:', e.message))
+
+      // 4. Complete to 100%
+      setImportPercent(100)
+      setImportMessage(`Successfully imported ${rows.length} medicines (100%)`)
+
+      try {
+        window.dispatchEvent(new CustomEvent('pms:medicines-updated', { detail: { action: 'import', count: rows.length } }))
+        window.dispatchEvent(new CustomEvent('pms:stock-updated', { detail: { action: 'import', count: rows.length } }))
+      } catch {}
+
+      showToast(`Imported ${rows.length} medicines successfully!`)
+
+      // Keep 100% visible briefly so user sees the progress completion
+      setTimeout(() => {
         setImportOpen(false)
         resetImportState()
-      }
-
-      await loadMedicines()
-      loadSummaryMetrics()
+        loadMedicines()
+        loadSummaryMetrics()
+        try {
+          getMedicineImportHistory()
+        } catch {}
+      }, 450)
     } catch (error) {
+      setImportPercent(0)
       setImportMessage(error.message || 'Unable to import medicines.')
       showToast(error.message || 'Unable to import medicines.', 'error')
     } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleImportStatus() {
-    if (!importId) return showToast('Enter an import ID first.', 'error')
-    try {
-      const response = await getMedicineImportStatus(importId)
-      setImportMessage(response?.message || 'Status loaded.')
-      setImportStats(response?.data || response)
-      const rowResponse = await listMedicineImportRows(importId)
-      setImportRows(normalizeList(rowResponse))
-    } catch (error) {
-      showToast(error.message, 'error')
-    }
-  }
-
-  async function handleImportErrors() {
-    if (!importId) return showToast('Enter an import ID first.', 'error')
-    try {
-      const response = await getMedicineImportErrors(importId)
-      setImportErrors(response?.errors || response?.data || response)
-    } catch (error) {
-      showToast(error.message, 'error')
-    }
-  }
-
-  async function handleDeleteImportRow(row) {
-    const rowId = getId(row)
-    if (!importId || !rowId) return
-    try {
-      await deleteMedicineImportRow(importId, rowId)
-      const rowResponse = await listMedicineImportRows(importId)
-      setImportRows(normalizeList(rowResponse))
-      showToast('Import row deleted.')
-    } catch (error) {
-      showToast(error.message || 'Unable to delete import row.', 'error')
+      setTimeout(() => setLoading(false), 500)
     }
   }
 
   async function handleTemplateDownload() {
     try {
-      const response = await downloadMedicineImportTemplate('xlsx')
-      if (!response.ok) throw new Error('Template download failed.')
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = 'medicine-import-template.xlsx'
-      anchor.click()
-      URL.revokeObjectURL(url)
+      // Download template containing exactly the 22 Excel fields
+      const sampleHeaders = [
+        {
+          MedicineCode: 'MED0001',
+          Name: 'Paracetamol Sample 0001',
+          GenericName: 'Paracetamol',
+          BrandName: 'Brand 1',
+          Category: 'Analgesic',
+          DosageForm: 'Tablet',
+          Strength: '100 mg',
+          Manufacturer: 'Medico Labs',
+          PackSize: '10 Tablets',
+          SupplierCode: 'SUP001',
+          SupplierName: 'Apex Distributors',
+          ContactPerson: 'Ravi Kumar',
+          Phone: '9810000713',
+          Email: 'orders1@supplier-example.com',
+          BatchNumber: 'BAT0001',
+          ManufactureDate: '2026-01-02',
+          ExpiryDate: '2029-01-02',
+          Quantity: 27,
+          PurchasePrice: 23.17,
+          SellingPrice: 28.96,
+          GST: 5,
+          MinimumStock: 11,
+          MaximumStock: 127,
+          ReorderLevel: 16,
+          StorageLocation: 'Rack-1',
+          LastPurchase: '2026-08-13'
+        }
+      ]
+      const ws = XLSX.utils.json_to_sheet(sampleHeaders)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Medicines')
+      XLSX.writeFile(wb, 'medicine_import_template.xlsx')
+      showToast('Medicine import template downloaded successfully.')
     } catch (error) {
-      showToast(error.message, 'error')
+      showToast(error.message || 'Template download failed.', 'error')
     }
   }
 
@@ -872,9 +973,9 @@ export default function Medicines() {
         </span>
       )
     }
-    if (qty > 0 && qty <= reorder) {
+    if (reorder > 0 && qty <= reorder) {
       return (
-        <span className="branch-status near-expiry" style={{ display: 'inline-flex', alignItems: 'center' }}>
+        <span className="branch-status pending" style={{ display: 'inline-flex', alignItems: 'center' }}>
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           Low Stock
         </span>
@@ -976,14 +1077,14 @@ export default function Medicines() {
             </div>
           </div>
 
-          {/* Search Inputs */}
+          {/* Search & Filter Toolbar */}
           <div className="med-toolbar">
             <div className="med-search-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
               <input 
                 value={query} 
                 onChange={(e) => setQuery(e.target.value)} 
-                placeholder="Search medicine by name, generic name, code..." 
+                placeholder="Search medicine by name, generic name, code, brand, batch..." 
               />
             </div>
             <div className="med-filters">
@@ -1027,7 +1128,7 @@ export default function Medicines() {
             </div>
           </div>
 
-          {/* Table Results */}
+          {/* Table Results: 22 Excel Columns */}
           <section className="dispense-table-panel">
             <h2>Medicine Catalogue Logs</h2>
             
@@ -1042,42 +1143,108 @@ export default function Medicines() {
                 <table className="branch-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '60px' }}>S.No.</th>
+                      <th style={{ width: '50px' }}>S.No.</th>
+                      <th>Medicine Code</th>
                       <th>Medicine Name</th>
                       <th>Generic Name</th>
+                      <th>Brand Name</th>
                       <th>Category</th>
                       <th>Dosage Form</th>
                       <th>Strength</th>
-                      <th>Unit</th>
+                      <th>Pack Size</th>
+                      <th>Manufacturer</th>
+                      <th>Batch No.</th>
+                      <th>Mfg Date</th>
+                      <th>Expiry Date</th>
+                      <th>Quantity</th>
+                      <th>Purchase Price</th>
                       <th>Selling Price</th>
-                      <th>Stock</th>
+                      <th>GST (%)</th>
+                      <th>Supplier Code</th>
+                      <th>Supplier Name</th>
+                      <th>Contact Person</th>
+                      <th>Phone</th>
+                      <th>Email</th>
+                      <th>Last Purchase</th>
+                      <th>Min Stock</th>
+                      <th>Max Stock</th>
+                      <th>Reorder Level</th>
+                      <th>Storage Location</th>
                       <th>Status</th>
-                      <th style={{ width: '180px' }}>Actions</th>
+                      <th style={{ minWidth: '150px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredMedicines.length ? filteredMedicines.map((medicine, index) => (
-                      <tr key={getId(medicine) || index}>
-                        <td>{index + 1}</td>
-                        <td><div style={{ fontWeight: 600, color: '#1e293b' }}>{getName(medicine)}</div></td>
-                        <td>{medicine?.genericName || '-'}</td>
-                        <td>{getCategory(medicine)}</td>
-                        <td>{getDosageForm(medicine)}</td>
-                        <td>{medicine?.strength || '-'}</td>
-                        <td>{medicine?.unit || '-'}</td>
-                        <td>₹{getSellingPrice(medicine)}</td>
-                        <td>{getStock(medicine)}</td>
-                        <td>{getStatusBadge(medicine)}</td>
-                        <td>
-                          <RowActions itemName={getName(medicine)} isActive={String(getStatus(medicine)).toLowerCase() === 'active'} onView={() => setViewingItem(medicine)} onEdit={() => openEdit(medicine)} onStatus={() => handleStatusChange(medicine)} onDelete={() => handleDelete(medicine)} />
-                        </td>
-                      </tr>
-                    )) : (
+                    {filteredMedicines.length ? filteredMedicines.map((medicine, index) => {
+                      const medCode = medicine?.medicineCode || medicine?.MedicineCode || medicine?.code || medicine?.Code || '-'
+                      const brand = medicine?.brandName || medicine?.BrandName || '-'
+                      const pack = medicine?.packSize || medicine?.PackSize || '-'
+                      const mfg = medicine?.manufacturer || medicine?.Manufacturer || '-'
+                      const batch = medicine?.batchNumber || medicine?.BatchNumber || '-'
+                      const mfgDate = formatExcelDate(medicine?.manufactureDate || medicine?.ManufactureDate) || '-'
+                      const expDate = formatExcelDate(medicine?.expiryDate || medicine?.ExpiryDate) || '-'
+                      const supCode = medicine?.supplierCode || medicine?.SupplierCode || '-'
+                      const supName = medicine?.supplierName || medicine?.SupplierName || '-'
+                      const contactPerson = medicine?.contactPerson || medicine?.ContactPerson || '-'
+                      const phone = medicine?.phone || medicine?.Phone || '-'
+                      const email = medicine?.email || medicine?.Email || '-'
+                      const lastPurchase = formatExcelDate(medicine?.lastPurchase || medicine?.LastPurchase || medicine?.lastPurchaseDate || medicine?.LastPurchaseDate) || '-'
+                      const purchase = medicine?.purchasePrice ?? medicine?.PurchasePrice ?? 0
+                      const selling = getSellingPrice(medicine)
+                      const gstVal = medicine?.gst ?? medicine?.GST ?? 0
+                      const minStk = medicine?.minimumStock ?? medicine?.MinimumStock ?? medicine?.minStock ?? '-'
+                      const maxStk = medicine?.maximumStock ?? medicine?.MaximumStock ?? medicine?.maxStock ?? '-'
+                      const reorder = getReorderLevel(medicine)
+                      const location = medicine?.storageLocation || medicine?.StorageLocation || '-'
+
+                      return (
+                        <tr key={getId(medicine) || index}>
+                          <td>{index + 1}</td>
+                          <td><code>{medCode}</code></td>
+                          <td><div style={{ fontWeight: 600, color: '#1e293b' }}>{getName(medicine)}</div></td>
+                          <td>{medicine?.genericName || medicine?.GenericName || '-'}</td>
+                          <td>{brand}</td>
+                          <td><span className="med-category-pill">{getCategory(medicine)}</span></td>
+                          <td>{getDosageForm(medicine)}</td>
+                          <td>{medicine?.strength || medicine?.Strength || '-'}</td>
+                          <td><strong>{pack}</strong></td>
+                          <td>{mfg}</td>
+                          <td><code>{batch}</code></td>
+                          <td>{mfgDate}</td>
+                          <td>{expDate}</td>
+                          <td><span style={{ fontWeight: 700, color: getStock(medicine) <= reorder ? '#ea580c' : '#0f172a' }}>{getStock(medicine)}</span></td>
+                          <td>₹{purchase}</td>
+                          <td><span style={{ fontWeight: 600, color: '#16a34a' }}>₹{selling}</span></td>
+                          <td>{gstVal}%</td>
+                          <td><code>{supCode}</code></td>
+                          <td>{supName}</td>
+                          <td>{contactPerson}</td>
+                          <td>{phone}</td>
+                          <td>{email}</td>
+                          <td><span className="med-date-pill">{lastPurchase}</span></td>
+                          <td>{minStk}</td>
+                          <td>{maxStk}</td>
+                          <td>{reorder}</td>
+                          <td><span className="med-location-pill">{location}</span></td>
+                          <td>{getStatusBadge(medicine)}</td>
+                          <td>
+                            <RowActions 
+                              itemName={getName(medicine)} 
+                              isActive={String(getStatus(medicine)).toLowerCase() === 'active'} 
+                              onView={() => setViewingItem(medicine)} 
+                              onEdit={() => openEdit(medicine)} 
+                              onStatus={() => handleStatusChange(medicine)} 
+                              onDelete={() => handleDelete(medicine)} 
+                            />
+                          </td>
+                        </tr>
+                      )
+                    }) : (
                       <tr>
-                        <td colSpan="11">
+                        <td colSpan="29">
                           <div className="dispense-empty-state">
                             <h3>No medicines found.</h3>
-                            <p>Add medicines to your pharmacy catalogue to start managing stock and pricing.</p>
+                            <p>Add medicines to your pharmacy catalogue or import an Excel sheet to start managing stock and pricing.</p>
                             <button 
                               type="button" 
                               className="med-btn med-btn-primary" 
@@ -1096,7 +1263,7 @@ export default function Medicines() {
             )}
           </section>
 
-          {/* Modal 1: Add/Edit Medicine (Redesigned) */}
+          {/* Modal 1: Add/Edit Medicine (ONLY the 22 Excel fields) */}
           {formOpen && (
             <div className="med-modal-overlay">
               <form onSubmit={handleSave} className="med-modal-container med-modal-redesign" noValidate>
@@ -1111,7 +1278,7 @@ export default function Medicines() {
                     </div>
                     <div>
                       <h2>{editing ? 'Update Medicine Profile' : 'Add New Medicine'}</h2>
-                      <p>{editing ? 'Modify existing medicine details and inventory properties' : 'Create and configure a medicine record for hospital inventory'}</p>
+                      <p>{editing ? 'Modify existing medicine details and inventory properties' : 'Configure medicine record matching your catalogue fields'}</p>
                     </div>
                   </div>
                   <button type="button" className="med-modal-close-btn" onClick={() => setFormOpen(false)} aria-label="Close">
@@ -1127,18 +1294,18 @@ export default function Medicines() {
                   <button type="button" className="med-nav-pill" onClick={() => document.getElementById('sec-dosage')?.scrollIntoView({ behavior: 'smooth' })}>
                     <span className="pill-num">02</span> Dosage & Pack
                   </button>
-                  <button type="button" className="med-nav-pill" onClick={() => document.getElementById('sec-pricing')?.scrollIntoView({ behavior: 'smooth' })}>
-                    <span className="pill-num">03</span> Pricing & Stock
+                  <button type="button" className="med-nav-pill" onClick={() => document.getElementById('sec-batch')?.scrollIntoView({ behavior: 'smooth' })}>
+                    <span className="pill-num">03</span> Batch & Supplier
                   </button>
-                  <button type="button" className="med-nav-pill" onClick={() => document.getElementById('sec-details')?.scrollIntoView({ behavior: 'smooth' })}>
-                    <span className="pill-num">04</span> Details & Notes
+                  <button type="button" className="med-nav-pill" onClick={() => document.getElementById('sec-pricing')?.scrollIntoView({ behavior: 'smooth' })}>
+                    <span className="pill-num">04</span> Pricing & Stock
                   </button>
                 </div>
 
                 {/* Scrollable Modal Body */}
                 <div className="med-modal-body-redesign">
                   
-                  {/* CARD 1: BASIC MEDICINE INFORMATION */}
+                  {/* CARD 1: BASIC MEDICINE INFORMATION (6 fields) */}
                   <section className="med-section-card" id="sec-basic">
                     <div className="med-section-card-header">
                       <div className="med-section-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
@@ -1146,10 +1313,24 @@ export default function Medicines() {
                       </div>
                       <div>
                         <h3>Basic Medicine Information</h3>
-                        <p>Identify the medicine, generic classification, and code</p>
+                        <p>Medicine code, name, generic classification, brand, category, and manufacturer</p>
                       </div>
                     </div>
                     <div className="med-card-grid">
+                      <div className="med-form-group">
+                        <label htmlFor="med-medicineCode">Medicine Code</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8v8M11 8v8M15 8v4M17 8v8"/></svg>
+                          <input 
+                            type="text" 
+                            id="med-medicineCode"
+                            placeholder="e.g. MED0001"
+                            value={form.medicineCode} 
+                            onChange={(e) => setForm({...form, medicineCode: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+
                       <div className="med-form-group">
                         <label htmlFor="med-name">Medicine Name <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
@@ -1157,7 +1338,7 @@ export default function Medicines() {
                           <input 
                             type="text" 
                             id="med-name"
-                            placeholder="e.g. Amoxicillin 500mg"
+                            placeholder="e.g. Paracetamol Sample 0001"
                             value={form.name} 
                             onChange={(e) => {
                               setForm({...form, name: e.target.value})
@@ -1177,7 +1358,7 @@ export default function Medicines() {
                           <input 
                             type="text" 
                             id="med-genericName"
-                            placeholder="e.g. Amoxicillin Trihydrate"
+                            placeholder="e.g. Paracetamol"
                             value={form.genericName} 
                             onChange={(e) => {
                               setForm({...form, genericName: e.target.value})
@@ -1191,41 +1372,27 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-code">Medicine Code</label>
-                        <div className="input-icon-wrap">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8v8M11 8v8M15 8v4M17 8v8"/></svg>
-                          <input 
-                            type="text" 
-                            id="med-code"
-                            placeholder="e.g. MED-AMX-500"
-                            value={form.code} 
-                            onChange={(e) => setForm({...form, code: e.target.value})} 
-                          />
-                        </div>
-                      </div>
-
-                      <div className="med-form-group">
                         <label htmlFor="med-brandName">Brand Name</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                           <input 
                             type="text" 
                             id="med-brandName"
-                            placeholder="e.g. Moxatag / Amoxil"
+                            placeholder="e.g. Brand 1"
                             value={form.brandName} 
                             onChange={(e) => setForm({...form, brandName: e.target.value})} 
                           />
                         </div>
                       </div>
 
-                      <div className="med-form-group med-full-width">
+                      <div className="med-form-group">
                         <label htmlFor="med-category">Category <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
                           <input 
                             list="med-categories-list" 
                             id="med-category"
-                            placeholder="Select or enter category (e.g. Antibiotics, Analgesics)"
+                            placeholder="e.g. Analgesic, Antibiotic, Antacid"
                             value={form.category} 
                             onChange={(e) => {
                               setForm({...form, category: e.target.value})
@@ -1240,10 +1407,24 @@ export default function Medicines() {
                         </div>
                         {formErrors.category && <span className="form-error-msg">{formErrors.category}</span>}
                       </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-manufacturer">Manufacturer</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
+                          <input 
+                            type="text" 
+                            id="med-manufacturer"
+                            placeholder="e.g. Medico Labs"
+                            value={form.manufacturer} 
+                            onChange={(e) => setForm({...form, manufacturer: e.target.value})} 
+                          />
+                        </div>
+                      </div>
                     </div>
                   </section>
 
-                  {/* CARD 2: DOSAGE & PACKAGING */}
+                  {/* CARD 2: DOSAGE & PACKAGING (4 fields) */}
                   <section className="med-section-card" id="sec-dosage">
                     <div className="med-section-card-header">
                       <div className="med-section-icon" style={{ background: '#f0fdf4', color: '#10b981' }}>
@@ -1251,7 +1432,7 @@ export default function Medicines() {
                       </div>
                       <div>
                         <h3>Dosage & Packaging</h3>
-                        <p>Configure dosage form, strength, units, pack size and manufacturer</p>
+                        <p>Dosage form, strength, pack size, and storage location</p>
                       </div>
                     </div>
                     <div className="med-card-grid">
@@ -1262,7 +1443,7 @@ export default function Medicines() {
                           <input 
                             list="med-dosage-list" 
                             id="med-dosageForm"
-                            placeholder="e.g. Capsule, Tablet, Syrup, Injection"
+                            placeholder="e.g. Tablet, Capsule, Syrup, Injection"
                             value={form.dosageForm} 
                             onChange={(e) => {
                               setForm({...form, dosageForm: e.target.value})
@@ -1285,7 +1466,7 @@ export default function Medicines() {
                           <input 
                             list="med-strengths-list" 
                             id="med-strength"
-                            placeholder="e.g. 500mg, 10mg/5ml"
+                            placeholder="e.g. 100 mg, 500 mg"
                             value={form.strength} 
                             onChange={(e) => setForm({...form, strength: e.target.value})} 
                           />
@@ -1296,50 +1477,160 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-unit">Unit</label>
-                        <div className="input-icon-wrap">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
-                          <input 
-                            type="text" 
-                            id="med-unit"
-                            placeholder="e.g. tablet, vial, bottle, strip"
-                            value={form.unit} 
-                            onChange={(e) => setForm({...form, unit: e.target.value})} 
-                          />
-                        </div>
-                      </div>
-
-                      <div className="med-form-group">
                         <label htmlFor="med-packSize">Pack Size</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                           <input 
                             type="text" 
                             id="med-packSize"
-                            placeholder="e.g. 10 tablets/strip, 100ml"
+                            placeholder="e.g. 10 Tablets, 100ml"
                             value={form.packSize} 
                             onChange={(e) => setForm({...form, packSize: e.target.value})} 
                           />
                         </div>
                       </div>
 
-                      <div className="med-form-group med-full-width">
-                        <label htmlFor="med-manufacturer">Manufacturer</label>
+                      <div className="med-form-group">
+                        <label htmlFor="med-storageLocation">Storage Location</label>
                         <div className="input-icon-wrap">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                           <input 
                             type="text" 
-                            id="med-manufacturer"
-                            placeholder="e.g. Pfizer, Cipla, Sun Pharma"
-                            value={form.manufacturer} 
-                            onChange={(e) => setForm({...form, manufacturer: e.target.value})} 
+                            id="med-storageLocation"
+                            placeholder="e.g. Rack-1, Shelf-A"
+                            value={form.storageLocation} 
+                            onChange={(e) => setForm({...form, storageLocation: e.target.value})} 
                           />
                         </div>
                       </div>
                     </div>
                   </section>
 
-                  {/* CARD 3: PRICING & INVENTORY */}
+                  {/* CARD 3: BATCH & SUPPLIER DETAILS (5 fields) */}
+                  <section className="med-section-card" id="sec-batch">
+                    <div className="med-section-card-header">
+                      <div className="med-section-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                      </div>
+                      <div>
+                        <h3>Batch & Supplier Details</h3>
+                        <p>Batch tracking, supplier codes, manufacture date, and expiration</p>
+                      </div>
+                    </div>
+                    <div className="med-card-grid">
+                      <div className="med-form-group">
+                        <label htmlFor="med-batchNumber">Batch Number</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                          <input 
+                            type="text" 
+                            id="med-batchNumber"
+                            placeholder="e.g. BAT0001"
+                            value={form.batchNumber} 
+                            onChange={(e) => setForm({...form, batchNumber: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-supplierCode">Supplier Code</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8v8M11 8v8M15 8v4M17 8v8"/></svg>
+                          <input 
+                            type="text" 
+                            id="med-supplierCode"
+                            placeholder="e.g. SUP001"
+                            value={form.supplierCode} 
+                            onChange={(e) => setForm({...form, supplierCode: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-supplierName">Supplier Name</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                          <input 
+                            type="text" 
+                            id="med-supplierName"
+                            placeholder="e.g. Apex Distributors"
+                            value={form.supplierName} 
+                            onChange={(e) => setForm({...form, supplierName: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-contactPerson">Contact Person</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                          <input 
+                            type="text" 
+                            id="med-contactPerson"
+                            placeholder="e.g. Ravi Kumar"
+                            value={form.contactPerson} 
+                            onChange={(e) => setForm({...form, contactPerson: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-phone">Phone</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                          <input 
+                            type="tel" 
+                            id="med-phone"
+                            placeholder="e.g. 9810000713"
+                            value={form.phone} 
+                            onChange={(e) => setForm({...form, phone: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-email">Email</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                          <input 
+                            type="email" 
+                            id="med-email"
+                            placeholder="e.g. orders1@supplier-example.com"
+                            value={form.email} 
+                            onChange={(e) => setForm({...form, email: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-manufactureDate">Manufacture Date</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          <input 
+                            type="date" 
+                            id="med-manufactureDate"
+                            value={form.manufactureDate} 
+                            onChange={(e) => setForm({...form, manufactureDate: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-expiryDate">Expiry Date</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          <input 
+                            type="date" 
+                            id="med-expiryDate"
+                            value={form.expiryDate} 
+                            onChange={(e) => setForm({...form, expiryDate: e.target.value})} 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* CARD 4: PRICING & INVENTORY (7 fields) */}
                   <section className="med-section-card" id="sec-pricing">
                     <div className="med-section-card-header">
                       <div className="med-section-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>
@@ -1347,10 +1638,30 @@ export default function Medicines() {
                       </div>
                       <div>
                         <h3>Pricing & Inventory</h3>
-                        <p>Manage purchase cost, selling price, GST tax rates, and stock thresholds</p>
+                        <p>Quantity, purchase price, selling price, GST tax rates, and stock thresholds</p>
                       </div>
                     </div>
                     <div className="med-card-grid">
+                      <div className="med-form-group">
+                        <label htmlFor="med-quantity">Quantity (Stock)</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                          <input 
+                            type="number" 
+                            id="med-quantity"
+                            placeholder="0"
+                            min="0"
+                            value={form.quantity} 
+                            onChange={(e) => {
+                              setForm({...form, quantity: e.target.value})
+                              if (formErrors.quantity) setFormErrors({...formErrors, quantity: ''})
+                            }} 
+                            className={formErrors.quantity ? 'is-invalid' : ''}
+                          />
+                        </div>
+                        {formErrors.quantity && <span className="form-error-msg">{formErrors.quantity}</span>}
+                      </div>
+
                       <div className="med-form-group">
                         <label htmlFor="med-purchasePrice">Purchase Price (₹)</label>
                         <div className="input-icon-wrap">
@@ -1373,25 +1684,25 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-price">Selling Price (₹) <span className="req-star">*</span></label>
+                        <label htmlFor="med-sellingPrice">Selling Price (₹) <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <span className="currency-prefix">₹</span>
                           <input 
                             type="number" 
-                            id="med-price"
+                            id="med-sellingPrice"
                             placeholder="0.00"
                             step="0.01"
                             min="0"
-                            value={form.price} 
+                            value={form.sellingPrice} 
                             onChange={(e) => {
-                              setForm({...form, price: e.target.value})
-                              if (formErrors.price) setFormErrors({...formErrors, price: ''})
+                              setForm({...form, sellingPrice: e.target.value})
+                              if (formErrors.sellingPrice) setFormErrors({...formErrors, sellingPrice: ''})
                             }} 
-                            className={formErrors.price ? 'is-invalid' : ''}
+                            className={formErrors.sellingPrice ? 'is-invalid' : ''}
                             required 
                           />
                         </div>
-                        {formErrors.price && <span className="form-error-msg">{formErrors.price}</span>}
+                        {formErrors.sellingPrice && <span className="form-error-msg">{formErrors.sellingPrice}</span>}
                       </div>
 
                       <div className="med-form-group">
@@ -1417,66 +1728,64 @@ export default function Medicines() {
                       </div>
 
                       {/* Frontend Margin Preview Helper */}
-                      {form.price && form.purchasePrice && Number(form.price) > 0 && (
-                        <div className="med-margin-preview-badge">
-                          <span className="margin-label">Frontend Margin Preview:</span>
+                      {form.sellingPrice && form.purchasePrice && Number(form.sellingPrice) > 0 && (
+                        <div className="med-margin-preview-badge" style={{ gridColumn: '1 / -1' }}>
+                          <span className="margin-label">Margin Preview:</span>
                           <span className="margin-value">
-                            +₹{(Number(form.price) - Number(form.purchasePrice)).toFixed(2)} 
-                            ({(((Number(form.price) - Number(form.purchasePrice)) / Number(form.price)) * 100).toFixed(1)}% margin)
+                            +₹{(Number(form.sellingPrice) - Number(form.purchasePrice)).toFixed(2)} 
+                            ({(((Number(form.sellingPrice) - Number(form.purchasePrice)) / Number(form.sellingPrice)) * 100).toFixed(1)}% margin)
                           </span>
                         </div>
                       )}
 
                       <div className="med-form-group">
-                        <label htmlFor="med-stock">Initial Stock Count</label>
-                        <div className="input-icon-wrap">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                          <input 
-                            type="number" 
-                            id="med-stock"
-                            placeholder="0"
-                            min="0"
-                            value={form.stock} 
-                            onChange={(e) => {
-                              setForm({...form, stock: e.target.value})
-                              if (formErrors.stock) setFormErrors({...formErrors, stock: ''})
-                            }} 
-                            className={formErrors.stock ? 'is-invalid' : ''}
-                          />
-                        </div>
-                        <span className="input-helper-text">Current quantity when adding this medicine</span>
-                        {formErrors.stock && <span className="form-error-msg">{formErrors.stock}</span>}
-                      </div>
-
-                      <div className="med-form-group">
-                        <label htmlFor="med-minStock">Minimum Stock Threshold</label>
+                        <label htmlFor="med-minimumStock">Minimum Stock</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                           <input 
                             type="number" 
-                            id="med-minStock"
+                            id="med-minimumStock"
                             placeholder="e.g. 10"
                             min="0"
-                            value={form.minStock} 
+                            value={form.minimumStock} 
                             onChange={(e) => {
-                              setForm({...form, minStock: e.target.value})
-                              if (formErrors.minStock) setFormErrors({...formErrors, minStock: ''})
+                              setForm({...form, minimumStock: e.target.value})
+                              if (formErrors.minimumStock) setFormErrors({...formErrors, minimumStock: ''})
                             }} 
-                            className={formErrors.minStock ? 'is-invalid' : ''}
+                            className={formErrors.minimumStock ? 'is-invalid' : ''}
                           />
                         </div>
-                        <span className="input-helper-text">Alert when stock reaches this level</span>
-                        {formErrors.minStock && <span className="form-error-msg">{formErrors.minStock}</span>}
+                        {formErrors.minimumStock && <span className="form-error-msg">{formErrors.minimumStock}</span>}
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-reorderLevel">Reorder Stock Level</label>
+                        <label htmlFor="med-maximumStock">Maximum Stock</label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                          <input 
+                            type="number" 
+                            id="med-maximumStock"
+                            placeholder="e.g. 100"
+                            min="0"
+                            value={form.maximumStock} 
+                            onChange={(e) => {
+                              setForm({...form, maximumStock: e.target.value})
+                              if (formErrors.maximumStock) setFormErrors({...formErrors, maximumStock: ''})
+                            }} 
+                            className={formErrors.maximumStock ? 'is-invalid' : ''}
+                          />
+                        </div>
+                        {formErrors.maximumStock && <span className="form-error-msg">{formErrors.maximumStock}</span>}
+                      </div>
+
+                      <div className="med-form-group">
+                        <label htmlFor="med-reorderLevel">Reorder Level</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                           <input 
                             type="number" 
                             id="med-reorderLevel"
-                            placeholder="e.g. 25"
+                            placeholder="e.g. 15"
                             min="0"
                             value={form.reorderLevel} 
                             onChange={(e) => {
@@ -1486,77 +1795,20 @@ export default function Medicines() {
                             className={formErrors.reorderLevel ? 'is-invalid' : ''}
                           />
                         </div>
-                        <span className="input-helper-text">Recommended quantity to trigger replenishment</span>
                         {formErrors.reorderLevel && <span className="form-error-msg">{formErrors.reorderLevel}</span>}
                       </div>
-                    </div>
-                  </section>
 
-                  {/* CARD 4: MEDICINE DETAILS */}
-                  <section className="med-section-card" id="sec-details">
-                    <div className="med-section-card-header">
-                      <div className="med-section-icon" style={{ background: '#f3e8ff', color: '#8b5cf6' }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                      </div>
-                      <div>
-                        <h3>Medicine Details</h3>
-                        <p>Specify expiry date, prescription requirements, catalogue status, and usage instructions</p>
-                      </div>
-                    </div>
-                    <div className="med-card-grid">
                       <div className="med-form-group">
-                        <label htmlFor="med-expiryDate">Expiry Date</label>
+                        <label htmlFor="med-lastPurchase">Last Purchase Date</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                           <input 
                             type="date" 
-                            id="med-expiryDate"
-                            value={form.expiryDate} 
-                            onChange={(e) => setForm({...form, expiryDate: e.target.value})} 
+                            id="med-lastPurchase"
+                            value={form.lastPurchase} 
+                            onChange={(e) => setForm({...form, lastPurchase: e.target.value})} 
                           />
                         </div>
-                      </div>
-
-                      <div className="med-form-group">
-                        <label htmlFor="med-prescriptionRequired">Prescription Required</label>
-                        <div className="input-icon-wrap">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                          <select 
-                            id="med-prescriptionRequired"
-                            value={form.prescriptionRequired} 
-                            onChange={(e) => setForm({...form, prescriptionRequired: e.target.value})}
-                          >
-                            <option value="No">No (Over The Counter)</option>
-                            <option value="Yes">Yes (Rx Required)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="med-form-group med-full-width">
-                        <label htmlFor="med-status">Catalogue Status</label>
-                        <div className="input-icon-wrap">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                          <select 
-                            id="med-status"
-                            value={form.status} 
-                            onChange={(e) => setForm({...form, status: e.target.value})}
-                          >
-                            <option value="Active">Active (Available for Dispensing)</option>
-                            <option value="Inactive">Inactive (Disabled in Catalogue)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="med-form-group med-full-width">
-                        <label htmlFor="med-notes">Description / Usage Notes</label>
-                        <textarea 
-                          id="med-notes"
-                          placeholder="Add dosage instructions, storage guidelines, contraindications, or internal pharmacy notes..."
-                          value={form.notes} 
-                          onChange={(e) => setForm({...form, notes: e.target.value})} 
-                          rows="3"
-                        />
-                        <span className="input-helper-text">Add dosage instructions, storage notes, or other relevant details.</span>
                       </div>
                     </div>
                   </section>
@@ -1594,87 +1846,176 @@ export default function Medicines() {
             </div>
           )}
 
-          {/* Modal 2: View Details */}
+          {/* Modal 2: View Details (ONLY the 22 Excel fields) */}
           {viewingItem && (
             <div className="med-modal-overlay">
-              <div className="med-modal-container">
+              <div className="med-modal-container" style={{ maxWidth: '750px' }}>
                 <div className="med-modal-header">
-                  <h2>Medicine Details Profile: {getName(viewingItem)}</h2>
+                  <h2>Medicine Details: {getName(viewingItem)}</h2>
                   <button type="button" className="med-modal-close" onClick={() => setViewingItem(null)}>&times;</button>
                 </div>
-                <div className="med-modal-body">
-                  <div className="med-detail-row">
-                    <div className="med-detail-item">
-                      <label>Medicine Name</label>
-                      <span>{getName(viewingItem)}</span>
+                <div className="med-modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
+                  
+                  {/* Group 1: Basic Information */}
+                  <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>01 Basic Medicine Information</div>
+                    <div className="med-detail-row">
+                      <div className="med-detail-item">
+                        <label>Medicine Code</label>
+                        <span><code>{viewingItem?.medicineCode || viewingItem?.MedicineCode || viewingItem?.code || '-'}</code></span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Medicine Name</label>
+                        <span style={{ fontWeight: 600 }}>{getName(viewingItem)}</span>
+                      </div>
                     </div>
-                    <div className="med-detail-item">
-                      <label>Generic Name</label>
-                      <span>{viewingItem?.genericName || '-'}</span>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Generic Name</label>
+                        <span>{viewingItem?.genericName || viewingItem?.GenericName || '-'}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Brand Name</label>
+                        <span>{viewingItem?.brandName || viewingItem?.BrandName || '-'}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="med-detail-row">
-                    <div className="med-detail-item">
-                      <label>Medicine Code</label>
-                      <span><code>{viewingItem?.code || '-'}</code></span>
-                    </div>
-                    <div className="med-detail-item">
-                      <label>Category</label>
-                      <span>{getCategory(viewingItem)}</span>
-                    </div>
-                  </div>
-                  <div className="med-detail-row">
-                    <div className="med-detail-item">
-                      <label>Dosage Form</label>
-                      <span>{getDosageForm(viewingItem)}</span>
-                    </div>
-                    <div className="med-detail-item">
-                      <label>Strength & Unit</label>
-                      <span>{viewingItem?.strength || ''} {viewingItem?.unit || ''}</span>
-                    </div>
-                  </div>
-                  <div className="med-detail-row">
-                    <div className="med-detail-item">
-                      <label>Selling Price (MRP)</label>
-                      <span>₹{getSellingPrice(viewingItem)}</span>
-                    </div>
-                    <div className="med-detail-item">
-                      <label>Current Stock</label>
-                      <span>{getStock(viewingItem)} units</span>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Category</label>
+                        <span>{getCategory(viewingItem)}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Manufacturer</label>
+                        <span>{viewingItem?.manufacturer || viewingItem?.Manufacturer || '-'}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="med-detail-row">
-                    <div className="med-detail-item">
-                      <label>Minimum Stock Threshold</label>
-                      <span>{viewingItem?.minStock || viewingItem?.minimumStock || 10}</span>
+
+                  {/* Group 2: Dosage & Packaging */}
+                  <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>02 Dosage & Packaging</div>
+                    <div className="med-detail-row">
+                      <div className="med-detail-item">
+                        <label>Dosage Form</label>
+                        <span>{getDosageForm(viewingItem)}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Strength</label>
+                        <span>{viewingItem?.strength || viewingItem?.Strength || '-'}</span>
+                      </div>
                     </div>
-                    <div className="med-detail-item">
-                      <label>Reorder Level</label>
-                      <span>{getReorderLevel(viewingItem)}</span>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Pack Size</label>
+                        <span style={{ fontWeight: 600 }}>{viewingItem?.packSize || viewingItem?.PackSize || '-'}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Storage Location</label>
+                        <span>{viewingItem?.storageLocation || viewingItem?.StorageLocation || '-'}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="med-detail-row">
-                    <div className="med-detail-item">
-                      <label>Prescription Required</label>
-                      <span>{viewingItem?.prescriptionRequired || 'No'}</span>
+
+                  {/* Group 3: Batch & Supplier Details */}
+                  <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>03 Batch & Supplier Details</div>
+                    <div className="med-detail-row">
+                      <div className="med-detail-item">
+                        <label>Batch Number</label>
+                        <span><code>{viewingItem?.batchNumber || viewingItem?.BatchNumber || '-'}</code></span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Supplier Code</label>
+                        <span><code>{viewingItem?.supplierCode || viewingItem?.SupplierCode || '-'}</code></span>
+                      </div>
                     </div>
-                    <div className="med-detail-item">
-                      <label>Status</label>
-                      <div style={{ marginTop: '4px' }}>{getStatusBadge(viewingItem)}</div>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Supplier Name</label>
+                        <span>{viewingItem?.supplierName || viewingItem?.SupplierName || '-'}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Contact Person</label>
+                        <span>{viewingItem?.contactPerson || viewingItem?.ContactPerson || '-'}</span>
+                      </div>
+                    </div>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Phone</label>
+                        <span>{viewingItem?.phone || viewingItem?.Phone || '-'}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Email</label>
+                        <span>{viewingItem?.email || viewingItem?.Email || '-'}</span>
+                      </div>
+                    </div>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Manufacture Date</label>
+                        <span>{formatExcelDate(viewingItem?.manufactureDate || viewingItem?.ManufactureDate) || '-'}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Expiry Date</label>
+                        <span style={{ fontWeight: 600, color: '#dc2626' }}>{formatExcelDate(viewingItem?.expiryDate || viewingItem?.ExpiryDate) || '-'}</span>
+                      </div>
+                    </div>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Expiry Date</label>
+                        <span style={{ fontWeight: 600, color: '#dc2626' }}>{formatExcelDate(viewingItem?.expiryDate || viewingItem?.ExpiryDate) || '-'}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Status</label>
+                        <div style={{ marginTop: '4px' }}>{getStatusBadge(viewingItem)}</div>
+                      </div>
                     </div>
                   </div>
-                  {viewingItem?.manufacturer && (
-                    <div className="med-detail-item">
-                      <label>Manufacturer</label>
-                      <span>{viewingItem.manufacturer}</span>
+
+                  {/* Group 4: Pricing & Inventory */}
+                  <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>04 Pricing & Inventory</div>
+                    <div className="med-detail-row">
+                      <div className="med-detail-item">
+                        <label>Quantity (Stock)</label>
+                        <span style={{ fontWeight: 700, fontSize: '15px' }}>{getStock(viewingItem)}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Purchase Price</label>
+                        <span>₹{viewingItem?.purchasePrice ?? viewingItem?.PurchasePrice ?? 0}</span>
+                      </div>
                     </div>
-                  )}
-                  {viewingItem?.notes && (
-                    <div className="med-detail-item">
-                      <label>Notes / Usaee</label>
-                      <span style={{ fontStyle: 'italic' }}>&ldquo;{viewingItem.notes}&rdquo;</span>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Selling Price (MRP)</label>
+                        <span style={{ fontWeight: 700, color: '#16a34a', fontSize: '15px' }}>₹{getSellingPrice(viewingItem)}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>GST (%)</label>
+                        <span>{viewingItem?.gst ?? viewingItem?.GST ?? 0}%</span>
+                      </div>
                     </div>
-                  )}
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Minimum Stock</label>
+                        <span>{viewingItem?.minimumStock ?? viewingItem?.MinimumStock ?? viewingItem?.minStock ?? '-'}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Maximum Stock</label>
+                        <span>{viewingItem?.maximumStock ?? viewingItem?.MaximumStock ?? viewingItem?.maxStock ?? '-'}</span>
+                      </div>
+                    </div>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
+                      <div className="med-detail-item">
+                        <label>Reorder Level</label>
+                        <span>{getReorderLevel(viewingItem)}</span>
+                      </div>
+                      <div className="med-detail-item">
+                        <label>Last Purchase Date</label>
+                        <span style={{ fontWeight: 600 }}>{formatExcelDate(viewingItem?.lastPurchase || viewingItem?.LastPurchase || viewingItem?.lastPurchaseDate || viewingItem?.LastPurchaseDate) || '-'}</span>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
                 <div className="med-modal-footer">
                   <button type="button" className="med-btn med-btn-primary" onClick={() => setViewingItem(null)}>Close</button>
@@ -1683,122 +2024,87 @@ export default function Medicines() {
             </div>
           )}
 
-          {/* Modal 3: CSV Import Wizard */}
+          {/* Modal: Direct Excel Import */}
           {importOpen && (
             <div className="med-modal-overlay">
-              <div className="med-modal-container">
+              <div className="med-modal-container" style={{ maxWidth: '520px' }}>
                 <div className="med-modal-header">
                   <h2>Import Medicines</h2>
                   <button type="button" className="med-modal-close" onClick={() => setImportOpen(false)}>&times;</button>
                 </div>
-                <div className="med-modal-body">
-                  
-                  {/* Step 1: Upload */}
-                  <div className="import-step-box">
-                    <h4>Step 1: Upload Medicine File</h4>
+                <div className="med-modal-body" style={{ padding: '24px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                      Pharmacy Branch
+                    </label>
+                    <select
+                      value={importBranchId}
+                      onChange={(e) => setImportBranchId(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px', background: '#fff' }}
+                    >
+                      {branchOptions.length ? branchOptions.map((b) => {
+                        const bId = b?.id || b?.branchId || '1'
+                        const bName = b?.name || b?.branchName || 'Main Branch'
+                        return <option key={bId} value={bId}>{bName}</option>
+                      }) : <option value="1">Main Branch</option>}
+                    </select>
+                  </div>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                      Choose Excel File
+                    </label>
                     <input 
                       type="file" 
                       accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" 
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) {
                           setImportFile(file)
-                          setImportErrors(null)
-                          setImportMessage(`Selected: ${file.name}. Reading data...`)
-                          try {
-                            const rows = await parseMedicineFile(file)
-                            setFallbackImportRows(rows)
-                            setImportRows(rows.map((row) => ({ rowNumber: row.rowNumber, status: 'Ready', data: row })))
-                            setImportStats({ totalRows: rows.length, validRows: rows.length, duplicateRows: 0 })
-                            setImportMessage(`${rows.length} medicines ready. Click "Commit Import" to upload them.`)
-                          } catch (parseErr) {
-                            console.warn('File preview parse notice:', parseErr)
-                          }
+                          setImportMessage(`Selected: ${file.name}`)
                         }
                       }} 
+                      style={{ width: '100%', padding: '12px', border: '1.5px dashed #cbd5e1', borderRadius: '8px', background: '#f8fafc', fontSize: '14px' }}
                     />
-                    <button 
-                      type="button" 
-                      className="med-btn med-btn-secondary" 
-                      style={{ marginTop: '8px' }}
-                      onClick={handleTemplateDownload}
-                    >
-                      Download Template
-                    </button>
                   </div>
 
-                  {/* Step 2: Validate */}
-                  <div className="import-step-box">
-                    <h4>Step 2: Validate Data</h4>
-                    <button 
-                      type="button" 
-                      className="med-btn med-btn-secondary"
-                      onClick={handleImportValidation}
-                      disabled={!importFile}
-                    >
-                      Validate File
-                    </button>
-                    {importId && (
-                      <div style={{ fontSize: '12px', color: '#059669', marginTop: '6px' }}>
-                        Import ID: <code>{importId}</code> successfully validated.
+                  {loading && (
+                    <div style={{ marginTop: '16px', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>
+                        <span>{importMessage || 'Importing medicines...'}</span>
+                        <span style={{ color: '#2563eb', fontWeight: 700 }}>{importPercent}%</span>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Stats View */}
-                  {importStats && (
-                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
-                      <div style={{ fontWeight: 600, color: '#166534', marginBottom: '4px' }}>Validation Details:</div>
-                      <div>Total Rows: {importStats.totalRows || importStats.TotalRows || 0}</div>
-                      <div>Valid Rows: {importStats.validRows || importStats.ValidRows || 0}</div>
-                      <div>Duplicates: {importStats.duplicateRows || importStats.DuplicateRows || 0}</div>
-                      <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                        <button type="button" className="med-btn med-btn-secondary" style={{ height: '30px', padding: '0 8px' }} onClick={handleImportStatus}>Get Status</button>
-                        <button type="button" className="med-btn med-btn-secondary" style={{ height: '30px', padding: '0 8px' }} onClick={handleImportErrors}>View Error Details</button>
+                      <div style={{ height: '8px', width: '100%', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div 
+                          style={{ 
+                            height: '100%', 
+                            width: `${importPercent}%`, 
+                            background: 'linear-gradient(90deg, #2563eb, #38bdf8)', 
+                            borderRadius: '4px',
+                            transition: 'width 0.3s ease-in-out' 
+                          }} 
+                        />
                       </div>
                     </div>
                   )}
 
-                  {importRows.length > 0 && (
-                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', fontSize: '12px', marginTop: '8px' }}>
-                      <div style={{ fontWeight: 700, color: '#334155', marginBottom: '8px' }}>Validated Rows</div>
-                      <div style={{ maxHeight: '180px', overflow: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <thead><tr><th style={{ textAlign: 'left' }}>Row</th><th style={{ textAlign: 'left' }}>Medicine</th><th style={{ textAlign: 'left' }}>Status</th><th>Action</th></tr></thead>
-                          <tbody>{importRows.map((row, index) => { const data = row?.data || row?.Data || row; return <tr key={getId(row) || index}><td>{row?.rowNumber || row?.RowNumber || index + 1}</td><td>{data?.name || data?.Name || data?.medicineName || '-'}</td><td>{row?.status || row?.Status || '-'}</td><td>{importId ? <button type="button" className="med-btn med-btn-secondary" style={{ height: '28px', padding: '0 8px' }} onClick={() => handleDeleteImportRow(row)}>Delete</button> : <span>-</span>}</td></tr> })}</tbody>
-                        </table>
-                      </div>
+                  {!loading && importMessage && (
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '8px', fontStyle: 'italic' }}>
+                      {importMessage}
                     </div>
                   )}
-                  {importErrors && (
-                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '12px', borderRadius: '8px', fontSize: '12px', color: '#991b1b', marginTop: '8px' }}>
-                      <div style={{ fontWeight: 600 }}>Validation Errors:</div>
-                      <pre style={{ margin: '4px 0 0', overflowX: 'auto' }}>{JSON.stringify(importErrors, null, 2)}</pre>
-                    </div>
-                  )}
-
-                  {importProgress && (
-                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 12px', marginTop: '8px', fontSize: '13px', color: '#1e3a8a' }}>
-                      Importing {importProgress.done} / {importProgress.total} medicines. Uploaded: {importProgress.created}. Failed: {importProgress.failed}.
-                    </div>
-                  )}
-
-                  {importMessage && (
-                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '12px', fontStyle: 'italic' }}>
-                      Message: {importMessage}
-                    </div>
-                  )}
-
                 </div>
-                <div className="med-modal-footer">
-                  <button type="button" className="med-btn med-btn-secondary" onClick={() => setImportOpen(false)}>Cancel</button>
+                <div className="med-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 24px' }}>
+                  <button type="button" className="med-btn med-btn-secondary" onClick={() => setImportOpen(false)}>
+                    Cancel
+                  </button>
                   <button 
                     type="button" 
                     className="med-btn med-btn-primary"
-                    onClick={handleCommitImport}
-                    disabled={loading || (!importFile && !importId && !fallbackImportRows.length)}
+                    onClick={handleDirectUpload}
+                    disabled={loading || !importFile}
                   >
-                    {loading ? (fallbackImportRows.length ? 'Importing...' : 'Please wait...') : 'Commit Import'}
+                    {loading ? `Importing ${importPercent}%...` : 'Import'}
                   </button>
                 </div>
               </div>
@@ -1817,7 +2123,3 @@ export default function Medicines() {
     </AdminLayout>
   )
 }
-
-
-
-

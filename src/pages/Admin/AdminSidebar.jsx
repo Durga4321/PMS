@@ -1,12 +1,88 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { adminNavigation } from './adminNavigation'
 import { hasPermission, readAdminPermissions } from '../../config/permissions'
 import './AdminSidebar.css'
 
+function getStoredAppName() {
+  try {
+    const direct = localStorage.getItem('pms_app_name') || sessionStorage.getItem('pms_app_name')
+    if (direct) return direct
+    const raw = localStorage.getItem('pms_system_settings') || sessionStorage.getItem('pms_system_settings')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed.appName) return parsed.appName
+    }
+  } catch {}
+  return ''
+}
+
+function getStoredPharmacyTitle() {
+  try {
+    const assignment = JSON.parse(localStorage.getItem('pharmacyAdminAssignment') || sessionStorage.getItem('pharmacyAdminAssignment') || '{}')
+    const user = JSON.parse(localStorage.getItem('pharmacyAdminUser') || sessionStorage.getItem('pharmacyAdminUser') || '{}')
+    const assignedName = assignment.pharmacyName || assignment?.pharmacy?.name || user.pharmacyName || user?.pharmacy?.name
+    if (assignedName && String(assignedName).trim().toLowerCase() !== 'goutham pharmacy') return assignedName
+
+    const userScope = user.adminId || user.id || user.email || 'default'
+    const scopedSettingsKey = `pharmacySettings_admin_${String(userScope).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+    const saved = JSON.parse(localStorage.getItem(scopedSettingsKey) || sessionStorage.getItem(scopedSettingsKey) || '{}')
+    if (saved.pharmacyName && String(saved.pharmacyName).trim().toLowerCase() !== 'goutham pharmacy') return saved.pharmacyName
+  } catch {}
+  return ''
+}
+
 function AdminSidebar({ activeLabel, hospitalName = 'PMS', branchName = 'Admin Console', adminName = 'Admin' }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const permissions = readAdminPermissions()
+  const [appName, setAppName] = useState(getStoredAppName)
+  const [currentPharmacyName, setCurrentPharmacyName] = useState(() => getStoredPharmacyTitle() || branchName || 'Admin Console')
+  const [permissions, setPermissions] = useState(readAdminPermissions)
+
+  useEffect(() => {
+    function handleSettings(e) {
+      const updated = e.detail?.appName !== undefined ? e.detail.appName : (typeof e.detail === 'string' ? e.detail : '')
+      if (typeof updated === 'string' && updated.trim()) {
+        setAppName(updated.trim())
+      } else {
+        setAppName(getStoredAppName())
+      }
+    }
+
+    function handlePharmacySettings(e) {
+      const detail = e.detail || {}
+      if (detail.pharmacyName) {
+        setCurrentPharmacyName(detail.pharmacyName)
+      } else if (typeof detail === 'string') {
+        setCurrentPharmacyName(detail)
+      } else {
+        const title = getStoredPharmacyTitle()
+        if (title) setCurrentPharmacyName(title)
+      }
+    }
+
+    function handlePermissionsUpdate() {
+      setPermissions(readAdminPermissions())
+    }
+
+    window.addEventListener('pms:settings-updated', handleSettings)
+    window.addEventListener('pms:settings-updated', handlePharmacySettings)
+    window.addEventListener('pms:pharmacy-settings-updated', handlePharmacySettings)
+    window.addEventListener('pms:appname-changed', handleSettings)
+    window.addEventListener('pms:permissions-updated', handlePermissionsUpdate)
+    window.addEventListener('storage', () => {
+      handleSettings({})
+      handlePharmacySettings({})
+    })
+    return () => {
+      window.removeEventListener('pms:settings-updated', handleSettings)
+      window.removeEventListener('pms:settings-updated', handlePharmacySettings)
+      window.removeEventListener('pms:pharmacy-settings-updated', handlePharmacySettings)
+      window.removeEventListener('pms:appname-changed', handleSettings)
+      window.removeEventListener('pms:permissions-updated', handlePermissionsUpdate)
+    }
+  }, [])
+
   const visibleNavigation = adminNavigation.filter((item) => item.label === 'Dashboard' || hasPermission(permissions, item.label, 'view'))
 
   return (
@@ -19,8 +95,8 @@ function AdminSidebar({ activeLabel, hospitalName = 'PMS', branchName = 'Admin C
           </svg>
         </span>
         <div className="branch-admin-brand-copy">
-          <strong>PMS</strong>
-          <small>{branchName || 'Admin Console'}</small>
+          <strong>{appName || hospitalName || 'PMS'}</strong>
+          <small>{currentPharmacyName || branchName || 'Admin Console'}</small>
         </div>
       </div>
 

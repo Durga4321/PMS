@@ -55,10 +55,54 @@ function readStoredJson(key) {
 }
 
 
-// The synthetic main branch is no longer needed as the backend API returns the main branch.
-// Retaining the function for compatibility but it now returns null to avoid duplication.
 function mainBranchFromPharmacy() {
-  return null;
+  const workingBranchId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingBranchId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingBranchId') : null) || ''
+  const workingPharmacyId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || ''
+  const assignment = readStoredJson('pharmacyAdminAssignment') || {}
+  const user = readStoredJson('pharmacyAdminUser') || {}
+  const settings = readStoredJson('pharmacySettings') || {}
+  const localPharmacies = readStoredJson(scopedKey('pms_admin_pharmacies_list')) || readStoredJson('pms_admin_pharmacies_list') || []
+  const firstLocal = Array.isArray(localPharmacies) && localPharmacies.find((p) => p && !p.isDeleted)
+
+  const pharmacyName =
+    assignment.pharmacyName ||
+    assignment.PharmacyName ||
+    assignment.pharmacy?.name ||
+    assignment.pharmacy?.pharmacyName ||
+    user.pharmacyName ||
+    user.PharmacyName ||
+    user.pharmacy?.name ||
+    user.pharmacy?.pharmacyName ||
+    settings.pharmacyName ||
+    settings.name ||
+    firstLocal?.name ||
+    firstLocal?.pharmacyName ||
+    'Main Pharmacy'
+
+  const id =
+    assignment.mainBranchId ||
+    assignment.MainBranchId ||
+    assignment.branchId ||
+    assignment.BranchId ||
+    assignment.branch?.id ||
+    assignment.branch?.branchId ||
+    workingBranchId ||
+    '1'
+
+  const rawPharmId = assignment.pharmacyId || assignment.PharmacyId || workingPharmacyId || firstLocal?.id || firstLocal?.pharmacyId
+  const hasPharmacy = Boolean(rawPharmId || assignment.isPharmacyAssigned || (firstLocal && firstLocal.name))
+
+  if (!hasPharmacy && !pharmacyName) return null
+
+  return {
+    id: String(id),
+    branchId: String(id),
+    BranchId: Number(id) || id,
+    name: pharmacyName,
+    branchName: `${pharmacyName} - Main Branch`,
+    pharmacyName,
+    isMainBranch: true,
+  }
 }
 function storedBranchId() {
   const working = sessionStorage.getItem('workingBranchId') || localStorage.getItem('workingBranchId')
@@ -203,16 +247,36 @@ function Users({ initialAdd = false }) {
   const [resetting, setResetting] = useState(null)
   const [temporaryPassword, setTemporaryPassword] = useState('')
   const [viewing, setViewing] = useState(null)
-  // Branch options derived directly from API data; removed synthetic main branch to avoid duplicates.
+  // Branch options derived from API data with main branch guaranteed
   const branchOptions = useMemo(() => {
-    const seen = new Set();
-    // Ensure uniqueness by branch ID.
-    return branches.filter((branch) => {
-      const id = String(branchIdOf(branch) || '');
-      if (!id || seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
+    const main = mainBranchFromPharmacy()
+    const all = []
+    const seen = new Set()
+
+    const hasMainInBranches = branches.some((b) => {
+      const bId = String(branchIdOf(b) || '')
+      const bName = String(branchNameOf(b) || '').toLowerCase()
+      return b.isMainBranch || bId === '1' || bName.includes('main branch') || (main && bId === String(main.id))
+    })
+
+    if (main && !hasMainInBranches) {
+      all.push(main)
+      seen.add(String(main.id))
+    }
+
+    for (const b of branches) {
+      const id = String(branchIdOf(b) || '')
+      if (id && !seen.has(id)) {
+        seen.add(id)
+        all.push(b)
+      }
+    }
+
+    if (all.length === 0 && main) {
+      all.push(main)
+    }
+
+    return all
   }, [branches])
 
   useEffect(() => {
@@ -269,19 +333,27 @@ function Users({ initialAdd = false }) {
         if (!mounted) return
         setBranches(list);
         setForm((prev) => {
+          const main = mainBranchFromPharmacy()
           const existing = prev.branchId || storedBranchId();
-          // Use the first available branch as fallback if none selected.
-          const fallback = existing || (list.length ? branchIdOf(list[0]) : '');
+          const fallback = existing || (main ? branchIdOf(main) : '') || (list.length ? branchIdOf(list[0]) : '');
           return { ...prev, branchId: fallback ? String(fallback) : '' };
         })
       } catch (error) {
-        if (mounted && formOpen) showToast(error.message || 'Unable to load branches for pharmacist assignment.', 'error')
+        if (mounted && formOpen) console.warn('Unable to load branches:', error.message)
       } finally {
         if (mounted) setBranchesLoading(false)
       }
     }
     loadBranchesForForm()
-    return () => { mounted = false }
+
+    const handleTenantUpdated = () => {
+      loadBranchesForForm()
+    }
+    window.addEventListener('pms:tenant-updated', handleTenantUpdated)
+    return () => {
+      mounted = false
+      window.removeEventListener('pms:tenant-updated', handleTenantUpdated)
+    }
   }, [isAddRoute, formOpen])
   const [formErrors, setFormErrors] = useState({})
 
@@ -403,12 +475,17 @@ function Users({ initialAdd = false }) {
     setSaving(true)
     const phoneVal = (form.phone || '').trim()
     if (!editing && !form.branchId) {
-      setFormErrors((current) => ({ ...current, branchId: 'Please create or choose a branch before creating a pharmacist.' }))
-      showToast('Please create or choose a branch before creating a pharmacist.', 'error')
-      setSaving(false)
-      return
+      const fallback = branchOptions.length ? branchIdOf(branchOptions[0]) : storedBranchId()
+      if (fallback) {
+        form.branchId = String(fallback)
+      } else {
+        setFormErrors((current) => ({ ...current, branchId: 'Please create or choose a branch before creating a pharmacist.' }))
+        showToast('Please create or choose a branch before creating a pharmacist.', 'error')
+        setSaving(false)
+        return
+      }
     }
-    const selectedBranch = branchOptions.find((b) => String(branchIdOf(b)) === String(form.branchId))
+    const selectedBranch = branchOptions.find((b) => String(branchIdOf(b)) === String(form.branchId)) || (branchOptions.length ? branchOptions[0] : null)
     let numericBranchId = Number(form.branchId)
     if (!Number.isSafeInteger(numericBranchId) || numericBranchId <= 0) {
       const candidate = selectedBranch?.BranchId || selectedBranch?.branchId || selectedBranch?.id
@@ -701,12 +778,12 @@ function Users({ initialAdd = false }) {
                   className={formErrors.branchId ? 'has-error' : ''}
                   required
                 >
-                  <option value="">{branchesLoading ? 'Loading branches...' : branchOptions.length ? 'Select branch' : 'Create a sub branch first'}</option>
+                  <option value="">{branchesLoading ? 'Loading branches...' : branchOptions.length ? 'Select branch' : 'Create a pharmacy / sub branch first'}</option>
                   {branchOptions.map((branch) => {
                     const id = branchIdOf(branch);
-                    // Determine label based on explicit flag or name heuristic.
-                    const isMain = branch?.isMainBranch || (branch?.branchName && /main\s*branch/i.test(branch.branchName));
-                    const label = `${branchNameOf(branch)} - ${isMain ? 'Main' : 'Sub'} Branch`;
+                    const isMain = branch?.isMainBranch || (branch?.branchName && /main\s*branch/i.test(branch.branchName)) || String(id) === '1';
+                    const cleanName = branchNameOf(branch).replace(/\s*-\s*main\s*branch/i, '');
+                    const label = `${cleanName} - ${isMain ? 'Main' : 'Sub'} Branch`;
                     return id ? <option key={id} value={id}>{label}</option> : null;
                   })}
                 </select>

@@ -762,3 +762,32 @@
   }
 }
 
+
+.med-category-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  color: #334155;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.med-location-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.branch-table th,
+.branch-table td {
+  white-space: nowrap;
+  padding: 10px 14px;
+}

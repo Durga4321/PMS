@@ -41,6 +41,9 @@ function normalizeLog(item, index) {
   const user = item?.user || item?.actor || item?.performedBy || item?.admin || {}
   const action = String(valueOf(item, ['action', 'activity', 'event', 'operation', 'type'], 'View')).replace(/[_-]+/g, ' ')
   const timestamp = valueOf(item, ['timestamp', 'createdAt', 'created_at', 'date', 'loggedAt', 'updatedAt'])
+  const isLoginExplicit = item?.isLogin ?? item?.login ?? item?.IsLogin ?? item?.Login
+  const isLoginFromAction = /login|sign\s*in|logged\s*in|authenticated/i.test(action) || /login|auth/i.test(item?.module || item?.type || '')
+  const login = isLoginExplicit !== undefined ? Boolean(isLoginExplicit) : isLoginFromAction
   return {
     id: idOf(item) || index,
     userName: valueOf(item, ['userName', 'username', 'name', 'actorName'], valueOf(user, ['name', 'fullName', 'username', 'email'], 'Unknown User')),
@@ -50,7 +53,7 @@ function normalizeLog(item, index) {
     module: valueOf(item, ['module', 'resource', 'entity', 'section'], 'Pharmacy'),
     description: valueOf(item, ['description', 'details', 'message', 'metadata'], ''),
     ipAddress: valueOf(item, ['ipAddress', 'ip', 'ip_address', 'clientIp'], '-'),
-    login: Boolean(item?.isLogin ?? item?.login ?? /login|sign in/i.test(action)),
+    login,
     timestamp,
     branchId: valueOf(item, ['branchId', 'branch_id'], item?.branch?._id || item?.branch?.id || ''),
     branchName: valueOf(item, ['branchName', 'branch', 'location'], item?.branch?.name || ''),
@@ -67,10 +70,78 @@ function normalizeHospital(item) {
   return { id: valueOf(item, ['_id', 'id', 'hospitalId', 'externalHospitalId', 'uuid']), name: valueOf(item, ['name', 'hospitalName', 'clinicName', 'title'], 'Hospital') }
 }
 
+function getAppTimezone() {
+  try {
+    const raw = localStorage.getItem('pms_system_settings') || sessionStorage.getItem('pms_system_settings')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed.timezone) return parsed.timezone
+    }
+  } catch {}
+  return 'Asia/Kolkata'
+}
+
+function parseTimestampToDate(value) {
+  if (!value) return null
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  if (typeof value === 'number') {
+    const ms = value < 1e11 ? value * 1000 : value
+    const date = new Date(ms)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  const str = String(value).trim()
+  if (!str) return null
+
+  // Epoch numeric string
+  if (/^\d+$/.test(str)) {
+    const num = Number(str)
+    const ms = num < 1e11 ? num * 1000 : num
+    const date = new Date(ms)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  // Already has explicit timezone suffix
+  const hasTimezone = /[Zz]$|[+-]\d{2}(:?\d{2})?$/.test(str)
+  if (hasTimezone) {
+    const date = new Date(str)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  // If backend stored UTC without timezone offset, append Z
+  const isoUtc = str.replace(' ', 'T') + 'Z'
+  const utcDate = new Date(isoUtc)
+  if (!Number.isNaN(utcDate.getTime())) {
+    return utcDate
+  }
+
+  const fallback = new Date(str)
+  return Number.isNaN(fallback.getTime()) ? null : fallback
+}
+
 function formatTimestamp(value) {
-  if (!value) return 'Date unavailable'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const date = parseTimestampToDate(value)
+  if (!date) return 'Date unavailable'
+  const timeZone = getAppTimezone()
+  try {
+    return date.toLocaleString('en-IN', {
+      timeZone,
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  } catch {
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  }
 }
 
 function initials(name) {
@@ -134,13 +205,14 @@ function AuditLogs() {
     const start = startDate ? new Date(`${startDate}T00:00:00`) : null
     const end = endDate ? new Date(`${endDate}T23:59:59`) : null
     return logs.filter((log) => {
-      const date = log.timestamp ? new Date(log.timestamp) : null
+      const date = parseTimestampToDate(log.timestamp)
       const matchesTab = tab === 'all' || (tab === 'login' ? log.login : !log.login)
       const matchesAction = actionFilter === 'all' || log.action.toLowerCase() === actionFilter
-      const searchable = [log.userName, log.email, log.action, log.ipAddress, log.timestamp, log.role, log.module, log.branchName].join(' ').toLowerCase()
+      const formattedTime = formatTimestamp(log.timestamp).toLowerCase()
+      const searchable = [log.userName, log.email, log.action, log.ipAddress, log.timestamp, formattedTime, log.role, log.module, log.branchName].join(' ').toLowerCase()
       const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery)
-      const matchesStart = !start || (date && !Number.isNaN(date.getTime()) && date >= start)
-      const matchesEnd = !end || (date && !Number.isNaN(date.getTime()) && date <= end)
+      const matchesStart = !start || (date && date >= start)
+      const matchesEnd = !end || (date && date <= end)
       const selectedHospital = hospitals.find((hospital) => hospital.id === hospitalId)
       const selectedBranch = branches.find((branch) => branch.id === branchId)
       const matchesHospital = !hospitalId || log.hospitalId === hospitalId || log.hospitalName === selectedHospital?.name
@@ -149,11 +221,26 @@ function AuditLogs() {
     })
   }, [actionFilter, branchId, branches, endDate, hospitalId, hospitals, logs, query, startDate, tab])
 
+  const periodLogs = useMemo(() => {
+    const start = startDate ? new Date(`${startDate}T00:00:00`) : null
+    const end = endDate ? new Date(`${endDate}T23:59:59`) : null
+    return logs.filter((log) => {
+      const date = parseTimestampToDate(log.timestamp)
+      const matchesStart = !start || (date && date >= start)
+      const matchesEnd = !end || (date && date <= end)
+      const selectedHospital = hospitals.find((hospital) => hospital.id === hospitalId)
+      const selectedBranch = branches.find((branch) => branch.id === branchId)
+      const matchesHospital = !hospitalId || log.hospitalId === hospitalId || log.hospitalName === selectedHospital?.name
+      const matchesBranch = !branchId || log.branchId === branchId || log.branchName === selectedBranch?.name
+      return matchesStart && matchesEnd && matchesHospital && matchesBranch
+    })
+  }, [branches, endDate, hospitalId, hospitals, logs, startDate])
+
   const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const visibleLogs = filteredLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-  const loginCount = filteredLogs.filter((log) => log.login).length
-  const dataChangeCount = filteredLogs.filter((log) => !log.login && /create|update|edit|delete|change|add|remove|assign|reset|approve|cancel/i.test(log.action)).length
+  const loginCount = useMemo(() => periodLogs.filter((log) => log.login).length, [periodLogs])
+  const dataChangeCount = useMemo(() => periodLogs.filter((log) => !log.login && /create|update|edit|delete|change|add|remove|assign|reset|approve|cancel/i.test(log.action)).length, [periodLogs])
   const actions = [...new Set(logs.map((log) => log.action.toLowerCase()))].sort()
 
   function updateFilter(setter, value) {

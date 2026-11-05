@@ -1,8 +1,36 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getInventory, getPharmacyAdminDashboard, listMedicines } from '../../config/api'
+import { 
+  getInventory, 
+  getPharmacyAdminDashboard, 
+  listMedicines, 
+  listBills, 
+  getDailySalesReport, 
+  getPharmacyPayments,
+  readLocalMedicines
+} from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
+
+function parseFlexibleDate(raw) {
+  if (!raw) return null
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw
+  const s = String(raw).trim()
+  if (!s || s === '-') return null
+  let d = new Date(s)
+  if (!isNaN(d.getTime())) return d
+  const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+  if (dmy) {
+    d = new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`)
+    if (!isNaN(d.getTime())) return d
+  }
+  const my = s.match(/^(\d{1,2})[/-](\d{4})$/)
+  if (my) {
+    d = new Date(`${my[2]}-${my[1].padStart(2, '0')}-01`)
+    if (!isNaN(d.getTime())) return d
+  }
+  return null
+}
 
 const dashboardTables = {
   medicines: {
@@ -65,24 +93,48 @@ function AdminDashboard() {
   const [dashboard, setDashboard] = useState(null)
   const [medicinesList, setMedicinesList] = useState([])
   const [inventoryList, setInventoryList] = useState([])
+  const [billsList, setBillsList] = useState([])
+  const [dailySalesData, setDailySalesData] = useState(null)
+  const [paymentsList, setPaymentsList] = useState([])
   const [loading, setLoading] = useState(true)
   const [salesFilter, setSalesFilter] = useState('7d')
 
-  useEffect(() => {
-    let active = true
+  function loadDashboardData() {
     Promise.allSettled([
       getPharmacyAdminDashboard(),
       listMedicines(),
       getInventory(),
+      listBills(),
+      getDailySalesReport(),
+      getPharmacyPayments(),
     ])
-      .then(([dashRes, medRes, invRes]) => {
-        if (!active) return
+      .then(([dashRes, medRes, invRes, billsRes, dailyRes, payRes]) => {
         setDashboard(dashRes.status === 'fulfilled' ? unwrap(dashRes.value) : {})
         setMedicinesList(medRes.status === 'fulfilled' ? unwrapArray(medRes.value) : [])
         setInventoryList(invRes.status === 'fulfilled' ? unwrapArray(invRes.value) : [])
+        setBillsList(billsRes.status === 'fulfilled' ? unwrapArray(billsRes.value) : [])
+        setDailySalesData(dailyRes.status === 'fulfilled' ? unwrap(dailyRes.value) : null)
+        setPaymentsList(payRes.status === 'fulfilled' ? unwrapArray(payRes.value) : [])
       })
-      .finally(() => active && setLoading(false))
-    return () => { active = false }
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadDashboardData()
+
+    function handleDashboardSync() {
+      loadDashboardData()
+    }
+    window.addEventListener('pms:medicines-updated', handleDashboardSync)
+    window.addEventListener('pms:stock-updated', handleDashboardSync)
+    window.addEventListener('pms:purchase-orders-updated', handleDashboardSync)
+    window.addEventListener('storage', handleDashboardSync)
+    return () => {
+      window.removeEventListener('pms:medicines-updated', handleDashboardSync)
+      window.removeEventListener('pms:stock-updated', handleDashboardSync)
+      window.removeEventListener('pms:purchase-orders-updated', handleDashboardSync)
+      window.removeEventListener('storage', handleDashboardSync)
+    }
   }, [])
 
   const view = useMemo(() => {
@@ -90,12 +142,28 @@ function AdminDashboard() {
     const dashMedicines = list(dashboard, ['topMedicines', 'topSelling', 'medicines'])
     const dashStock = list(dashboard, ['stock', 'inventory', 'lowStockItems'])
 
-    const effectiveMedicines = dashMedicines.length ? dashMedicines : medicinesList
-    const effectiveStock = dashStock.length
-      ? dashStock
-      : inventoryList.length
-        ? inventoryList
-        : medicinesList
+    // Pool all available medicines across backend and local storage
+    const localMeds = readLocalMedicines()
+    const allItemsMap = new Map()
+    medicinesList.forEach(m => {
+      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
+      if (k) allItemsMap.set(k, m)
+    })
+    localMeds.forEach(m => {
+      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
+      if (k) {
+        const existing = allItemsMap.get(k) || {}
+        allItemsMap.set(k, { ...existing, ...m })
+      }
+    })
+    inventoryList.forEach(inv => {
+      const k = String(inv?.id || inv?._id || inv?.batchNo || inv?.batchNumber || inv?.medicineName || '').trim().toLowerCase()
+      if (k && !allItemsMap.has(k)) allItemsMap.set(k, inv)
+    })
+    const pooledStock = Array.from(allItemsMap.values())
+
+    const effectiveMedicines = pooledStock.length ? pooledStock : (dashMedicines.length ? dashMedicines : medicinesList)
+    const effectiveStock = pooledStock.length ? pooledStock : (dashStock.length ? dashStock : medicinesList)
 
     const computedLowStock = effectiveMedicines.filter((m) => {
       const qty = getItemStock(m)
@@ -104,30 +172,60 @@ function AdminDashboard() {
     }).length
 
     const now = Date.now()
-    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000
     const computedExpiryAlerts = effectiveStock.filter((item) => {
-      const rawDate = item?.expiryDate || item?.expiry || item?.expiresAt
-      if (!rawDate) return false
-      const parsed = new Date(rawDate).getTime()
-      return !isNaN(parsed) && parsed - now <= thirtyDaysMs
+      if (item?.daysLeft !== undefined && item?.daysLeft !== null && item?.daysLeft !== '') {
+        return Number(item.daysLeft) <= 90
+      }
+      const rawDate = item?.expiryDate || item?.ExpiryDate || item?.expiry || item?.expiresAt || item?.batch?.expiryDate
+      if (!rawDate || rawDate === '-') return false
+      const expDate = parseFlexibleDate(rawDate)
+      if (!expDate) return false
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      expDate.setHours(0, 0, 0, 0)
+      const daysDiff = Math.round((expDate.getTime() - today.getTime()) / 86400000)
+      return daysDiff <= 90
     }).length
 
-    const todaySales = pick(source, ['todaySales', 'salesToday', 'dailySales'], 0)
+    // Calculate total sales from pharmacist billing, dispensing, and daily reports
+    const dashSalesNum = Number(pick(source, ['todaySales', 'salesToday', 'dailySales', 'totalSales', 'totalRevenue', 'todayRevenue', 'revenue', 'sales'], 0)) || 0
+    const billsTotal = billsList.reduce((acc, b) => {
+      const amt = Number(b?.totalAmount || b?.total || b?.amount || b?.grandTotal || b?.paidAmount || 0)
+      return acc + (!isNaN(amt) && amt > 0 ? amt : 0)
+    }, 0)
+    const paymentsTotal = paymentsList.reduce((acc, p) => {
+      const amt = Number(p?.paidAmount || p?.amount || p?.total || 0)
+      return acc + (!isNaN(amt) && amt > 0 ? amt : 0)
+    }, 0)
+    const dailyTotal = Number(dailySalesData?.totalSales || dailySalesData?.totalRevenue || dailySalesData?.total || dailySalesData?.sales || 0) || 0
+    let localSales = 0
+    try {
+      const storedBills = JSON.parse(localStorage.getItem('pms_bills') || sessionStorage.getItem('pms_bills') || '[]')
+      if (Array.isArray(storedBills)) {
+        localSales = storedBills.reduce((acc, b) => acc + (Number(b?.totalAmount || b?.amount || 0) || 0), 0)
+      }
+    } catch {}
+
+    const totalSalesValue = Math.max(dashSalesNum, billsTotal, paymentsTotal, dailyTotal, localSales)
+
     const rawLowStock = Number(pick(source, ['lowStock', 'lowStockCount', 'lowStockMedicines'], 0)) || 0
     const rawExpiryAlerts = Number(pick(source, ['expiryAlerts', 'expiryAlertsCount', 'nearExpiryCount'], 0)) || 0
-    const lowStock = rawLowStock > 0 ? rawLowStock : computedLowStock
-    const expiryAlerts = rawExpiryAlerts > 0 ? rawExpiryAlerts : computedExpiryAlerts
+    const lowStock = Math.max(rawLowStock, computedLowStock)
+    const expiryAlerts = Math.max(rawExpiryAlerts, computedExpiryAlerts)
 
     return {
       source,
+      totalSalesValue,
+      billsCount: billsList.length,
       stats: [
         {
           id: 'sales',
-          label: 'Today Sales',
-          val: `₹${todaySales}`,
-          subText: 'Live dashboard data',
+          label: 'Total Sales',
+          val: `₹${Number(totalSalesValue || 0).toLocaleString('en-IN')}`,
+          subText: 'From pharmacist sales',
           badgeText: '+0% today',
-          route: '/transactions',
+          route: '/admin/dispensing',
           color: '#0878e8',
           bgColor: '#eaf4ff',
           borderColor: 'rgba(8, 120, 232, 0.2)',
@@ -162,7 +260,7 @@ function AdminDashboard() {
           val: expiryAlerts,
           subText: 'Requires review',
           badgeText: 'Near Expiry',
-          route: '/near-expiry',
+          route: '/admin/expiry-alerts',
           color: '#ef4444',
           bgColor: '#fff0f0',
           borderColor: 'rgba(239, 68, 68, 0.2)',
@@ -178,7 +276,7 @@ function AdminDashboard() {
       recentStock: effectiveStock,
       reports: list(dashboard, ['reports', 'recentReports', 'activities']),
     }
-  }, [dashboard, inventoryList, medicinesList])
+  }, [dashboard, inventoryList, medicinesList, billsList, dailySalesData, paymentsList])
 
   return (
     <AdminLayout activeLabel="Dashboard" title="Admin Dashboard" subtitle="Admin / Dashboard">
@@ -251,17 +349,40 @@ function AdminDashboard() {
             </div>
           </div>
           <div className="analytics-card-body">
-            <div className="analytics-empty-state">
-              <div className="analytics-empty-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="20" x2="18" y2="10" />
-                  <line x1="12" y1="20" x2="12" y2="4" />
-                  <line x1="6" y1="20" x2="6" y2="14" />
-                </svg>
+            {view.totalSalesValue > 0 || billsList.length > 0 ? (
+              <div style={{ padding: '20px 8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pharmacist Revenue</span>
+                    <div style={{ fontSize: '26px', fontWeight: 700, color: '#0f172a' }}>₹{Number(view.totalSalesValue || 0).toLocaleString('en-IN')}</div>
+                  </div>
+                  <span className="live-status-pill" style={{ background: '#ecfdf5', color: '#059669', borderColor: '#a7f3d0' }}>
+                    <i className="pulse-dot-green" /> {billsList.length || 1} Transactions
+                  </span>
+                </div>
+                <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#475569', marginBottom: '8px' }}>
+                    <span>Dispensed / Paid Orders</span>
+                    <strong>{billsList.length || 1} completed</strong>
+                  </div>
+                  <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #2563eb, #3b82f6)', borderRadius: '4px' }} />
+                  </div>
+                </div>
               </div>
-              <h3>No sales activity recorded yet</h3>
-              <p>Sales transactions and revenue trends will appear here in real time.</p>
-            </div>
+            ) : (
+              <div className="analytics-empty-state">
+                <div className="analytics-empty-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10" />
+                    <line x1="12" y1="20" x2="12" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="14" />
+                  </svg>
+                </div>
+                <h3>No sales activity recorded yet</h3>
+                <p>Sales transactions from pharmacist dispensing will appear here in real time.</p>
+              </div>
+            )}
           </div>
         </section>
 

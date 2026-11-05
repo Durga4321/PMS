@@ -372,9 +372,24 @@ export default function Stock({ initialView }) {
       ])
       const data = dashRes.status === 'fulfilled' ? (dashRes.value?.data?.dashboard || dashRes.value?.data || dashRes.value || {}) : {}
       let meds = medRes.status === 'fulfilled' ? normalizeList(medRes.value) : []
-      if (!meds || !meds.length) {
-        meds = readLocalMedicines()
-      }
+      const localMeds = readLocalMedicines()
+      const mergedMedsMap = new Map()
+      meds.forEach(m => {
+        const k = String(m?.id || m?._id || m?.medicineId || m?.code || m?.medicineCode || m?.name || m?.medicineName || '').trim().toLowerCase()
+        if (k) mergedMedsMap.set(k, m)
+      })
+      localMeds.forEach(m => {
+        const k = String(m?.id || m?._id || m?.medicineId || m?.code || m?.medicineCode || m?.name || m?.medicineName || '').trim().toLowerCase()
+        if (k) {
+          const existing = mergedMedsMap.get(k) || {}
+          mergedMedsMap.set(k, { ...existing, ...m })
+        } else if (m?.name || m?.medicineName) {
+          const nameKey = String(m?.name || m?.medicineName).trim().toLowerCase()
+          const existing = mergedMedsMap.get(nameKey) || {}
+          mergedMedsMap.set(nameKey, { ...existing, ...m })
+        }
+      })
+      meds = Array.from(mergedMedsMap.values())
       const inv = invRes.status === 'fulfilled' ? normalizeList(invRes.value) : []
       const expInv = expInvRes.status === 'fulfilled' ? normalizeList(expInvRes.value) : []
       const combinedInv = [...inv, ...expInv]
@@ -498,9 +513,24 @@ export default function Stock({ initialView }) {
         }
 
         let meds = medResponse.status === 'fulfilled' ? normalizeList(medResponse.value) : []
-        if (!meds || !meds.length) {
-          meds = readLocalMedicines()
-        }
+        const localMeds = readLocalMedicines()
+        const mergedMedsMap = new Map()
+        meds.forEach(m => {
+          const k = String(m?.id || m?._id || m?.medicineId || m?.code || m?.medicineCode || m?.name || m?.medicineName || '').trim().toLowerCase()
+          if (k) mergedMedsMap.set(k, m)
+        })
+        localMeds.forEach(m => {
+          const k = String(m?.id || m?._id || m?.medicineId || m?.code || m?.medicineCode || m?.name || m?.medicineName || '').trim().toLowerCase()
+          if (k) {
+            const existing = mergedMedsMap.get(k) || {}
+            mergedMedsMap.set(k, { ...existing, ...m })
+          } else if (m?.name || m?.medicineName) {
+            const nameKey = String(m?.name || m?.medicineName).trim().toLowerCase()
+            const existing = mergedMedsMap.get(nameKey) || {}
+            mergedMedsMap.set(nameKey, { ...existing, ...m })
+          }
+        })
+        meds = Array.from(mergedMedsMap.values())
         setMedicinesList(meds)
         let invList = invResponse.status === 'fulfilled' ? normalizeList(invResponse.value) : []
         if (expInvResponse && expInvResponse.status === 'fulfilled') {
@@ -636,7 +666,20 @@ export default function Stock({ initialView }) {
     const target = getViewFromPath()
     loadSummaryMetrics()
     load(target)
-  }, [location.pathname])
+
+    function handleSync() {
+      loadSummaryMetrics()
+      load(view)
+    }
+    window.addEventListener('pms:stock-updated', handleSync)
+    window.addEventListener('pms:medicines-updated', handleSync)
+    window.addEventListener('storage', handleSync)
+    return () => {
+      window.removeEventListener('pms:stock-updated', handleSync)
+      window.removeEventListener('pms:medicines-updated', handleSync)
+      window.removeEventListener('storage', handleSync)
+    }
+  }, [location.pathname, view])
 
   // Computed display metrics that always reflect current stock items and medicines catalogue
   const displayMetrics = useMemo(() => {

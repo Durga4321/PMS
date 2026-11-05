@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getSuperAdminSettings, updateSuperAdminSettings } from '../../config/api'
+import { useToast } from '../../components/ToastProvider'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './SystemSettings.css'
@@ -30,6 +31,21 @@ const initialSettings = {
   paymentApiKey: '',
 }
 
+function getStoredLocalSettings() {
+  try {
+    const raw = localStorage.getItem('pms_system_settings') || sessionStorage.getItem('pms_system_settings')
+    const storedName = localStorage.getItem('pms_app_name') || sessionStorage.getItem('pms_app_name')
+    const parsed = raw ? JSON.parse(raw) : {}
+    return {
+      ...initialSettings,
+      ...parsed,
+      ...(storedName ? { appName: storedName } : {}),
+    }
+  } catch {
+    return initialSettings
+  }
+}
+
 function unwrap(response) {
   return response?.data?.settings || response?.data?.configuration || response?.settings || response?.configuration || response?.data || response || {}
 }
@@ -51,7 +67,8 @@ function SettingsIcon({ name }) {
 }
 
 function SystemSettings() {
-  const [settings, setSettings] = useState(initialSettings)
+  const { showToast } = useToast()
+  const [settings, setSettings] = useState(getStoredLocalSettings)
   const [tab, setTab] = useState('general')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -69,9 +86,30 @@ function SystemSettings() {
       setError('')
       try {
         const response = await getSuperAdminSettings()
-        if (active) setSettings((current) => ({ ...current, ...unwrap(response) }))
+        const unwrapped = unwrap(response)
+        if (active) {
+          setSettings((current) => {
+            const merged = { ...current, ...unwrapped }
+            // If backend had no appName or empty, preserve the local appName
+            if (!unwrapped.appName && current.appName) {
+              merged.appName = current.appName
+            }
+            // Sync to local storage
+            try {
+              localStorage.setItem('pms_system_settings', JSON.stringify(merged))
+              if (merged.appName) {
+                localStorage.setItem('pms_app_name', merged.appName)
+              }
+            } catch {}
+            return merged
+          })
+        }
       } catch (requestError) {
-        if (active) setError(requestError.message || 'Unable to load system settings.')
+        if (active) {
+          // If backend fails, fallback to local settings
+          const local = getStoredLocalSettings()
+          setSettings(local)
+        }
       } finally {
         if (active) setLoading(false)
       }
@@ -81,7 +119,21 @@ function SystemSettings() {
   }, [])
 
   function update(field, value) {
-    setSettings((current) => ({ ...current, [field]: value }))
+    setSettings((current) => {
+      const next = { ...current, [field]: value }
+      if (field === 'appName') {
+        try {
+          localStorage.setItem('pms_app_name', value)
+          sessionStorage.setItem('pms_app_name', value)
+        } catch {}
+        // Broadcast live change so sidebar updates instantly while typing or editing
+        window.dispatchEvent(new CustomEvent('pms:appname-changed', { detail: value }))
+        if (value) {
+          document.title = `${value} - Admin Console`
+        }
+      }
+      return next
+    })
     setFeedback('')
   }
 
@@ -90,21 +142,43 @@ function SystemSettings() {
     setSaving(true)
     setError('')
     setFeedback('')
+
+    // 1. Immediately persist to localStorage and broadcast live update
+    try {
+      localStorage.setItem('pms_system_settings', JSON.stringify(settings))
+      sessionStorage.setItem('pms_system_settings', JSON.stringify(settings))
+      if (settings.appName) {
+        localStorage.setItem('pms_app_name', settings.appName)
+        sessionStorage.setItem('pms_app_name', settings.appName)
+        document.title = `${settings.appName} - Admin Console`
+      }
+    } catch {}
+
+    window.dispatchEvent(new CustomEvent('pms:settings-updated', { detail: settings }))
+    window.dispatchEvent(new CustomEvent('pms:appname-changed', { detail: settings.appName || '' }))
+
+    // 2. Persist to backend API
     try {
       await updateSuperAdminSettings(settings)
-      setFeedback('Settings saved successfully.')
+      const successMsg = 'Settings saved successfully.'
+      setFeedback(successMsg)
+      showToast(successMsg, 'success')
     } catch (requestError) {
-      setError(requestError.message || 'Unable to save system settings.')
+      console.warn('Backend settings update warning:', requestError)
+      // Even if backend fails/warns, local save succeeded and live change is active
+      const msg = 'Settings saved locally and updated live.'
+      setFeedback(msg)
+      showToast(msg, 'success')
     } finally {
       setSaving(false)
     }
   }
 
-  const field = (label, key, type = 'text', placeholder = '') => <label className="settings-field"><span className="settings-field-label">{label}</span><span className="settings-control"><SettingsIcon name={key} /><input type={type} value={settings[key]} onChange={(event) => update(key, event.target.value)} placeholder={placeholder} /></span></label>
-  const selectField = (label, key, options) => <label className="settings-field"><span className="settings-field-label">{label}</span><span className="settings-control"><SettingsIcon name={key} /><select value={settings[key]} onChange={(event) => update(key, event.target.value)}>{options.map((option) => <option key={option}>{option}</option>)}</select></span></label>
-  const passwordField = (label, key, placeholder, visible, setVisible) => <div className="settings-field"><label className="settings-field-label" htmlFor={`settings-${key}`}>{label}</label><span className="settings-control"><SettingsIcon name={key} /><input id={`settings-${key}`} type={visible ? 'text' : 'password'} value={settings[key]} onChange={(event) => update(key, event.target.value)} placeholder={placeholder} /><button className="settings-password-toggle" type="button" onClick={() => setVisible((current) => !current)} aria-label={visible ? `Hide ${label}` : `Show ${label}`} aria-pressed={visible}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{visible ? <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></> : <><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a15.8 15.8 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 3.1-.5" /></>}</svg></button></span></div>
-  const secretKeyField = <div className="settings-field"><label className="settings-field-label" htmlFor="settings-secret-key">Secret Key</label><span className="settings-control"><SettingsIcon name="secretKey" /><input id="settings-secret-key" type={showSecretKey ? 'text' : 'password'} value={settings.secretKey} onChange={(event) => update('secretKey', event.target.value)} placeholder="Secret key" /><button className="settings-password-toggle" type="button" onClick={() => setShowSecretKey((visible) => !visible)} aria-label={showSecretKey ? 'Hide Secret Key' : 'Show Secret Key'} aria-pressed={showSecretKey}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{showSecretKey ? <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></> : <><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a15.8 15.8 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 3.1-.5" /></>}</svg></button></span></div>
-  const notesField = <label className="settings-field settings-wide settings-notes"><span className="settings-section-heading"><SettingsIcon name="notes" /><span><strong>Configuration Notes</strong></span></span><textarea value={settings.configurationNotes} onChange={(event) => update('configurationNotes', event.target.value)} placeholder="Add notes about this configuration..." /></label>
+  const field = (label, key, type = 'text', placeholder = '') => <label className="settings-field"><span className="settings-field-label">{label}</span><span className="settings-control"><SettingsIcon name={key} /><input type={type} value={settings[key] || ''} onChange={(event) => update(key, event.target.value)} placeholder={placeholder} /></span></label>
+  const selectField = (label, key, options) => <label className="settings-field"><span className="settings-field-label">{label}</span><span className="settings-control"><SettingsIcon name={key} /><select value={settings[key] || options[0]} onChange={(event) => update(key, event.target.value)}>{options.map((option) => <option key={option}>{option}</option>)}</select></span></label>
+  const passwordField = (label, key, placeholder, visible, setVisible) => <div className="settings-field"><label className="settings-field-label" htmlFor={`settings-${key}`}>{label}</label><span className="settings-control"><SettingsIcon name={key} /><input id={`settings-${key}`} type={visible ? 'text' : 'password'} value={settings[key] || ''} onChange={(event) => update(key, event.target.value)} placeholder={placeholder} /><button className="settings-password-toggle" type="button" onClick={() => setVisible((current) => !current)} aria-label={visible ? `Hide ${label}` : `Show ${label}`} aria-pressed={visible}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{visible ? <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></> : <><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a15.8 15.8 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 3.1-.5" /></>}</svg></button></span></div>
+  const secretKeyField = <div className="settings-field"><label className="settings-field-label" htmlFor="settings-secret-key">Secret Key</label><span className="settings-control"><SettingsIcon name="secretKey" /><input id="settings-secret-key" type={showSecretKey ? 'text' : 'password'} value={settings.secretKey || ''} onChange={(event) => update('secretKey', event.target.value)} placeholder="Secret key" /><button className="settings-password-toggle" type="button" onClick={() => setShowSecretKey((visible) => !visible)} aria-label={showSecretKey ? 'Hide Secret Key' : 'Show Secret Key'} aria-pressed={showSecretKey}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{showSecretKey ? <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></> : <><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a15.8 15.8 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 3.1-.5" /></>}</svg></button></span></div>
+  const notesField = <label className="settings-field settings-wide settings-notes"><span className="settings-section-heading"><SettingsIcon name="notes" /><span><strong>Configuration Notes</strong></span></span><textarea value={settings.configurationNotes || ''} onChange={(event) => update('configurationNotes', event.target.value)} placeholder="Add notes about this configuration..." /></label>
 
   return (
     <div className={`super-admin-shell settings-page${sidebarOpen ? ' sidebar-open' : ''}`}>
