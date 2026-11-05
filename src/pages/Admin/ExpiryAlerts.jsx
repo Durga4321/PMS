@@ -139,8 +139,8 @@ export default function ExpiryAlerts() {
   // Filter by search & status dropdown
   const filteredItems = useMemo(() => {
     return tabItems.filter((item) => {
-      const name = (item?.medicineName || item?.name || '').toLowerCase()
-      const batch = (item?.batchNo || item?.batchNumber || item?.batchId || '').toLowerCase()
+      const name = String(item?.medicineName || item?.name || '').toLowerCase()
+      const batch = String(item?.batchNo || item?.batchNumber || item?.batchId || '').toLowerCase()
       const query = search.toLowerCase()
       const matchesSearch = name.includes(query) || batch.includes(query)
 

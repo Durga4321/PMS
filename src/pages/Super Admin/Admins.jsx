@@ -462,7 +462,6 @@ function Admins() {
                     <td>{getMobileNumber(admin)}</td>
                     <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
                     <td>
-                      <span className="row-actions"><RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onStatus={() => handleStatus(admin)} onDelete={() => handleDelete(admin)} /></span>
                     </td>
                   </tr>
                 )) : (

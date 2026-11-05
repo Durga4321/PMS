@@ -1,12 +1,22 @@
+function formatDisplayValue(val) {
+  if (val === null || val === undefined || val === '') return '-'
+  if (typeof val === 'object') {
+    if (val instanceof Date) return val.toLocaleDateString()
+    return val.name || val.categoryName || val.title || val.medicineName || val.userName || val.status || val.label || '-'
+  }
+  return String(val)
+}
+
 function Status({ value }) {
-  const str = String(value || '').toLowerCase()
+  const displayVal = formatDisplayValue(value)
+  const str = displayVal.toLowerCase()
   let statusClass = 'status-default'
   if (str.includes('active') || str.includes('in stock') || str.includes('ready')) statusClass = 'status-success'
   else if (str.includes('low') || str.includes('pending') || str.includes('processing')) statusClass = 'status-warning'
   else if (str.includes('out') || str.includes('expired') || str.includes('failed')) statusClass = 'status-danger'
   else if (str.includes('near')) statusClass = 'status-amber'
 
-  return <span className={`table-status-badge ${statusClass}`}>{value}</span>
+  return <span className={`table-status-badge ${statusClass}`}>{displayVal}</span>
 }
 
 function AdminTable({ title, action, headers, rows, onActionClick }) {
@@ -34,8 +44,8 @@ function AdminTable({ title, action, headers, rows, onActionClick }) {
               rows.map((row, rIdx) => (
                 <tr key={rIdx}>
                   {row.map((cell, cIdx) => (
-                    <td key={`${cell}-${cIdx}`}>
-                      {cIdx === row.length - 1 ? <Status value={cell} /> : cell}
+                    <td key={cIdx}>
+                      {cIdx === row.length - 1 ? <Status value={cell} /> : formatDisplayValue(cell)}
                     </td>
                   ))}
                 </tr>
