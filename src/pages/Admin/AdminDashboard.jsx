@@ -134,7 +134,8 @@ function AdminDashboard() {
     ])
       .then(([dashRes, medRes, invRes, billsRes, dailyRes, payRes]) => {
         setDashboard(dashRes.status === 'fulfilled' ? unwrap(dashRes.value) : {})
-        setMedicinesList(medRes.status === 'fulfilled' ? unwrapArray(medRes.value) : [])
+        const meds = medRes.status === 'fulfilled' ? unwrapArray(medRes.value) : []
+        if (meds.length) setMedicinesList(meds)
         setInventoryList(invRes.status === 'fulfilled' ? unwrapArray(invRes.value) : [])
         setBillsList(billsRes.status === 'fulfilled' ? unwrapArray(billsRes.value) : [])
         setDailySalesData(dailyRes.status === 'fulfilled' ? unwrap(dailyRes.value) : null)
@@ -166,6 +167,33 @@ function AdminDashboard() {
     const dashMedicines = list(dashboard, ['topMedicines', 'topSelling', 'medicines'])
     const dashStock = list(dashboard, ['stock', 'inventory', 'lowStockItems'])
 
+    // Pool all available medicines across backend and local storage
+    const localMeds = typeof readLocalMedicines === 'function' ? readLocalMedicines() : []
+    const allItemsMap = new Map()
+    medicinesList.forEach((m) => {
+      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
+      if (k) allItemsMap.set(k, m)
+    })
+    localMeds.forEach((m) => {
+      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
+      if (k && !allItemsMap.has(k)) allItemsMap.set(k, m)
+    })
+    const pooledMedicines = Array.from(allItemsMap.values())
+
+    const effectiveMedicines = Array.isArray(dashMedicines) && dashMedicines.length
+      ? dashMedicines
+      : (pooledMedicines.length ? pooledMedicines : (Array.isArray(medicinesList) ? medicinesList : []))
+
+    const effectiveStock = Array.isArray(dashStock) && dashStock.length
+      ? dashStock
+      : (Array.isArray(inventoryList) && inventoryList.length ? inventoryList : effectiveMedicines)
+
+    // Compute sales value from billsList, paymentsList, or dashboard summary
+    const rawSales = pick(source, ['totalSales', 'todaySales', 'salesToday', 'dailySales', 'revenue'], 0)
+    const billsTotal = billsList.reduce((sum, b) => sum + (Number(b?.total || b?.totalAmount || b?.grandTotal || b?.amount || 0) || 0), 0)
+    const paymentsTotal = paymentsList.reduce((sum, p) => sum + (Number(p?.amount || p?.total || 0) || 0), 0)
+    const dailyTotal = Number(dailySalesData?.totalSales || dailySalesData?.total || 0)
+    const totalSalesValue = (typeof rawSales === 'number' && rawSales > 0 ? rawSales : (typeof rawSales === 'string' && Number(rawSales) > 0 ? Number(rawSales) : 0)) || billsTotal || paymentsTotal || dailyTotal || 0
 
     const computedLowStock = effectiveMedicines.filter((m) => {
       const qty = getItemStock(m)

@@ -348,9 +348,16 @@ function StatusBadge({ status }) {
 
 export default function AdminPharmacies() {
   const { showToast } = useToast()
-  const [pharmacies, setPharmacies] = useState([])
+  const [pharmacies, setPharmacies] = useState(() => {
+    try {
+      const items = readLocalPharmacies()
+      return Array.isArray(items) ? items : []
+    } catch {
+      return []
+    }
+  })
   const [viewingPharmacy, setViewingPharmacy] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
@@ -358,8 +365,8 @@ export default function AdminPharmacies() {
   const [editingPharmacy, setEditingPharmacy] = useState(null)
   const [form, setForm] = useState(emptyForm)
 
-  async function loadPharmacies() {
-    setLoading(true)
+  async function loadPharmacies(showSpinner = false) {
+    if (showSpinner || pharmacies.length === 0) setLoading(true)
     setError('')
     try {
       const deletedIds = readDeletedPharmacyIds()
