@@ -307,7 +307,93 @@ export default function UsersPermissions() {
         </div>
       </section>
 
-      <section className="permissions-panel assign-panel"><header className="permissions-panel-header"><div><h2>Assign Permissions</h2><p>Admin sidebar module permissions for the selected Admin role.</p></div></header><form onSubmit={savePermissions}><label className="permissions-admin-select"><span>Admin Role / Admin ID</span><select value={selectedAdminId} onChange={(event) => selectAdmin(event.target.value)} disabled={loading || saving}><option value="">Select Admin</option>{admins.map((admin) => <option key={idOf(admin)} value={idOf(admin)}>{nameOf(admin)} - ID {idOf(admin) || '0'}</option>)}</select></label><label className="permissions-admin-select"><span>Backend Role</span><select value={selectedRoleId} onChange={(event) => chooseRole(event.target.value)} disabled={loading || saving}><option value="">Select Role</option>{roles.map((role) => <option key={idOf(role)} value={idOf(role)}>{nameOf(role)}</option>)}</select></label><div className="permissions-grid-wrap"><table className="permissions-grid"><thead><tr><th><span className="permissions-module-head"><span>Module</span><button className="permissions-select-all" type="button" onClick={toggleAllPermissions} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving}><Icon><path d="m5 12 4 4L19 6" /></Icon>{allSelected ? 'Deselect All' : 'Select All'}</button></span></th>{ACTIONS.map((action) => <th key={action}><label className="permissions-column-toggle"><input type="checkbox" checked={isColumnSelected(action)} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving} onChange={(event) => toggleColumnPermission(action, event.target.checked)} />{actionLabel(action)}</label></th>)}</tr></thead><tbody>{MODULES.map((module) => <tr key={module}><td><span className="module-label"><ModuleIcon module={module} /><span>{module}</span></span></td>{ACTIONS.map((action) => <td key={action}><label className={`permission-check permission-check-${action}`}><input type="checkbox" checked={Boolean(permissionState[module]?.[action])} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving} onChange={(event) => togglePermission(module, action, event.target.checked)} /><span><Icon><path d="m5 12 4 4L19 6" /></Icon></span>{actionLabel(action)}</label></td>)}</tr>)}</tbody></table></div><div className="permissions-save-row"><span>{selectedAdmin && selectedRole ? `${selectedCount} permissions selected for ${nameOf(selectedAdmin)} (${nameOf(selectedRole)})` : 'Select an admin and role'}</span><button className="permissions-primary" disabled={!selectedAdminId || !selectedRoleId || saving || loadingPermissions} type="submit">{saving ? 'Saving...' : 'Save Module Permissions'}</button></div></form></section>
+      <section className="permissions-panel assign-panel">
+        <header className="permissions-panel-header">
+          <div>
+            <h2>Assign Permissions</h2>
+            <p>Admin sidebar module permissions for the selected Admin role.</p>
+          </div>
+        </header>
+        <form onSubmit={savePermissions}>
+          <div className="permissions-select-row">
+            <label className="permissions-admin-select">
+              <span>Admin Role / Admin ID</span>
+              <select value={selectedAdminId} onChange={(event) => selectAdmin(event.target.value)} disabled={loading || saving}>
+                <option value="">Select Admin</option>
+                {admins.map((admin) => (
+                  <option key={idOf(admin)} value={idOf(admin)}>
+                    {nameOf(admin)} - ID {idOf(admin) || '0'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="permissions-admin-select">
+              <span>Backend Role</span>
+              <select value={selectedRoleId} onChange={(event) => chooseRole(event.target.value)} disabled={loading || saving}>
+                <option value="">Select Role</option>
+                {roles.map((role) => (
+                  <option key={idOf(role)} value={idOf(role)}>
+                    {nameOf(role)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="permissions-grid-wrap">
+            <table className="permissions-grid">
+              <thead>
+                <tr>
+                  <th>
+                    <span className="permissions-module-head">
+                      <span>Module</span>
+                      <button className="permissions-select-all" type="button" onClick={toggleAllPermissions} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving}>
+                        <Icon><path d="m5 12 4 4L19 6" /></Icon>{allSelected ? 'Deselect All' : 'Select All'}
+                      </button>
+                    </span>
+                  </th>
+                  {ACTIONS.map((action) => (
+                    <th key={action}>
+                      <label className="permissions-column-toggle">
+                        <input type="checkbox" checked={isColumnSelected(action)} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving} onChange={(event) => toggleColumnPermission(action, event.target.checked)} />
+                        {actionLabel(action)}
+                      </label>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {MODULES.map((module) => (
+                  <tr key={module}>
+                    <td>
+                      <span className="module-label">
+                        <ModuleIcon module={module} />
+                        <span>{module}</span>
+                      </span>
+                    </td>
+                    {ACTIONS.map((action) => (
+                      <td key={action}>
+                        <label className={`permission-check permission-check-${action}`}>
+                          <input type="checkbox" checked={Boolean(permissionState[module]?.[action])} disabled={!selectedAdminId || !selectedRoleId || loadingPermissions || saving} onChange={(event) => togglePermission(module, action, event.target.checked)} />
+                          <span><Icon><path d="m5 12 4 4L19 6" /></Icon></span>
+                          {actionLabel(action)}
+                        </label>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="permissions-save-row">
+            <span>
+              {selectedAdmin && selectedRole ? `${selectedCount} permissions selected for ${nameOf(selectedAdmin)} (${nameOf(selectedRole)})` : 'Select an admin and role'}
+            </span>
+            <button className="permissions-primary" disabled={!selectedAdminId || !selectedRoleId || saving || loadingPermissions} type="submit">
+              {saving ? 'Saving...' : 'Save Module Permissions'}
+            </button>
+          </div>
+        </form>
+      </section>
     </main>
   </div>
 }

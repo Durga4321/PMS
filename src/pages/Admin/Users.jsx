@@ -232,9 +232,9 @@ function Users({ initialAdd = false }) {
     const value = query.trim().toLowerCase()
     if (!value) return pharmacists
     return pharmacists.filter((item) => {
-      const name = getName(item).toLowerCase()
+      const name = String(getName(item) || '').toLowerCase()
       const email = String(item.email || '').toLowerCase()
-      const phone = getPhone(item).toLowerCase()
+      const phone = String(getPhone(item) || '').toLowerCase()
       return name.includes(value) || email.includes(value) || phone.includes(value) || JSON.stringify(item).toLowerCase().includes(value)
     })
   }, [pharmacists, query])

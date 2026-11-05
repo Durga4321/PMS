@@ -524,7 +524,7 @@ function Admins() {
                     <td>{getMobileNumber(admin)}</td>
                     <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
                     <td>
-                      <span className="row-actions"><button type="button" className="row-action-button view" title="Assign selected pharmacy" disabled={assigningAdminId === String(getId(admin)) || !assignmentPharmacyId} onClick={() => handleAssignPharmacy(admin)}>Assign</button><RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onStatus={() => handleStatus(admin)} onDelete={() => handleDelete(admin)} /></span>
+                      <span className="row-actions"><button type="button" className="row-action-button view" title="Assign selected pharmacy" disabled={assigningAdminId === String(getId(admin)) || !assignmentPharmacyId} onClick={() => handleAssignPharmacy(admin)}>Assign</button><RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onDelete={() => handleDelete(admin)} /></span>
                     </td>
                   </tr>
                 )) : (

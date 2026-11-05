@@ -48,11 +48,34 @@ const unwrapArray = (response) => {
     ].find(Array.isArray) || []
   )
 }
-const pick = (source, keys, fallback = 0) => keys.map((key) => source?.[key]).find((value) => value !== undefined && value !== null && value !== '') ?? fallback
-const list = (source, keys) => keys.map((key) => source?.[key]).find(Array.isArray) || []
-const text = (source, keys, fallback = '-') => pick(source, keys, fallback)
+const pick = (source, keys, fallback = 0) => {
+  if (!source || typeof source !== 'object') return fallback
+  for (const key of keys) {
+    const val = source[key]
+    if (val !== undefined && val !== null && val !== '') return val
+  }
+  return fallback
+}
+const list = (source, keys) => {
+  if (!source || typeof source !== 'object') return []
+  for (const key of keys) {
+    if (Array.isArray(source[key])) return source[key]
+  }
+  return []
+}
+const text = (source, keys, fallback = '-') => {
+  if (!source || typeof source !== 'object') return fallback
+  const val = pick(source, keys, null)
+  if (val === null || val === undefined || val === '') return fallback
+  if (typeof val === 'object') {
+    if (val instanceof Date) return val.toISOString().split('T')[0]
+    return val.name || val.categoryName || val.title || val.medicineName || val.userName || val.label || fallback
+  }
+  return String(val)
+}
 
 function getItemStock(item) {
+  if (!item || typeof item !== 'object') return 0
   const val = pick(item, ['stock', 'stockQuantity', 'initialStockCount', 'currentStock', 'totalStock', 'availableStock', 'quantity', 'qty'], null)
   if (val !== null && !isNaN(Number(val)) && Number(val) > 0) return Number(val)
   const unitMatch = String(item?.unit || '').trim().match(/^(\d+)\s*(units?|tablets?|capsules?|strips?|bottles?|vials?|packs?)?$/i)
@@ -90,12 +113,10 @@ function AdminDashboard() {
     const dashMedicines = list(dashboard, ['topMedicines', 'topSelling', 'medicines'])
     const dashStock = list(dashboard, ['stock', 'inventory', 'lowStockItems'])
 
-    const effectiveMedicines = dashMedicines.length ? dashMedicines : medicinesList
-    const effectiveStock = dashStock.length
+    const effectiveMedicines = Array.isArray(dashMedicines) && dashMedicines.length ? dashMedicines : (Array.isArray(medicinesList) ? medicinesList : [])
+    const effectiveStock = Array.isArray(dashStock) && dashStock.length
       ? dashStock
-      : inventoryList.length
-        ? inventoryList
-        : medicinesList
+      : (Array.isArray(inventoryList) && inventoryList.length ? inventoryList : effectiveMedicines)
 
     const computedLowStock = effectiveMedicines.filter((m) => {
       const qty = getItemStock(m)
@@ -112,7 +133,8 @@ function AdminDashboard() {
       return !isNaN(parsed) && parsed - now <= thirtyDaysMs
     }).length
 
-    const todaySales = pick(source, ['todaySales', 'salesToday', 'dailySales'], 0)
+    const rawSales = pick(source, ['todaySales', 'salesToday', 'dailySales', 'totalSales'], 0)
+    const todaySales = typeof rawSales === 'object' && rawSales !== null ? (rawSales.amount || rawSales.total || 0) : rawSales
     const rawLowStock = Number(pick(source, ['lowStock', 'lowStockCount', 'lowStockMedicines'], 0)) || 0
     const rawExpiryAlerts = Number(pick(source, ['expiryAlerts', 'expiryAlertsCount', 'nearExpiryCount'], 0)) || 0
     const lowStock = rawLowStock > 0 ? rawLowStock : computedLowStock
@@ -183,7 +205,6 @@ function AdminDashboard() {
   return (
     <AdminLayout activeLabel="Dashboard" title="Admin Dashboard" subtitle="Admin / Dashboard">
       {/* Dashboard Page Header */}
-      {/* Dashboard Page Header */}
       <section className="branch-dashboard-header-redesign reference-heading-card">
         <div className="reference-heading-accent" />
         <div className="admin-heading-text-wrap">
@@ -198,7 +219,7 @@ function AdminDashboard() {
         </div>
       </section>
 
-      {/* Top 4 Equal-Sized Statistic Cards */}
+      {/* Top 3 Equal-Sized Statistic Cards */}
       <section className="branch-summary-4grid">
         {view.stats.map((card) => (
           <div
@@ -330,7 +351,7 @@ function AdminDashboard() {
           rows={view.recentStock.map((item) => {
             const qty = getItemStock(item)
             const rawExpiry = text(item, ['expiryDate', 'expiry', 'expiresAt'], '-')
-            const expiryText = typeof rawExpiry === 'string' && rawExpiry.includes('T') ? rawExpiry.split('T')[0] : rawExpiry
+            const expiryText = typeof rawExpiry === 'string' && rawExpiry.includes('T') ? rawExpiry.split('T')[0] : String(rawExpiry || '-')
             return [
               text(item, ['medicineName', 'name', 'genericName']),
               text(item, ['batchNo', 'batchNumber', 'code', 'medicineCode'], 'BATCH-01'),

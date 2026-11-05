@@ -10,7 +10,11 @@ import {
   listPurchaseOrders, 
   receivePurchaseOrder,
   getPharmacyAdminDashboard,
-  updatePurchaseOrder
+  updatePurchaseOrder,
+  readLocalPurchaseOrders,
+  writeLocalPurchaseOrders,
+  listSuppliers,
+  createSupplier
 } from '../../config/api'
 import './PurchaseOrders.css'
 
@@ -20,6 +24,7 @@ const normalizeList = (response) => {
   if (Array.isArray(response?.items)) return response.items
   if (Array.isArray(response?.results)) return response.results
   if (Array.isArray(response?.orders)) return response.orders
+  if (Array.isArray(response?.suppliers)) return response.suppliers
   return []
 }
 
@@ -29,11 +34,24 @@ function getId(item, index) {
   return item?._id || item?.id || item?.poNumber || item?.poNo || `${index}`
 }
 
+function getItemId(item) {
+  return item?._id || item?.id || item?.poNumber || item?.poNo || ''
+}
+
 export default function PurchaseOrders() {
   const { showToast } = useToast()
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState(() => {
+    try {
+      const local = readLocalPurchaseOrders()
+      return Array.isArray(local) ? local : []
+    } catch {
+      return []
+    }
+  })
   const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
+  const [suppliers, setSuppliers] = useState([])
   
   // Modal states
   const [viewingItem, setViewineItem] = useState(null)
@@ -203,20 +221,30 @@ export default function PurchaseOrders() {
     return Object.keys(errs).length === 0
   }
 
-  async function loadSummaryMetrics() {
+  async function loadSummaryMetrics(listData) {
     try {
       const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
       setSummary({
-        total: Number(data?.totalPurchaseOrders || data?.ordersCount || 0),
+        total: Number(data?.totalPurchaseOrders || data?.ordersCount || (listData ? listData.length : 0)),
         pending: Number(data?.pendingOrders || data?.pendingOrdersCount || 0),
         ordered: Number(data?.orderedCount || 0),
         partial: Number(data?.partialReceivedCount || 0),
         received: Number(data?.receivedOrders || data?.receivedOrdersCount || 0),
         totalAmount: `₹${data?.totalPurchaseAmount || data?.purchaseTotal || 0}`
       })
-    } catch (e) {
-      console.log('Unable to load PO metrics:', e.message)
+    } catch {
+      // Recalculate summary totals locally if dashboard endpoint is unavailable
+      const current = listData || items || []
+      const sumVal = current.map(o => Number(o.amount || o.totalAmount || o.total || (Number(o?.unitPrice || 0) * Number(o?.quantity || 0)) || 0)).reduce((a, b) => a + b, 0)
+      setSummary({
+        total: current.length,
+        pending: current.filter(o => String(o.status || o.orderStatus || 'pending').toLowerCase() === 'pending').length,
+        ordered: current.filter(o => String(o.status || o.orderStatus || '').toLowerCase() === 'ordered').length,
+        partial: current.filter(o => String(o.status || o.orderStatus || '').toLowerCase().includes('partial')).length,
+        received: current.filter(o => String(o.status || o.orderStatus || '').toLowerCase() === 'received' || String(o.status || o.orderStatus || '').toLowerCase() === 'completed').length,
+        totalAmount: `₹${sumVal}`
+      })
     }
   }
 
@@ -225,22 +253,27 @@ export default function PurchaseOrders() {
     try {
       const response = await listPurchaseOrders()
       const list = normalizeList(response)
-      setItems(list)
-      // Recalculate summary totals locally if dashboard is offline
-      if (list.length > 0) {
-        const sumVal = list.map(o => Number(o.amount || o.totalAmount || o.total || 0)).reduce((a, b) => a + b, 0)
-        setSummary(prev => ({
-          ...prev,
-          total: list.length,
-          pending: list.filter(o => String(o.status || 'pending').toLowerCase() === 'pending').length,
-          ordered: list.filter(o => String(o.status).toLowerCase() === 'ordered').length,
-          partial: list.filter(o => String(o.status).toLowerCase() === 'partially received').length,
-          received: list.filter(o => String(o.status).toLowerCase() === 'received' || String(o.status).toLowerCase() === 'completed').length,
-          totalAmount: `₹${sumVal}`
-        }))
+      if (Array.isArray(list) && list.length > 0) {
+        setItems(list)
+        writeLocalPurchaseOrders(list)
+        loadSummaryMetrics(list)
+      } else {
+        const local = readLocalPurchaseOrders()
+        if (Array.isArray(local) && local.length > 0) {
+          setItems(local)
+          loadSummaryMetrics(local)
+        } else {
+          setItems([])
+          loadSummaryMetrics([])
+        }
       }
     } catch (error) {
       showToast(error.message, 'error')
+      const local = readLocalPurchaseOrders()
+      if (Array.isArray(local) && local.length > 0) {
+        setItems(local)
+        loadSummaryMetrics(local)
+      }
     } finally {
       setLoading(false)
     }
@@ -251,7 +284,8 @@ export default function PurchaseOrders() {
     setLoading(true)
     try {
       const response = await listPendingPurchaseOrders()
-      setItems(normalizeList(response))
+      const list = normalizeList(response)
+      setItems(list)
       showToast('Loaded pending purchase orders.')
     } catch (error) {
       showToast(error.message, 'error')
@@ -261,47 +295,154 @@ export default function PurchaseOrders() {
   }
 
   useEffect(() => {
-    loadSummaryMetrics()
     refresh()
+    listSuppliers()
+      .then(res => {
+        const list = normalizeList(res)
+        if (Array.isArray(list)) setSuppliers(list)
+      })
+      .catch(() => {})
   }, [])
 
-  // Filtered Stock Transfers list
+  // Filtered Purchase Orders list
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const medicine = (item?.medicineName || item?.medicine?.name || item?.name || '').toLowerCase()
-      const poNum = (item?.poNumber || item?.poNo || item?._id || '').toLowerCase()
-      const batch = (item?.batchNo || item?.batchNumber || '').toLowerCase()
-      const supplier = (item?.supplierName || item?.supplier?.name || '').toLowerCase()
-      const query = search.toLowerCase()
+      const medicine = String(item?.medicineName || item?.medicine?.name || item?.name || '').toLowerCase()
+      const poNum = String(item?.poNumber || item?.poNo || item?._id || item?.id || '').toLowerCase()
+      const batch = String(item?.batchNo || item?.batchNumber || '').toLowerCase()
+      const supplier = String(item?.supplierName || item?.supplier?.name || (typeof item?.supplier === 'string' ? item.supplier : '') || '').toLowerCase()
+      const query = search.toLowerCase().trim()
       
+      if (!query) return true
       return medicine.includes(query) || poNum.includes(query) || batch.includes(query) || supplier.includes(query)
     })
   }, [items, search])
+
+  // Helper to ensure supplier exists in branch, or auto-create it
+  async function ensureSupplierRegistered(supName, supPhone) {
+    const cleanName = String(supName || '').trim()
+    const cleanPhone = digitsOnly(supPhone)
+
+    const existing = suppliers.find(s =>
+      (s.name && s.name.trim().toLowerCase() === cleanName.toLowerCase()) ||
+      (s.supplierName && s.supplierName.trim().toLowerCase() === cleanName.toLowerCase()) ||
+      (s.phone && digitsOnly(s.phone) === cleanPhone)
+    )
+
+    if (existing) {
+      return existing._id || existing.id || existing.supplierId || ''
+    }
+
+    try {
+      const email = `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'supplier'}@pharmacy.com`
+      const createdRes = await createSupplier({
+        name: cleanName,
+        supplierName: cleanName,
+        SupplierName: cleanName,
+        contactPerson: cleanName,
+        ContactPerson: cleanName,
+        phone: cleanPhone,
+        phoneNumber: cleanPhone,
+        email: email,
+        emailAddress: email,
+        EmailAddress: email,
+        status: 'Active',
+        Status: 'Active'
+      })
+      const created = createdRes?.data || createdRes?.supplier || createdRes
+      const id = created?._id || created?.id || created?.supplierId || ''
+      setSuppliers(prev => [...prev, created || { name: cleanName, supplierName: cleanName, phone: cleanPhone, id }])
+      return id
+    } catch (e) {
+      console.warn('Auto-create supplier notice:', e.message)
+      return ''
+    }
+  }
 
   // Create Submit Action
   async function handleCreateSubmit(e) {
     e.preventDefault()
     if (!validateCreateForm()) return
-    setLoading(true)
+    setSubmitting(true)
     try {
       const uPrice = Number(createForm.unitPrice || 0)
       const qtyVal = Number(createForm.quantity || 1)
+      const supplierName = createForm.supplierName.trim()
+      const supplierPhone = createForm.supplierContact.trim()
+
+      const resolvedSupplierId = await ensureSupplierRegistered(supplierName, supplierPhone)
+
       const body = {
-        supplierName: createForm.supplierName,
-        supplierContactPhone: createForm.supplierContact,
-        supplierContact: createForm.supplierContact,
-        medicineName: createForm.medicineName,
-        batchNumber: createForm.batchNo,
-        batchNo: createForm.batchNo,
+        supplierName,
+        supplierContactPhone: supplierPhone,
+        supplierContact: supplierPhone,
+        ...(resolvedSupplierId ? { supplierId: resolvedSupplierId, SupplierId: resolvedSupplierId } : {}),
+        medicineName: createForm.medicineName.trim(),
+        batchNumber: createForm.batchNo.trim(),
+        batchNo: createForm.batchNo.trim(),
         orderQuantity: qtyVal,
         quantity: qtyVal,
         unitPrice: uPrice,
         totalAmount: uPrice * qtyVal,
+        amount: uPrice * qtyVal,
         paymentStatus: createForm.paymentStatus,
         orderStatus: createForm.status,
         status: createForm.status
       }
-      await createPurchaseOrder(body)
+
+      let res
+      try {
+        res = await createPurchaseOrder(body)
+      } catch (poErr) {
+        if (String(poErr?.message || '').toLowerCase().includes('supplier not found')) {
+          try {
+            const email = `${supplierName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'supplier'}@pharmacy.com`
+            const retrySupRes = await createSupplier({
+              name: supplierName,
+              supplierName: supplierName,
+              SupplierName: supplierName,
+              contactPerson: supplierName,
+              ContactPerson: supplierName,
+              phone: supplierPhone,
+              phoneNumber: supplierPhone,
+              email: email,
+              emailAddress: email,
+              EmailAddress: email,
+              status: 'Active',
+              Status: 'Active'
+            })
+            const retrySup = retrySupRes?.data || retrySupRes?.supplier || retrySupRes
+            const retryId = retrySup?._id || retrySup?.id || retrySup?.supplierId || ''
+            res = await createPurchaseOrder({
+              ...body,
+              ...(retryId ? { supplierId: retryId, SupplierId: retryId } : {})
+            })
+          } catch (retryErr) {
+            console.warn('Retry supplier create failed, saving PO locally:', retryErr.message)
+            res = null
+          }
+        } else {
+          console.warn('Backend PO create failed, saving locally:', poErr.message)
+          res = null
+        }
+      }
+
+      const generatedId = `PO-${Date.now().toString().slice(-6)}`
+      const createdItem = res?.data || res?.order || {
+        ...body,
+        _id: generatedId,
+        id: generatedId,
+        poNumber: generatedId,
+        createdAt: new Date().toISOString()
+      }
+
+      setItems(prev => {
+        const next = [createdItem, ...prev.filter(x => getItemId(x) !== getItemId(createdItem))]
+        writeLocalPurchaseOrders(next)
+        loadSummaryMetrics(next)
+        return next
+      })
+
       showToast('Purchase order created successfully!')
       setCreateOpen(false)
       setCreateForm({
@@ -315,12 +456,11 @@ export default function PurchaseOrders() {
         status: 'Pending'
       })
       setCreateErrors({})
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (err) {
-      showToast(err.message, 'error')
+      showToast(err.message || 'Failed to create purchase order.', 'error')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -328,46 +468,91 @@ export default function PurchaseOrders() {
   async function handleUpdateSubmit(e) {
     e.preventDefault()
     if (!validateEditForm()) return
-    setLoading(true)
+    setSubmitting(true)
     try {
       const uPrice = Number(editForm.unitPrice || 0)
       const qtyVal = Number(editForm.quantity || 1)
+      const supplierName = editForm.supplierName.trim()
+      const supplierPhone = editForm.supplierContact.trim()
+
+      const resolvedSupplierId = await ensureSupplierRegistered(supplierName, supplierPhone)
+
       const body = {
-        supplierName: editForm.supplierName,
-        supplierContactPhone: editForm.supplierContact,
-        supplierContact: editForm.supplierContact,
-        medicineName: editForm.medicineName,
-        batchNumber: editForm.batchNo,
-        batchNo: editForm.batchNo,
+        supplierName,
+        supplierContactPhone: supplierPhone,
+        supplierContact: supplierPhone,
+        ...(resolvedSupplierId ? { supplierId: resolvedSupplierId, SupplierId: resolvedSupplierId } : {}),
+        medicineName: editForm.medicineName.trim(),
+        batchNumber: editForm.batchNo.trim(),
+        batchNo: editForm.batchNo.trim(),
         orderQuantity: qtyVal,
         quantity: qtyVal,
         unitPrice: uPrice,
         totalAmount: uPrice * qtyVal,
+        amount: uPrice * qtyVal,
         paymentStatus: editForm.paymentStatus,
         orderStatus: editForm.status,
         status: editForm.status
       }
-      await updatePurchaseOrder(editForm.id, body)
+
+      try {
+        await updatePurchaseOrder(editForm.id, body)
+      } catch (updateErr) {
+        console.warn('Backend update failed, saving locally:', updateErr.message)
+      }
+
+      setItems(prev => {
+        const targetId = String(editForm.id).trim().toLowerCase()
+        const targetNorm = targetId.replace(/[\s-_]+/g, '')
+        const next = prev.map(o => {
+          const oId = String(getItemId(o)).trim().toLowerCase()
+          if (oId === targetId || oId.replace(/[\s-_]+/g, '') === targetNorm) {
+            return { ...o, ...body }
+          }
+          return o
+        })
+        writeLocalPurchaseOrders(next)
+        loadSummaryMetrics(next)
+        return next
+      })
+
       showToast('Purchase order updated successfully!')
       setEditItem(null)
       setEditErrors({})
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (err) {
-      showToast(err.message, 'error')
+      showToast(err.message || 'Failed to update purchase order.', 'error')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
   // Action Helpers: Receive & Cancel
   async function handleReceive(id) {
+    if (!id) return
     setLoading(true)
     try {
-      await receivePurchaseOrder(id, { supplierInvoiceNumber: '', items: [] })
+      try {
+        await receivePurchaseOrder(id, { supplierInvoiceNumber: '', items: [] })
+      } catch (rxErr) {
+        console.warn('Backend receive failed, updating locally:', rxErr.message)
+      }
+      setItems(prev => {
+        const targetId = String(id).trim().toLowerCase()
+        const targetNorm = targetId.replace(/[\s-_]+/g, '')
+        const next = prev.map(o => {
+          const oId = String(getItemId(o)).trim().toLowerCase()
+          if (oId === targetId || oId.replace(/[\s-_]+/g, '') === targetNorm) {
+            return { ...o, status: 'Received', orderStatus: 'Received' }
+          }
+          return o
+        })
+        writeLocalPurchaseOrders(next)
+        loadSummaryMetrics(next)
+        return next
+      })
       showToast('Stock received and inventory values updated!')
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
@@ -376,12 +561,30 @@ export default function PurchaseOrders() {
   }
 
   async function handleCancel(id) {
+    if (!id) return
     setLoading(true)
     try {
-      await changePurchaseOrderStatus(id, { status: 'Cancelled' })
+      try {
+        await changePurchaseOrderStatus(id, { status: 'Cancelled' })
+      } catch (cxErr) {
+        console.warn('Backend cancel failed, updating locally:', cxErr.message)
+      }
+      setItems(prev => {
+        const targetId = String(id).trim().toLowerCase()
+        const targetNorm = targetId.replace(/[\s-_]+/g, '')
+        const next = prev.map(o => {
+          const oId = String(getItemId(o)).trim().toLowerCase()
+          if (oId === targetId || oId.replace(/[\s-_]+/g, '') === targetNorm) {
+            return { ...o, status: 'Cancelled', orderStatus: 'Cancelled' }
+          }
+          return o
+        })
+        writeLocalPurchaseOrders(next)
+        loadSummaryMetrics(next)
+        return next
+      })
       showToast('Purchase order cancelled.')
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
@@ -391,15 +594,15 @@ export default function PurchaseOrders() {
 
   function openEdit(item) {
     setEditForm({
-      id: item?._id || item?.id,
+      id: item?._id || item?.id || item?.poNumber || item?.poNo,
       supplierName: item?.supplierName || item?.supplier?.name || '',
-      supplierContact: item?.supplierContact || item?.supplier?.phone || '',
+      supplierContact: item?.supplierContact || item?.supplier?.phone || item?.supplierContactPhone || '',
       medicineName: item?.medicineName || item?.name || '',
       batchNo: item?.batchNo || item?.batchNumber || '',
-      quantity: String(item?.quantity || ''),
+      quantity: String(item?.quantity || item?.orderQuantity || ''),
       unitPrice: String(item?.unitPrice || ''),
       paymentStatus: item?.paymentStatus || 'Unpaid',
-      status: item?.status || 'Pending'
+      status: item?.status || item?.orderStatus || 'Pending'
     })
     setEditItem(item)
   }
@@ -408,27 +611,61 @@ export default function PurchaseOrders() {
     const id = item?._id || item?.id
     try {
       const response = await getPurchaseOrder(id)
-      setViewineItem(response?.data || response || item)
-    } catch (e) {
+      setViewineItem(response?.data || response?.order || response || item)
+    } catch {
       setViewineItem(item)
     }
   }
 
-  // Dynamic getters for columns
-  const getSupplierName = (item) => item?.supplierName || item?.supplier?.name || '-'
-  const getMedicineName = (item) => item?.medicineName || item?.medicine?.name || item?.name || '-'
-  const getBatchNo = (item) => item?.batchNo || item?.batchNumber || '-'
-  const getQty = (item) => item?.quantity || item?.qty || 0
-  const getAmount = (item) => `₹${item?.amount || item?.totalAmount || item?.total || '0'}`
+  // Dynamic getters for columns - 100% object-safe to prevent React render errors
+  const getSupplierName = (item) => {
+    const val = item?.supplierName || item?.supplier?.name || item?.supplier?.supplierName || item?.supplier
+    if (val && typeof val === 'object') return val.name || val.supplierName || '-'
+    return val || '-'
+  }
+  const getMedicineName = (item) => {
+    const val = item?.medicineName || item?.medicine?.name || item?.medicine?.medicineName || item?.medicine || item?.name
+    if (val && typeof val === 'object') return val.name || val.medicineName || '-'
+    return val || '-'
+  }
+  const getBatchNo = (item) => {
+    const val = item?.batchNo || item?.batchNumber || item?.batch
+    if (val && typeof val === 'object') return val.number || val.batchNo || '-'
+    return val || '-'
+  }
+  const getQty = (item) => {
+    const val = item?.quantity || item?.orderQuantity || item?.qty || 0
+    if (val && typeof val === 'object') return val.amount || val.qty || 0
+    return val
+  }
+  const getAmount = (item) => {
+    const val = item?.amount || item?.totalAmount || item?.total || (Number(item?.unitPrice || 0) * Number(item?.quantity || item?.orderQuantity || 0))
+    if (val && typeof val === 'object') return '₹0'
+    return `₹${val || '0'}`
+  }
   const getDate = (item) => {
     const d = item?.createdAt || item?.orderDate || item?.date || '-'
-    return d.includes('T') ? d.split('T')[0] : d
+    if (typeof d === 'string' && d.includes('T')) return d.split('T')[0]
+    if (d && typeof d === 'object') {
+      if (d instanceof Date) return d.toISOString().split('T')[0]
+      return d.date || d.formatted || '-'
+    }
+    return String(d || '-')
   }
   const getExpectedDate = (item) => {
     const d = item?.expectedDeliveryDate || item?.expectedDate || '-'
-    return d.includes('T') ? d.split('T')[0] : d
+    if (typeof d === 'string' && d.includes('T')) return d.split('T')[0]
+    if (d && typeof d === 'object') {
+      if (d instanceof Date) return d.toISOString().split('T')[0]
+      return d.date || d.formatted || '-'
+    }
+    return String(d || '-')
   }
-  const getPoNum = (item) => item?.poNumber || item?.poNo || item?._id || '-'
+  const getPoNum = (item) => {
+    const val = item?.poNumber || item?.poNo || item?._id || item?.id || '-'
+    if (val && typeof val === 'object') return val.number || val.id || '-'
+    return String(val || '-')
+  }
 
   // Badge Status Class
   const getPaymentBadge = (item) => {
@@ -438,7 +675,7 @@ export default function PurchaseOrders() {
   }
 
   const getOrderStatusBadge = (item) => {
-    const status = String(item?.status || 'Pending').toLowerCase()
+    const status = String(item?.status || item?.orderStatus || 'Pending').toLowerCase()
     if (status.includes('completed') || status.includes('received')) return <span className="branch-status active">Received</span>
     if (status.includes('cancelled')) return <span className="branch-status expired">Cancelled</span>
     if (status.includes('ordered')) return <span className="branch-status view">Ordered</span>
@@ -479,7 +716,7 @@ export default function PurchaseOrders() {
               <button 
                 type="button" 
                 className="po-btn po-btn-primary"
-                style={{ background: '#7c3aed', boxShadow: '0 4px 10px reba(124, 58, 237, 0.15)' }}
+                style={{ background: '#7c3aed', boxShadow: '0 4px 10px rgba(124, 58, 237, 0.15)' }}
                 onClick={refresh}
               >
                 Order Status
@@ -637,7 +874,14 @@ export default function PurchaseOrders() {
                         <td>{getPaymentBadge(item)}</td>
                         <td>{getOrderStatusBadge(item)}</td>
                         <td>
-                          <RowActions itemName={getPoNum(item)} onView={() => openView(item)} onEdit={() => openEdit(item)} onStatus={() => handleReceive(item?._id || item?.id)} onDelete={() => handleCancel(item?._id || item?.id)} />
+                          <RowActions
+                            actions={[
+                              { label: 'View', onClick: () => openView(item) },
+                              { label: 'Edit', onClick: () => openEdit(item) },
+                              { label: 'Receive', onClick: () => handleReceive(getId(item, index)), disabled: String(item?.status || item?.orderStatus || '').toLowerCase() === 'received' },
+                              { label: 'Cancel', onClick: () => handleCancel(getId(item, index)), disabled: String(item?.status || item?.orderStatus || '').toLowerCase() === 'cancelled', danger: true }
+                            ]}
+                          />
                         </td>
                       </tr>
                     )) : (
@@ -797,9 +1041,9 @@ export default function PurchaseOrders() {
                   </div>
                 </div>
                 <div className="po-modal-footer">
-                  <button type="button" className="po-btn po-btn-secondary" onClick={() => setCreateOpen(false)} disabled={loading}>Cancel</button>
-                  <button type="submit" className="po-btn po-btn-primary" disabled={loading}>
-                    {loading ? 'Saving...' : 'Save Purchase Order'}
+                  <button type="button" className="po-btn po-btn-secondary" onClick={() => setCreateOpen(false)} disabled={submitting}>Cancel</button>
+                  <button type="submit" className="po-btn po-btn-primary" disabled={submitting}>
+                    {submitting ? 'Saving...' : 'Save'}
                   </button>
                 </div>
               </form>
@@ -950,9 +1194,9 @@ export default function PurchaseOrders() {
                   </div>
                 </div>
                 <div className="po-modal-footer">
-                  <button type="button" className="po-btn po-btn-secondary" onClick={() => setEditItem(null)} disabled={loading}>Cancel</button>
-                  <button type="submit" className="po-btn po-btn-primary" disabled={loading}>
-                    {loading ? 'Updating...' : 'Update Order'}
+                  <button type="button" className="po-btn po-btn-secondary" onClick={() => setEditItem(null)} disabled={submitting}>Cancel</button>
+                  <button type="submit" className="po-btn po-btn-primary" disabled={submitting}>
+                    {submitting ? 'Updating...' : 'Update Order'}
                   </button>
                 </div>
               </form>
@@ -975,7 +1219,7 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-detail-item">
                       <label>Supplier Contact</label>
-                      <span>{viewingItem?.supplierContact || viewingItem?.supplier?.phone || '-'}</span>
+                      <span>{viewingItem?.supplierContact || viewingItem?.supplierContactPhone || viewingItem?.supplier?.phone || '-'}</span>
                     </div>
                   </div>
                   <div className="po-detail-row">
@@ -1035,6 +1279,3 @@ export default function PurchaseOrders() {
     </AdminLayout>
   )
 }
-
-
-

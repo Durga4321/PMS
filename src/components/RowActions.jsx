@@ -16,5 +16,12 @@ function RowActionButton({ type, label, onClick, disabled }) {
 
 export default function RowActions({ itemName = 'record', isActive = true, onView, onEdit, onStatus, onDelete, statusDisabled = false }) {
   const statusLabel = isActive ? `Deactivate ${itemName}` : `Activate ${itemName}`
-  return <span className="row-actions" aria-label="Row actions"><RowActionButton type="view" label={`View ${itemName}`} onClick={onView} /><RowActionButton type="edit" label={`Edit ${itemName}`} onClick={onEdit} /><RowActionButton type="status" label={statusLabel} onClick={onStatus} disabled={statusDisabled} /><RowActionButton type="delete" label={`Delete ${itemName}`} onClick={onDelete} /></span>
+  return (
+    <span className="row-actions" aria-label="Row actions">
+      {onView ? <RowActionButton type="view" label={`View ${itemName}`} onClick={onView} /> : null}
+      {onEdit ? <RowActionButton type="edit" label={`Edit ${itemName}`} onClick={onEdit} /> : null}
+      {onStatus ? <RowActionButton type="status" label={statusLabel} onClick={onStatus} disabled={statusDisabled} /> : null}
+      {onDelete ? <RowActionButton type="delete" label={`Delete ${itemName}`} onClick={onDelete} /> : null}
+    </span>
+  )
 }

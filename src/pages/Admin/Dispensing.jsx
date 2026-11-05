@@ -102,9 +102,9 @@ export default function Dispensing() {
   // Filtered list based on Search query
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const pName = (item?.patientName || item?.patient?.name || item?.patient || '').toLowerCase()
-      const rxId = (item?.prescriptionId || item?.rxNo || item?._id || '').toLowerCase()
-      const billId = (item?.billNo || item?.invoiceNumber || '').toLowerCase()
+      const pName = String(item?.patientName || item?.patient?.name || item?.patient || '').toLowerCase()
+      const rxId = String(item?.prescriptionId || item?.rxNo || item?._id || '').toLowerCase()
+      const billId = String(item?.billNo || item?.invoiceNumber || '').toLowerCase()
       const query = search.toLowerCase()
       
       return pName.includes(query) || rxId.includes(query) || billId.includes(query)

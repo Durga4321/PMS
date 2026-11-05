@@ -114,7 +114,15 @@ function pharmacyTenantHeaders(path = '', authRole = '') {
     '/valuation',
     '/expired',
   ].some((prefix) => route.startsWith(prefix))
-  const isPharmacyAdminRequest = authRole === 'pharmacyAdmin' || isInventoryRoute || cleanPath.startsWith('pharmacy-admin') || cleanPath.startsWith('medicine') || cleanPath.startsWith('inventory') || cleanPath.startsWith('pharmacy/')
+  const isPharmacyAdminRequest =
+    authRole === 'pharmacyAdmin' ||
+    isInventoryRoute ||
+    cleanPath.startsWith('pharmacy-admin') ||
+    cleanPath.startsWith('medicine') ||
+    cleanPath.startsWith('inventory') ||
+    cleanPath.startsWith('pharmacy/') ||
+    cleanPath.startsWith('suppliers') ||
+    cleanPath.startsWith('purchase-orders')
   if (!isPharmacyAdminRequest) return {}
 
   const { pharmacyId, branchId, hospitalId, cmsBranchId } = pharmacyTenantContext()
@@ -1103,21 +1111,110 @@ export const getAddressByPincode = async (pincode) => {
     throw err
   }
 }
-export const listSuppliers = (params = {}) => request(`suppliers${queryString(params)}`)
-export const createSupplier = (payload) => request('suppliers', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const listSuppliers = (params = {}) => {
+  const ctx = pharmacyTenantContext()
+  const query = {
+    ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+    ...(ctx.pharmacyId ? { pharmacyId: ctx.pharmacyId } : {}),
+    ...params,
+  }
+  return request(`suppliers${queryString(query)}`)
+}
+export const createSupplier = (payload) => {
+  const ctx = pharmacyTenantContext()
+  const supplierName = String(payload.supplierName || payload.SupplierName || payload.name || payload.Name || '').trim()
+  const rawEmail = String(payload.emailAddress || payload.EmailAddress || payload.email || payload.Email || '').trim()
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const email = (rawEmail && emailRegex.test(rawEmail))
+    ? rawEmail
+    : `${supplierName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'supplier'}@pharmacy.com`
+  const phone = String(payload.phone || payload.Phone || payload.phoneNumber || payload.PhoneNumber || payload.contactNumber || '').trim()
+  const contactPerson = String(payload.contactPerson || payload.ContactPerson || supplierName).trim()
+
+  const enriched = {
+    ...(ctx.pharmacyId ? { pharmacyId: ctx.pharmacyId, PharmacyId: ctx.pharmacyId } : {}),
+    ...(ctx.branchId ? { branchId: ctx.branchId, BranchId: ctx.branchId } : {}),
+    ...payload,
+    name: supplierName,
+    Name: supplierName,
+    supplierName: supplierName,
+    SupplierName: supplierName,
+    email: email,
+    Email: email,
+    emailAddress: email,
+    EmailAddress: email,
+    phone: phone,
+    Phone: phone,
+    phoneNumber: phone,
+    PhoneNumber: phone,
+    contactPerson: contactPerson,
+    ContactPerson: contactPerson,
+    status: payload.status || 'Active',
+    Status: payload.status || 'Active'
+  }
+  return request('suppliers', { method: 'POST', body: JSON.stringify(apiPayload(enriched)) })
+}
 export const getSupplier = (id) => request(replacePathParams('suppliers/{id}', { id }))
-export const updateSupplier = (id, payload) => request(replacePathParams('suppliers/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+export const updateSupplier = (id, payload) => {
+  const ctx = pharmacyTenantContext()
+  const supplierName = String(payload.supplierName || payload.SupplierName || payload.name || payload.Name || '').trim()
+  const rawEmail = String(payload.emailAddress || payload.EmailAddress || payload.email || payload.Email || '').trim()
+  const phone = String(payload.phone || payload.Phone || payload.phoneNumber || payload.PhoneNumber || payload.contactNumber || '').trim()
+  const contactPerson = String(payload.contactPerson || payload.ContactPerson || supplierName).trim()
+
+  const enriched = {
+    ...(ctx.pharmacyId ? { pharmacyId: ctx.pharmacyId, PharmacyId: ctx.pharmacyId } : {}),
+    ...(ctx.branchId ? { branchId: ctx.branchId, BranchId: ctx.branchId } : {}),
+    ...payload,
+    ...(supplierName ? { name: supplierName, Name: supplierName, supplierName, SupplierName: supplierName } : {}),
+    ...(rawEmail ? { email: rawEmail, Email: rawEmail, emailAddress: rawEmail, EmailAddress: rawEmail } : {}),
+    ...(phone ? { phone, Phone: phone, phoneNumber: phone, PhoneNumber: phone } : {}),
+    ...(contactPerson ? { contactPerson, ContactPerson: contactPerson } : {})
+  }
+  return request(replacePathParams('suppliers/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload(enriched)) })
+}
 export const deleteSupplier = (id) => request(replacePathParams('suppliers/{id}', { id }), { method: 'DELETE' })
 export const getSupplierPurchaseHistory = (id) => request(replacePathParams('suppliers/{id}/purchase-history', { id }))
 export const changeSupplierStatus = (id, payload) => request(replacePathParams('suppliers/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(payload)) })
 
 export const listPurchaseOrders = (params = {}) => request(`purchase-orders${queryString(params)}`)
-export const createPurchaseOrder = (payload) => request('purchase-orders', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const createPurchaseOrder = (payload) => {
+  const ctx = pharmacyTenantContext()
+  const enriched = {
+    ...(ctx.pharmacyId ? { pharmacyId: ctx.pharmacyId, PharmacyId: ctx.pharmacyId } : {}),
+    ...(ctx.branchId ? { branchId: ctx.branchId, BranchId: ctx.branchId } : {}),
+    ...payload,
+  }
+  return request('purchase-orders', { method: 'POST', body: JSON.stringify(apiPayload(enriched)) })
+}
 export const getPurchaseOrder = (id) => request(replacePathParams('purchase-orders/{id}', { id }))
 export const updatePurchaseOrder = (id, payload) => request(replacePathParams('purchase-orders/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
 export const receivePurchaseOrder = (id, payload) => request(replacePathParams('purchase-orders/{id}/receive', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const changePurchaseOrderStatus = (id, payload) => request(replacePathParams('purchase-orders/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(payload)) })
 export const listPendingPurchaseOrders = () => request('purchase-orders/pending')
+
+const LOCAL_PURCHASE_ORDERS_KEY = 'pms_purchase_orders'
+
+export function readLocalPurchaseOrders() {
+  try {
+    const key = scopedKey(LOCAL_PURCHASE_ORDERS_KEY)
+    migrateLegacyCache(LOCAL_PURCHASE_ORDERS_KEY, key)
+    const raw = localStorage.getItem(key)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function writeLocalPurchaseOrders(list) {
+  try {
+    const key = scopedKey(LOCAL_PURCHASE_ORDERS_KEY)
+    localStorage.setItem(key, JSON.stringify(list || []))
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export const upsertIntegrationAppointment = (externalAppointmentId, payload) => request(replacePathParams('integration/appointments/{externalAppointmentId}', { externalAppointmentId }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
 export const getIntegrationAppointment = (externalAppointmentId) => request(replacePathParams('integration/appointments/{externalAppointmentId}', { externalAppointmentId }))
@@ -1166,6 +1263,29 @@ export const getStockTransfer = (id) => request(replacePathParams('inventory/tra
 export const dispatchStockTransfer = (id, payload = {}) => request(replacePathParams('inventory/transfers/{id}/dispatch', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const receiveStockTransfer = (id, payload = {}) => request(replacePathParams('inventory/transfers/{id}/receive', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const changeStockTransferStatus = (id, payload) => request(replacePathParams('inventory/transfers/{id}/status', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+
+const LOCAL_STOCK_TRANSFERS_KEY = 'pms_stock_transfers'
+
+export function readLocalStockTransfers() {
+  try {
+    const key = scopedKey(LOCAL_STOCK_TRANSFERS_KEY)
+    migrateLegacyCache(LOCAL_STOCK_TRANSFERS_KEY, key)
+    const raw = localStorage.getItem(key)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function writeLocalStockTransfers(list) {
+  try {
+    const key = scopedKey(LOCAL_STOCK_TRANSFERS_KEY)
+    localStorage.setItem(key, JSON.stringify(list || []))
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export const getPharmacyAlerts = () => request('pharmacy/alerts')
 export const getPharmacyAuditLogs = (params = {}) => request(`pharmacy/audit-logs${queryString(params)}`)

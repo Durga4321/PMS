@@ -439,19 +439,19 @@ export default function Medicines() {
   // Filtered local medicines list
   const filteredMedicines = useMemo(() => {
     return medicines.filter((medicine) => {
-      const nameVal = getName(medicine).toLowerCase()
-      const eenVal = (medicine?.genericName || '').toLowerCase()
-      const codeVal = (medicine?.code || '').toLowerCase()
-      const searchVal = query.toLowerCase()
+      const nameVal = String(getName(medicine) || '').toLowerCase()
+      const eenVal = String(medicine?.genericName || '').toLowerCase()
+      const codeVal = String(medicine?.code || '').toLowerCase()
+      const searchVal = String(query || '').toLowerCase()
       
       const matchesSearch = nameVal.includes(searchVal) || eenVal.includes(searchVal) || codeVal.includes(searchVal)
       const matchesCategory = !category || getCategory(medicine) === category
       const matchesDosage = !dosageForm || getDosageForm(medicine) === dosageForm
       
-      const itemStatus = getStatus(medicine).toLowerCase()
+      const itemStatus = String(getStatus(medicine) || '').toLowerCase()
       const qty = getStock(medicine)
       const reorder = getReorderLevel(medicine)
-      const filterVal = statusFilter.toLowerCase()
+      const filterVal = String(statusFilter || 'all').toLowerCase()
       let matchesStatus = statusFilter === 'all'
       if (!matchesStatus) {
         if (filterVal === 'out of stock') matchesStatus = qty <= 0

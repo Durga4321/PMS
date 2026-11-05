@@ -116,13 +116,23 @@ export function serializePermissions(permissions, modules = ADMIN_MODULES) {
 
 export function hasPermission(permissions, module, action = 'view') {
   if (!permissions || Object.keys(permissions).length === 0) return true
-  const normalized = normalizePermissions(permissions)
   const canonical = canonicalModule(module)
   if (!canonical) return true
+  const normalized = normalizePermissions(permissions)
   if (Boolean(normalized[canonical]?.[action])) return true
   if (canonical === 'Pharmacies' && normalized['Branches']?.[action]) return true
   if (canonical === 'Branches' && normalized['Pharmacies']?.[action]) return true
   if ((canonical === 'Pharmacies' || canonical === 'Branches') && action === 'view') return true
+
+  // Standard pharmacy admin core operations: Purchase Orders, Stock Transfers, Suppliers, Stock, Medicines, Dashboard
+  // Unless explicitly disabled (false) in permissions, allow access so admin is never locked out
+  if (['Purchase Orders', 'Stock Transfers', 'Suppliers', 'Stock', 'Medicines', 'Dashboard'].includes(canonical)) {
+    const rawVal = permissions?.[canonical] || permissions?.[module]
+    if (rawVal && (rawVal[action] === false || rawVal[`can${action.charAt(0).toUpperCase()}${action.slice(1)}`] === false)) {
+      return false
+    }
+    return true
+  }
   return false
 }
 
@@ -138,7 +148,3 @@ export function readAdminPermissions() {
     return null
   }
 }
-
-
-
-
