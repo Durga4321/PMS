@@ -262,9 +262,16 @@ function StatusBadge({ branch }) {
 
 export default function AdminBranches() {
   const { showToast } = useToast()
-  const [branches, setBranches] = useState([])
+  const [branches, setBranches] = useState(() => {
+    try {
+      const items = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+      return Array.isArray(items) ? items : []
+    } catch {
+      return []
+    }
+  })
   const [pharmacies, setPharmacies] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [modal, setModal] = useState(null)
@@ -330,8 +337,8 @@ export default function AdminBranches() {
     }
   }
 
-  async function loadBranches() {
-    setLoading(true)
+  async function loadBranches(showSpinner = false) {
+    if (showSpinner || branches.length === 0) setLoading(true)
     setError('')
     try {
       const storedPharmacyId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || ''

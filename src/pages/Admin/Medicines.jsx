@@ -265,7 +265,14 @@ export default function Medicines() {
   const [category, setCategory] = useState('')
   const [dosageForm, setDosageForm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => {
+    try {
+      const existing = readLocalMedicines()
+      return !(Array.isArray(existing) && existing.length > 0)
+    } catch {
+      return false
+    }
+  })
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(null)
   
