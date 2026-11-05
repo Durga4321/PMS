@@ -127,6 +127,8 @@ function Admins() {
   const [pharmacyOptions, setPharmacyOptions] = useState([])
   const [assigningAdminId, setAssigningAdminId] = useState('')
   const [assignmentPharmacyId, setAssignmentPharmacyId] = useState('')
+  const [assigningAdmin, setAssigningAdmin] = useState(null)
+  const [selectedAssignPharmacyId, setSelectedAssignPharmacyId] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
@@ -286,9 +288,9 @@ function Admins() {
       setViewingAdmin(unwrapAdmin(admin))
     }
   }
-  async function handleAssignPharmacy(admin) {
+  async function handleAssignPharmacy(admin, targetPharmacyId = null) {
     const adminId = getId(admin)
-    const pharmacyId = Number(assignmentPharmacyId)
+    const pharmacyId = Number(targetPharmacyId || assignmentPharmacyId)
     if (!adminId || !pharmacyId) return showToast('Select a pharmacy before assignment.', 'error')
     setAssigningAdminId(String(adminId))
     try {
@@ -462,6 +464,27 @@ function Admins() {
                     <td>{getMobileNumber(admin)}</td>
                     <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
                     <td>
+                      <span className="row-actions">
+                        <button
+                          type="button"
+                          className="row-action-button view"
+                          title="Assign pharmacy"
+                          disabled={assigningAdminId === String(getId(admin))}
+                          onClick={() => {
+                            setAssigningAdmin(admin)
+                            setSelectedAssignPharmacyId(assignmentPharmacyId || (pharmacyOptions[0] ? String(getId(pharmacyOptions[0])) : ''))
+                          }}
+                        >
+                          Assign
+                        </button>
+                        <RowActions
+                          itemName={getName(admin)}
+                          isActive={String(getStatus(admin)).toLowerCase() === 'active'}
+                          onView={() => openView(admin)}
+                          onEdit={() => openEdit(admin)}
+                          onDelete={() => handleDelete(admin)}
+                        />
+                      </span>
                     </td>
                   </tr>
                 )) : (
@@ -494,6 +517,57 @@ function Admins() {
           </div>
         </section>
       </main>
+
+      {assigningAdmin && (
+        <div className="admins-modal-backdrop" onClick={() => setAssigningAdmin(null)}>
+          <div className="admins-modal-card small-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="admins-modal-header">
+              <div className="admins-modal-title-wrap">
+                <span className="admins-modal-icon">✦</span>
+                <div>
+                  <h2>Assign Pharmacy</h2>
+                  <strong>Admin: {getName(assigningAdmin)}</strong>
+                </div>
+              </div>
+              <button type="button" className="admins-modal-close" onClick={() => setAssigningAdmin(null)} aria-label="Close">×</button>
+            </div>
+            <div className="admins-form">
+              <div className="admins-form-grid single-column">
+                <label className="admins-field">
+                  <span>Select Pharmacy</span>
+                  <select 
+                    value={selectedAssignPharmacyId} 
+                    onChange={(event) => setSelectedAssignPharmacyId(event.target.value)}
+                  >
+                    <option value="">Select pharmacy to assign</option>
+                    {pharmacyOptions.map((pharmacy) => (
+                      <option key={getId(pharmacy)} value={getId(pharmacy)}>
+                        {getPharmacyOptionName(pharmacy)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="admins-form-actions">
+                <button type="button" className="admins-cancel-button" onClick={() => setAssigningAdmin(null)}>Cancel</button>
+                <button
+                  type="button"
+                  className="admins-submit-button"
+                  disabled={!selectedAssignPharmacyId || assigningAdminId === String(getId(assigningAdmin))}
+                  onClick={async () => {
+                    const pid = selectedAssignPharmacyId
+                    setAssignmentPharmacyId(pid)
+                    await handleAssignPharmacy(assigningAdmin, pid)
+                    setAssigningAdmin(null)
+                  }}
+                >
+                  {assigningAdminId === String(getId(assigningAdmin)) ? 'Assigning...' : 'Assign Pharmacy'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {viewingAdmin && (
         <div className="sa-modal-backdrop" onClick={() => setViewingAdmin(null)}>
