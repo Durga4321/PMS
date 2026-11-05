@@ -304,12 +304,12 @@ function Login() {
       <form className="auth-form" onSubmit={handleSubmit} autoComplete="off">
         <label>
           Email Address
-          <input type="email" name="login-email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Enter email" autoComplete="off" required />
+          <input type="email" name="login-email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Enter your email" autoComplete="off" required />
         </label>
         <label>
           Password
           <span className="auth-password-field">
-            <input type={showPassword ? 'text' : 'password'} name="login-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter password" autoComplete="new-password" required />
+            <input type={showPassword ? 'text' : 'password'} name="login-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete="new-password" required />
             <button type="button" className="auth-password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>
               <PasswordIcon visible={showPassword} />
             </button>
@@ -320,9 +320,13 @@ function Login() {
           <label className="checkbox-row"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />Remember Me</label>
           <Link to="/forgot-password" className="link-small">Forgot Password?</Link>
         </div>
-        <button type="submit" className="button-primary" disabled={isSubmitting}>{isSubmitting ? 'Signing in...' : 'Login ->'}</button>
+        <button type="submit" className="button-primary" disabled={isSubmitting}>{isSubmitting ? 'Signing in...' : 'Login →'}</button>
       </form>
-      <div className="auth-meta">Your data is secure with us | Terms & Conditions | Privacy Policy | Version 1.0.0</div>
+      <div className="auth-register-row">
+        <div className="auth-register">New to PMS?</div>
+        <div className="create-account-btn">Create Account</div>
+      </div>
+      <div className="auth-meta">Your data is secure with us | Terms &amp; Conditions | Privacy Policy</div>
     </AuthLayout>
   )
 }

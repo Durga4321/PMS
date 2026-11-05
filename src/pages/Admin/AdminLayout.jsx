@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import UserProfileMenu from '../../components/UserProfileMenu'
+import ThemeToggle from '../../components/ThemeToggle'
 import AdminSidebar from './AdminSidebar'
 import { adminNavigation } from './adminNavigation'
 import { hasPermission, readAdminPermissions } from '../../config/permissions'
@@ -76,9 +77,12 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
       .then((res) => {
         const data = res?.data || res || {}
         const existing = readStoredValue('pharmacyAdminAssignment') || {}
-        const pharmacyId = data?.pharmacyId || data?.PharmacyId || data?.pharmacy?.id || data?.pharmacy?.pharmacyId || existing.pharmacyId || ''
-        const branchId = data?.branchId || data?.BranchId || data?.mainBranchId || data?.branch?.id || existing.branchId || ''
-        const merged = { ...existing, ...data, pharmacyId: String(pharmacyId), branchId: String(branchId) }
+        const nestedAssignment = data?.assignment || data?.pharmacyAssignment || data?.assignedPharmacy || data?.tenant || {}
+        const pharmacyRecord = data?.pharmacy || nestedAssignment?.pharmacy || nestedAssignment
+        const branchRecord = data?.branch || nestedAssignment?.branch || {}
+        const pharmacyId = data?.pharmacyId || data?.PharmacyId || data?.assignedPharmacyId || data?.AssignedPharmacyId || pharmacyRecord?.id || pharmacyRecord?.pharmacyId || existing.pharmacyId || ''
+        const branchId = data?.branchId || data?.BranchId || data?.mainBranchId || branchRecord?.id || branchRecord?.branchId || nestedAssignment?.mainBranchId || existing.branchId || ''
+        const merged = { ...existing, ...data, ...(nestedAssignment && typeof nestedAssignment === 'object' ? nestedAssignment : {}), pharmacyId: String(pharmacyId), branchId: String(branchId) }
         sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(merged))
         localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(merged))
         sessionStorage.setItem('workingPharmacyId', String(pharmacyId))
@@ -160,6 +164,7 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
           </form>
 
           <div className="header-right-actions">
+            <ThemeToggle />
             <button className="branch-admin-notification" type="button" aria-label="Notifications" title="Notifications" onClick={() => navigate('/admin/expiry-alerts')}>
               <Icon><path d="M6 9a6 6 0 0 1 12 0c0 7 2 7 2 9H4c0-2 2-2 2-9" /><path d="M10 21h4" /></Icon>
               <b className="unread-dot" />

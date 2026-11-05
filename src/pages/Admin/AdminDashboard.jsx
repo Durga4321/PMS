@@ -11,6 +11,7 @@ import {
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
+import DashboardGreeting from '../../components/DashboardGreeting'
 
 function parseFlexibleDate(raw) {
   if (!raw) return null
@@ -285,14 +286,7 @@ function AdminDashboard() {
       <section className="branch-dashboard-header-redesign reference-heading-card">
         <div className="reference-heading-accent" />
         <div className="admin-heading-text-wrap">
-          <div className="header-title-badge-row">
-            <h1>Admin Dashboard</h1>
-            <span className="live-status-pill">
-              <i className="pulse-dot-green" />
-              Live Operations
-            </span>
-          </div>
-          <p>Branch-wise operations management for sales, stock, and alerts.</p>
+          <DashboardGreeting role="Admin" subtitle="Branch-wise operations management for sales, stock, and alerts." live />
         </div>
       </section>
 

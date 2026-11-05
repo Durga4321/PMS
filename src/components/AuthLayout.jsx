@@ -1,35 +1,54 @@
 import './AuthLayout.css'
+import ThemeToggle from './ThemeToggle'
 
-function LogoIcon() {
+function MedicalCross({ className = '' }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="28"
-      height="28"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 3 3.5 7.25v6.5L12 21l8.5-7.25v-6.5L12 3Z" />
-      <path d="M12 8v8" />
-      <path d="M8 12h8" />
-    </svg>
+    <span className={`medical-cross ${className}`} aria-hidden="true">
+      <span />
+      <span />
+    </span>
   )
 }
 
 function AuthLayout({ title, subtitle, children, footer }) {
+  const isLogin = title === 'PMS Login'
+
   return (
-    <div className="auth-container">
+    <div className={`auth-container${isLogin ? ' auth-container--login' : ''}`}>
+      <div className="auth-theme-control"><ThemeToggle /></div>
       <div className="auth-bg" aria-hidden="true" />
       <div className="auth-veil" aria-hidden="true" />
 
+      {isLogin ? (
+        <section className="auth-intro" aria-label="Pharmacy Management System introduction">
+          <div className="auth-brand">
+            <div className="auth-brand-mark"><MedicalCross /></div>
+            <div>
+              <strong>PMS</strong>
+              <span>Pharmacy Management System</span>
+            </div>
+          </div>
+          <p className="auth-kicker">Connected pharmacy operations</p>
+          <h1>Manage Your<br />Pharmacy Operations<br /><em>Seamlessly</em></h1>
+          <p className="auth-intro-copy">Inventory, dispensing, billing, prescriptions,<br />branches, and reports — all in one secure platform.</p>
+          <div className="auth-benefits">
+            {['Real-Time Inventory', 'Fast & Accurate Billing', 'Secure & Role-Based Access', 'Multi-Branch Management'].map((benefit) => (
+              <span key={benefit}><b>✓</b>{benefit}</span>
+            ))}
+          </div>
+          <div className="auth-product-scene" aria-hidden="true">
+            <div className="auth-bottle"><i>+</i><span>MEDICINE</span></div>
+            <div className="auth-blister"><i /><i /><i /><i /><i /><i /></div>
+            <div className="auth-shield"><MedicalCross /></div>
+            <div className="auth-capsule auth-capsule--one" />
+            <div className="auth-capsule auth-capsule--two" />
+          </div>
+        </section>
+      ) : null}
+
       <div className="auth-card auth-card--login-compact">
         <div className="auth-logo">
-          <LogoIcon />
+          <MedicalCross />
         </div>
         <h2>{title}</h2>
         <p className="subtitle">{subtitle}</p>

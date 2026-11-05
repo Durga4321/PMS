@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getPharmacySuperAdminDashboard, getPharmacySuperAdminDashboardAnalytics, getPharmacySuperAdminDashboardExpiryAlerts, getPharmacySuperAdminDashboardLowStock, getSuperAdminPharmacies, listPharmacyAdmins } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
+import DashboardGreeting from '../../components/DashboardGreeting'
 import './DashboardReference.css'
 
 const unwrap = (response) => response?.data?.dashboard || response?.data || response?.dashboard || response || {}
@@ -250,17 +251,7 @@ function SuperAdminDashboard() {
 
         <section className="dashboard-hero-card">
           <div className="dashboard-hero-left">
-            <div className="dashboard-hero-icon">
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 21h18" />
-                <path d="M5 21V7l8-4 6 3v15" />
-                <path d="M9 9h1M9 13h1M9 17h1M14 10h1M14 14h1M14 18h1" />
-              </svg>
-            </div>
-            <div>
-              <h1>Super Admin Dashboard</h1>
-              <p>Platform-wide pharmacies, revenue, and operational activity.</p>
-            </div>
+            <DashboardGreeting role="Super Admin" subtitle="Platform-wide pharmacies, revenue, and operational activity." />
           </div>
           <div className="dashboard-hero-illustration">
             <div className="hero-clinic-illustration">
@@ -285,7 +276,7 @@ function SuperAdminDashboard() {
           </div>
         </section>
 
-        {loading ? <p className="reference-message">Loading dashboard...</p> : error ? <div className="reference-message error" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>{error} <button onClick={loadDashboard} style={{ padding: '6px 18px', borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>Retry</button></div> : (
+        {loading ? <div className="reference-message dashboard-loading-state"><DashboardGreeting role="Super Admin" subtitle="Loading your platform dashboard..." /><span>Loading dashboard...</span></div> : error ? <div className="reference-message error" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>{error} <button onClick={loadDashboard} style={{ padding: '6px 18px', borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>Retry</button></div> : (
           <>
             <section className="reference-stats-three">
               <article className="stat-card stat-card-mint">
