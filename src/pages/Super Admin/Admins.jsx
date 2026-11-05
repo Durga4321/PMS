@@ -434,68 +434,6 @@ function Admins() {
             </div>
           </div>
 
-          {(createOpen || editingAdmin) ? (
-            <div className="admins-create-panel" aria-label={editingAdmin ? 'Edit admin form' : 'Create admin form'}>
-              <div className="admins-form-header">
-                <h2>{editingAdmin ? 'Edit Admin' : 'Create new admin'}</h2>
-                <p>Create pharmacy admin access. Assign pharmacy and main branch after creation.</p>
-              </div>
-
-              <form className="admins-form" onSubmit={handleSubmit}>
-                <div className="admins-form-grid">
-                  <label className="admins-field">
-                    <span>Name</span>
-                    <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Admin name" required />
-                  </label>
-                  <label className="admins-field">
-                    <span>Email</span>
-                    <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="admin@example.com" required />
-                  </label>
-
-                  <label className="admins-field">
-                    <span>Mobile Number</span>
-                    <input inputMode="numeric" maxLength={10} pattern="[0-9]{10}" value={form.mobileNumber} onChange={(event) => setForm({ ...form, mobileNumber: digitsOnly(event.target.value) })} placeholder="Mobile number" />
-                  </label>
-
-                  <label className="admins-field">
-                    <span>Permission Role</span>
-                    <select value={form.pharmacyPermissionRoleId} onChange={(event) => setForm({ ...form, pharmacyPermissionRoleId: event.target.value })}><option value="">Select role</option>{roleOptions.map((role) => <option key={role._id || role.id || role.roleId} value={role._id || role.id || role.roleId}>{role.name || role.roleName || role.label}</option>)}</select>
-                  </label>
-
-                  {editingAdmin ? (
-                    <label className="admins-field">
-                      <span>Access Status</span>
-                      <select value={form.isActive ? 'true' : 'false'} onChange={(event) => setForm({ ...form, isActive: event.target.value === 'true' })}>
-                        <option value="true">Active</option>
-                        <option value="false">Inactive</option>
-                      </select>
-                    </label>
-                  ) : null}
-                </div>
-
-                <div className="admins-form-actions">
-                  <button type="button" className="admins-cancel-button" onClick={closeEditor}>Cancel</button>
-                  <button type="submit" className="admins-submit-button" disabled={saving}>
-                    {saving ? 'Saving...' : editingAdmin ? 'Save Admin' : 'Create admin'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : null}
-
-          <div className="admins-create-panel" style={{ padding: '18px 26px', marginBottom: '18px' }}>
-            <div className="admins-form-header" style={{ marginBottom: '12px' }}>
-              <h2>Assign Pharmacy to Admin</h2>
-              <p>Select a pharmacy, then use Assign on the admin row. Main Branch is fetched and sent automatically.</p>
-            </div>
-            <label className="admins-field" style={{ maxWidth: '420px' }}>
-              <span>Pharmacy</span>
-              <select value={assignmentPharmacyId} onChange={(event) => setAssignmentPharmacyId(event.target.value)}>
-                <option value="">Select pharmacy to assign</option>
-                {pharmacyOptions.map((pharmacy) => <option key={getId(pharmacy)} value={getId(pharmacy)}>{getPharmacyOptionName(pharmacy)}</option>)}
-              </select>
-            </label>
-          </div>
           <div className="admins-table-card">
             <table className="admins-table">
               <thead>
@@ -524,7 +462,7 @@ function Admins() {
                     <td>{getMobileNumber(admin)}</td>
                     <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
                     <td>
-                      <span className="row-actions"><button type="button" className="row-action-button view" title="Assign selected pharmacy" disabled={assigningAdminId === String(getId(admin)) || !assignmentPharmacyId} onClick={() => handleAssignPharmacy(admin)}>Assign</button><RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onStatus={() => handleStatus(admin)} onDelete={() => handleDelete(admin)} /></span>
+                      <span className="row-actions"><RowActions itemName={getName(admin)} isActive={String(getStatus(admin)).toLowerCase() === 'active'} onView={() => openView(admin)} onEdit={() => openEdit(admin)} onStatus={() => handleStatus(admin)} onDelete={() => handleDelete(admin)} /></span>
                     </td>
                   </tr>
                 )) : (
@@ -622,6 +560,59 @@ function Admins() {
           </div>
         </div>
       )}
+
+      {(createOpen || editingAdmin) ? (
+        <div className="admins-modal-backdrop" onClick={closeEditor}>
+          <div className="admins-modal-card" style={{ maxWidth: '640px' }} onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="admins-modal-header">
+              <div className="admins-form-header" style={{ marginBottom: 0 }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>
+                  {editingAdmin ? 'Edit Admin' : 'Create new admin'}
+                </h2>
+                <p style={{ margin: '6px 0 0', color: 'var(--admins-muted, #64748b)', fontSize: '0.92rem' }}>
+                  Create pharmacy admin access. Assign pharmacy and main branch after creation.
+                </p>
+              </div>
+              <button type="button" className="admins-modal-close" onClick={closeEditor} aria-label="Close">&times;</button>
+            </div>
+
+            <form className="admins-form" onSubmit={handleSubmit}>
+              <div className="admins-form-grid">
+                <label className="admins-field">
+                  <span>Name</span>
+                  <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Admin name" required />
+                </label>
+                <label className="admins-field">
+                  <span>Email</span>
+                  <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="admin@example.com" required />
+                </label>
+
+                <label className="admins-field">
+                  <span>Mobile Number</span>
+                  <input inputMode="numeric" maxLength={10} pattern="[0-9]{10}" value={form.mobileNumber} onChange={(event) => setForm({ ...form, mobileNumber: digitsOnly(event.target.value) })} placeholder="Mobile number" />
+                </label>
+
+                {editingAdmin ? (
+                  <label className="admins-field">
+                    <span>Access Status</span>
+                    <select value={form.isActive ? 'true' : 'false'} onChange={(event) => setForm({ ...form, isActive: event.target.value === 'true' })}>
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+
+              <div className="admins-form-actions" style={{ marginTop: '24px' }}>
+                <button type="button" className="admins-cancel-button" onClick={closeEditor}>Cancel</button>
+                <button type="submit" className="admins-submit-button" disabled={saving}>
+                  {saving ? 'Saving...' : editingAdmin ? 'Save Admin' : 'Create admin'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {resettingAdmin ? (
         <div className="admins-modal-backdrop" onClick={() => setResettingAdmin(null)}>

@@ -11,7 +11,11 @@ import {
   listSuppliers, 
   updateSupplier,
   getPharmacyAdminDashboard,
-  getAddressByPincode
+  getAddressByPincode,
+  extractSuppliersFromMedicines,
+  readLocalMedicines,
+  listPurchaseOrders,
+  readLocalPurchaseOrders
 } from '../../config/api'
 import './Suppliers.css'
 
@@ -205,21 +209,91 @@ export default function Suppliers() {
     }
   }
 
+  // Map of supplier name -> latest purchase order date
+  const [poDates, setPoDates] = useState(new Map())
+
   async function refresh() {
     setLoading(true)
     try {
-      const response = await listSuppliers()
-      const list = normalizeList(response)
-      setItems(list)
-      // Recalculate summary totals locally if dashboard is offline
-      if (list.length > 0) {
-        setSummary(prev => ({
-          ...prev,
-          total: list.length,
-          active: list.filter(s => String(s.status || 'active').toLowerCase() === 'active').length,
-          pending: list.filter(s => String(s.status).toLowerCase() === 'pending').length
-        }))
+      let list = []
+      try {
+        const response = await listSuppliers()
+        list = normalizeList(response)
+      } catch (e) {
+        console.warn('Backend listSuppliers notice:', e.message)
       }
+
+      // Fetch purchase orders to find the true latest purchase date per supplier
+      let poList = []
+      try {
+        poList = await listPurchaseOrders()
+      } catch {
+        poList = readLocalPurchaseOrders()
+      }
+      const poMap = new Map()
+      poList.forEach(po => {
+        const sName = String(po?.supplierName || po?.supplier?.name || po?.supplier || '').trim().toLowerCase()
+        const raw = po?.orderDate || po?.createdAt || po?.date
+        if (sName && raw) {
+          const dStr = String(raw).includes('T') ? String(raw).split('T')[0] : String(raw)
+          const existing = poMap.get(sName)
+          if (!existing || new Date(dStr) > new Date(existing)) {
+            poMap.set(sName, dStr)
+          }
+        }
+      })
+      setPoDates(poMap)
+
+      // Automatically derive and include all suppliers from medicines catalogue / Excel import
+      const medicineSuppliers = extractSuppliersFromMedicines()
+      const supplierMap = new Map()
+
+      // First insert backend suppliers
+      list.forEach((s) => {
+        const key = String(s?.name || s?.supplierName || '').trim().toLowerCase()
+        if (key) {
+          const poDate = poMap.get(key)
+          supplierMap.set(key, {
+            ...s,
+            lastPurchaseDate: poDate || s?.lastPurchaseDate || s?.lastPurchase || s?.purchaseDate || '-'
+          })
+        }
+      })
+
+      // Merge suppliers from medicines
+      medicineSuppliers.forEach((ms) => {
+        const key = String(ms?.name || ms?.supplierName || '').trim().toLowerCase()
+        if (!key) return
+        const poDate = poMap.get(key)
+        if (supplierMap.has(key)) {
+          const existing = supplierMap.get(key)
+          supplierMap.set(key, {
+            ...existing,
+            medicinesText: existing.medicinesText || ms.medicinesText,
+            products: existing.products || ms.medicinesText,
+            notes: existing.notes || ms.medicinesText,
+            productsCount: Math.max(Number(existing.productsCount || 0), Number(ms.productsCount || 0)),
+            supplierCode: existing.supplierCode || ms.supplierCode,
+            lastPurchaseDate: poDate || existing.lastPurchaseDate || ms.lastPurchaseDate || '-'
+          })
+        } else {
+          supplierMap.set(key, {
+            ...ms,
+            lastPurchaseDate: poDate || ms.lastPurchaseDate || '-'
+          })
+        }
+      })
+
+      const combinedList = Array.from(supplierMap.values())
+      setItems(combinedList)
+
+      // Recalculate summary totals
+      setSummary(prev => ({
+        ...prev,
+        total: combinedList.length,
+        active: combinedList.filter(s => String(s.status || 'active').toLowerCase() === 'active').length,
+        pending: combinedList.filter(s => String(s.status).toLowerCase() === 'pending').length
+      }))
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
@@ -230,6 +304,19 @@ export default function Suppliers() {
   useEffect(() => {
     loadSummaryMetrics()
     refresh()
+
+    function handleSync() {
+      loadSummaryMetrics()
+      refresh()
+    }
+    window.addEventListener('pms:medicines-updated', handleSync)
+    window.addEventListener('pms:purchase-orders-updated', handleSync)
+    window.addEventListener('storage', handleSync)
+    return () => {
+      window.removeEventListener('pms:medicines-updated', handleSync)
+      window.removeEventListener('pms:purchase-orders-updated', handleSync)
+      window.removeEventListener('storage', handleSync)
+    }
   }, [])
 
   // Filtered Suppliers list
@@ -462,8 +549,11 @@ export default function Suppliers() {
   const getEmail = (item) => item?.email || '-'
   const getMedicines = (item) => item?.medicinesText || item?.products || item?.notes || '-'
   const getLastPurchase = (item) => {
-    const d = item?.lastPurchaseDate || item?.lastPurchase || '-'
-    return d.includes('T') ? d.split('T')[0] : d
+    const key = String(item?.name || item?.supplierName || '').trim().toLowerCase()
+    const poDate = poDates.get(key)
+    const d = poDate || item?.lastPurchaseDate || item?.lastPurchase || item?.purchaseDate || '-'
+    if (!d || d === '-') return '-'
+    return String(d).includes('T') ? String(d).split('T')[0] : String(d)
   }
 
   // Badge Status Class

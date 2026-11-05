@@ -199,38 +199,92 @@ function Login() {
         try {
           const assignment = await flow.assignment()
           const assignmentData = assignment?.data || assignment
-          // Merge with user data so pharmacyId is always populated
+          const rawPharmId = assignmentData?.pharmacyId || assignmentData?.PharmacyId || user?.pharmacyId || user?.PharmacyId || assignmentData?.pharmacy?.id || assignmentData?.pharmacy?.pharmacyId || ''
+          const rawBranchId = assignmentData?.branchId || assignmentData?.BranchId || assignmentData?.mainBranchId || user?.branchId || user?.BranchId || ''
+          const rawPharmName = assignmentData?.pharmacyName || assignmentData?.PharmacyName || user?.pharmacyName || user?.PharmacyName || ''
+          const finalPharmacyId = rawPharmId ? String(rawPharmId) : ''
+          const finalBranchId = rawBranchId ? String(rawBranchId) : ''
           const merged = {
-            pharmacyId: assignmentData?.pharmacyId || assignmentData?.PharmacyId || user?.pharmacyId || user?.PharmacyId || assignmentData?.pharmacy?.id || assignmentData?.pharmacy?.pharmacyId || '',
-            branchId: assignmentData?.branchId || assignmentData?.BranchId || assignmentData?.mainBranchId || user?.branchId || user?.BranchId || '',
-            pharmacyName: assignmentData?.pharmacyName || assignmentData?.PharmacyName || user?.pharmacyName || '',
             ...assignmentData,
+            pharmacyId: finalPharmacyId,
+            branchId: finalBranchId,
+            pharmacyName: rawPharmName,
           }
           storage.setItem(flow.assignmentKey, JSON.stringify(merged))
+          if (finalPharmacyId) {
+            storage.setItem('workingPharmacyId', finalPharmacyId)
+            sessionStorage.setItem('workingPharmacyId', finalPharmacyId)
+          } else {
+            storage.removeItem('workingPharmacyId')
+            sessionStorage.removeItem('workingPharmacyId')
+          }
+          if (finalBranchId) {
+            storage.setItem('workingBranchId', finalBranchId)
+            sessionStorage.setItem('workingBranchId', finalBranchId)
+          } else {
+            storage.removeItem('workingBranchId')
+            sessionStorage.removeItem('workingBranchId')
+          }
           storedUser = { ...storedUser, ...merged, role: storedUser.role }
         } catch {
-          // Assignment fetch failed — save what we can from the login user data
+          const rawPharmId = user?.pharmacyId || user?.PharmacyId || ''
+          const rawBranchId = user?.branchId || user?.BranchId || user?.mainBranchId || ''
+          const rawPharmName = user?.pharmacyName || user?.PharmacyName || ''
+          const finalPharmacyId = rawPharmId ? String(rawPharmId) : ''
+          const finalBranchId = rawBranchId ? String(rawBranchId) : ''
           const fallback = {
-            pharmacyId: user?.pharmacyId || user?.PharmacyId || '',
-            branchId: user?.branchId || user?.BranchId || user?.mainBranchId || '',
-            pharmacyName: user?.pharmacyName || user?.PharmacyName || '',
+            pharmacyId: finalPharmacyId,
+            branchId: finalBranchId,
+            pharmacyName: rawPharmName,
           }
-          if (fallback.pharmacyId) storage.setItem(flow.assignmentKey, JSON.stringify(fallback))
+          storage.setItem(flow.assignmentKey, JSON.stringify(fallback))
+          if (finalPharmacyId) {
+            storage.setItem('workingPharmacyId', finalPharmacyId)
+            sessionStorage.setItem('workingPharmacyId', finalPharmacyId)
+          } else {
+            storage.removeItem('workingPharmacyId')
+            sessionStorage.removeItem('workingPharmacyId')
+          }
+          if (finalBranchId) {
+            storage.setItem('workingBranchId', finalBranchId)
+            sessionStorage.setItem('workingBranchId', finalBranchId)
+          } else {
+            storage.removeItem('workingBranchId')
+            sessionStorage.removeItem('workingBranchId')
+          }
         }
       }
 
       if (flow.role === 'pharmacy-admin') {
+        let backendPermissions = null
         try {
           const permissionResponse = await getPharmacyAdminAuthPermissions()
           const permissionData = permissionResponse?.data || permissionResponse || {}
-          const backendPermissions = permissionSource(permissionResponse) || permissionSource(permissionData)
-          storedUser = {
-            ...storedUser,
-            permissions: backendPermissions || storedUser.permissions,
-            modulePermissions: backendPermissions || storedUser.modulePermissions,
-            role: permissionData.role || permissionResponse?.role || storedUser.role,
+          backendPermissions = permissionSource(permissionResponse) || permissionSource(permissionData)
+          if (permissionData.role || permissionResponse?.role) {
+            storedUser.role = permissionData.role || permissionResponse?.role
           }
         } catch {}
+
+        if (!backendPermissions) {
+          const adminId = storedUser?.id || storedUser?.adminId || storedUser?.userId
+          const adminEmail = (storedUser?.email || '').toLowerCase()
+          const localStored = (adminId && (localStorage.getItem(`pms_admin_permissions_${adminId}`) || sessionStorage.getItem(`pms_admin_permissions_${adminId}`)))
+            || (adminEmail && (localStorage.getItem(`pms_admin_permissions_${adminEmail}`) || sessionStorage.getItem(`pms_admin_permissions_${adminEmail}`)))
+          if (localStored) {
+            try {
+              backendPermissions = JSON.parse(localStored)
+            } catch {}
+          }
+        }
+
+        if (backendPermissions) {
+          storedUser = {
+            ...storedUser,
+            permissions: backendPermissions,
+            modulePermissions: backendPermissions,
+          }
+        }
       }
 
       safeSetItem(storage, flow.userKey, JSON.stringify(compactUser(storedUser)))

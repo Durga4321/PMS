@@ -1,11 +1,43 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { pharmacistNavigation } from './pharmacistNavigation'
 import '../Admin/AdminSidebar.css'
 import './PharmacistSidebar.css'
 
+function getStoredAppName() {
+  try {
+    const direct = localStorage.getItem('pms_app_name') || sessionStorage.getItem('pms_app_name')
+    if (direct) return direct
+    const raw = localStorage.getItem('pms_system_settings') || sessionStorage.getItem('pms_system_settings')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed.appName) return parsed.appName
+    }
+  } catch {}
+  return 'PMS'
+}
+
 function PharmacistSidebar({ activeLabel }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const [appName, setAppName] = useState(getStoredAppName)
+
+  useEffect(() => {
+    function handleSettings(e) {
+      const updated = e.detail?.appName !== undefined ? e.detail.appName : (typeof e.detail === 'string' ? e.detail : '')
+      if (typeof updated === 'string' && updated.trim()) {
+        setAppName(updated.trim())
+      } else {
+        setAppName(getStoredAppName())
+      }
+    }
+    window.addEventListener('pms:settings-updated', handleSettings)
+    window.addEventListener('pms:appname-changed', handleSettings)
+    return () => {
+      window.removeEventListener('pms:settings-updated', handleSettings)
+      window.removeEventListener('pms:appname-changed', handleSettings)
+    }
+  }, [])
 
   return (
     <aside className="branch-admin-sidebar pharmacist-sidebar" aria-label="Pharmacist navigation">
@@ -17,7 +49,7 @@ function PharmacistSidebar({ activeLabel }) {
           </svg>
         </span>
         <div className="branch-admin-brand-copy">
-          <strong>PMS</strong>
+          <strong>{appName || 'PMS'}</strong>
           <small>Pharmacist Console</small>
         </div>
       </div>
@@ -48,14 +80,17 @@ function PharmacistSidebar({ activeLabel }) {
           type="button"
           className="branch-admin-collapse-btn"
           onClick={() => {
-            const shell = document.querySelector('.pharmacist-page') || document.querySelector('.branch-admin-page')
-            if (shell) shell.classList.toggle('sidebar-collapsed')
+            const sidebar = document.querySelector('.pharmacist-sidebar')
+            if (sidebar) sidebar.classList.toggle('collapsed')
           }}
+          title="Collapse Sidebar"
         >
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
-          <span>Collapse Menu</span>
+          <span className="collapse-label">Collapse Menu</span>
         </button>
       </div>
     </aside>
@@ -63,4 +98,3 @@ function PharmacistSidebar({ activeLabel }) {
 }
 
 export default PharmacistSidebar
-

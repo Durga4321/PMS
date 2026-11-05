@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import AdminLayout from './AdminLayout'
-import { getPharmacySettings, updatePharmacySettings, getPharmacyAdminAssignmentStatus } from '../../config/api'
+import { getPharmacySettings, updatePharmacySettings, getPharmacyAdminAssignmentStatus, scopedKey } from '../../config/api'
 import './Settings.css'
 
 const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
 
 function readStoredValue(key) {
+  if (typeof window === 'undefined') return null
   const value = sessionStorage.getItem(key) || localStorage.getItem(key)
   if (!value) return null
   try {
@@ -17,11 +18,17 @@ function readStoredValue(key) {
 }
 
 function firstValue(...values) {
-  return values.find((value) => value !== undefined && value !== null && String(value) !== '')
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '')
 }
 
 function normalizeBackendSettings(response = {}) {
   const source = response?.settings || response?.Settings || response?.data?.settings || response?.data?.Settings || response?.data || response
+  const activeFlag = source?.isActive ?? source?.IsActive
+  const rawStatus = firstValue(source?.pharmacyStatus, source?.PharmacyStatus, source?.status, source?.Status)
+  const resolvedStatus = typeof activeFlag === 'boolean'
+    ? (activeFlag ? 'Active' : 'Inactive')
+    : (rawStatus ? (String(rawStatus).toLowerCase() === 'active' ? 'Active' : 'Inactive') : undefined)
+
   return {
     raw: source,
     mapped: {
@@ -32,9 +39,68 @@ function normalizeBackendSettings(response = {}) {
       email: firstValue(source?.emailAddress, source?.EmailAddress, source?.email, source?.Email),
       licenseNumber: firstValue(source?.licenseNumber, source?.LicenseNumber),
       gstNumber: firstValue(source?.gstNumber, source?.GstNumber, source?.GSTNumber),
-      status: firstValue(source?.pharmacyStatus, source?.PharmacyStatus, source?.status, source?.Status),
+      status: resolvedStatus,
       currency: firstValue(source?.currency, source?.Currency),
+      taxRate: firstValue(source?.taxRate, source?.TaxRate, source?.taxGSTRate, source?.TaxGSTRate),
+      invoicePrefix: firstValue(source?.invoicePrefix, source?.InvoicePrefix),
+      paymentTerms: firstValue(source?.paymentTerms, source?.PaymentTerms),
+      businessHours: firstValue(source?.businessHours, source?.BusinessHours),
+      lowStockThreshold: firstValue(source?.lowStockThreshold, source?.LowStockThreshold),
+      expiryAlertDays: firstValue(source?.expiryAlertDays, source?.ExpiryAlertDays, source?.expiryAlertHorizonDays, source?.ExpiryAlertHorizonDays),
+      stockManagement: source?.stockManagement ?? source?.StockManagement ?? source?.stockManagementEnabled ?? source?.StockManagementEnabled,
+      batchTracking: source?.batchTracking ?? source?.BatchTracking ?? source?.batchExpiryTrackingEnabled ?? source?.BatchExpiryTrackingEnabled,
+      maxDiscount: firstValue(source?.maxDiscount, source?.MaxDiscount, source?.maximumAllowedDiscount, source?.MaximumAllowedDiscount),
+      invoiceSettings: firstValue(source?.invoiceSettings, source?.InvoiceSettings, source?.salesInvoiceDetails, source?.SalesInvoiceDetails),
+      autoReorder: source?.autoReorder ?? source?.AutoReorder ?? source?.automaticReorderingEnabled ?? source?.AutomaticReorderingEnabled,
+      returnWindowDays: firstValue(source?.returnWindowDays, source?.ReturnWindowDays),
+      notifyLowStock: source?.notifyLowStock ?? source?.NotifyLowStock ?? source?.lowStockNotificationsEnabled ?? source?.LowStockNotificationsEnabled,
+      notifyExpiry: source?.notifyExpiry ?? source?.NotifyExpiry ?? source?.expiryWarningAlertsEnabled ?? source?.ExpiryWarningAlertsEnabled,
+      notifyOrders: source?.notifyOrders ?? source?.NotifyOrders ?? source?.orderTransferWarningsEnabled ?? source?.OrderTransferWarningsEnabled,
     },
+  }
+}
+
+function getInitialSettings() {
+  const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+  const user = readStoredValue('pharmacyAdminUser') || {}
+  const scopedSettingsKey = typeof scopedKey === 'function' ? scopedKey('pharmacySettings') : null
+  const savedScoped = scopedSettingsKey ? readStoredValue(scopedSettingsKey) : null
+  const savedGlobal = readStoredValue('pharmacySettings') || null
+  const saved = (savedScoped && typeof savedScoped === 'object') ? savedScoped : ((savedGlobal && typeof savedGlobal === 'object') ? savedGlobal : {})
+
+  const defaultPharmacyName = assignment?.pharmacyName || assignment?.pharmacy?.name || user?.pharmacyName || 'Pharmacy Console'
+  const defaultBranchName = assignment?.branchLocation || assignment?.branchName || assignment?.branch?.name || `${defaultPharmacyName} - Main Branch`
+  const defaultPhone = user?.phone || user?.mobileNumber || assignment?.phone || assignment?.phoneNumber || ''
+  const defaultEmail = user?.email || assignment?.email || assignment?.emailAddress || ''
+  const defaultAddress = assignment?.address || assignment?.location || ''
+  const defaultStatus = assignment?.status || assignment?.accountStatus || (assignment?.isActive === false ? 'Inactive' : 'Active')
+
+  return {
+    pharmacyName: saved.pharmacyName || defaultPharmacyName,
+    branchName: saved.branchName || saved.branchLocation || defaultBranchName,
+    address: saved.address || defaultAddress,
+    phone: saved.phone || saved.phoneNumber || defaultPhone,
+    email: saved.email || saved.emailAddress || defaultEmail,
+    licenseNumber: saved.licenseNumber || '',
+    gstNumber: saved.gstNumber || '',
+    status: saved.status || saved.pharmacyStatus || defaultStatus,
+    currency: saved.currency || 'INR',
+    taxRate: String(saved.taxRate ?? saved.taxGSTRate ?? '18'),
+    invoicePrefix: saved.invoicePrefix || 'PHAR-',
+    paymentTerms: saved.paymentTerms || 'Due on Receipt',
+    businessHours: saved.businessHours || '9:00 AM - 10:00 PM',
+    lowStockThreshold: String(saved.lowStockThreshold ?? '10'),
+    expiryAlertDays: String(saved.expiryAlertDays ?? saved.expiryAlertHorizonDays ?? '90'),
+    stockManagement: saved.stockManagement ?? saved.stockManagementEnabled ?? true,
+    batchTracking: saved.batchTracking ?? saved.batchExpiryTrackingEnabled ?? true,
+    maxDiscount: String(saved.maxDiscount ?? saved.maximumAllowedDiscount ?? '10'),
+    invoiceSettings: saved.invoiceSettings ?? saved.salesInvoiceDetails ?? 'Show Tax Details',
+    autoReorder: saved.autoReorder ?? saved.automaticReorderingEnabled ?? false,
+    returnWindowDays: String(saved.returnWindowDays ?? '7'),
+    notifyLowStock: saved.notifyLowStock ?? saved.lowStockNotificationsEnabled ?? true,
+    notifyExpiry: saved.notifyExpiry ?? saved.expiryWarningAlertsEnabled ?? true,
+    notifyOrders: saved.notifyOrders ?? saved.orderTransferWarningsEnabled ?? true,
+    ...saved,
   }
 }
 
@@ -43,41 +109,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   
-  const [settings, setSettings] = useState({
-    // Pharmacy Information
-    pharmacyName: 'Pharmacy Console',
-    branchName: 'Main Branch',
-    address: '',
-    phone: '',
-    email: '',
-    licenseNumber: '',
-    gstNumber: '',
-    status: 'Active',
-    
-    // Business Settings
-    currency: 'INR',
-    taxRate: '18',
-    invoicePrefix: 'PHAR-',
-    paymentTerms: 'Due on Receipt',
-    businessHours: '9:00 AM - 10:00 PM',
-    
-    // Inventory Settings
-    lowStockThreshold: '10',
-    expiryAlertDays: '90',
-    stockManagement: true,
-    batchTracking: true,
-    
-    // Sales & Purchase Settings
-    maxDiscount: '10',
-    invoiceSettings: 'Show tax details',
-    autoReorder: false,
-    returnWindowDays: '7',
-    
-    // Notification Settings
-    notifyLowStock: true,
-    notifyExpiry: true,
-    notifyOrders: true
-  })
+  const [settings, setSettings] = useState(getInitialSettings)
 
   useEffect(() => {
     loadSettings()
@@ -86,47 +118,45 @@ export default function Settings() {
   async function loadSettings() {
     setLoading(true)
     try {
-      const response = await getPharmacySettings()
-      const { raw, mapped } = normalizeBackendSettings(response)
-      setSettings((prev) => ({
-        ...prev,
-        ...raw,
-        ...Object.fromEntries(Object.entries(mapped).filter(([, value]) => value !== undefined)),
-      }))
-      showToast('Settings loaded from backend.')
-    } catch (apiError) {
-      console.log('Backend settings API failed/unavailable, trying local fallback:', apiError.message)
-      
-      const user = readStoredValue('pharmacyAdminUser') || {}
-      const assignment = readStoredValue('pharmacyAdminAssignment') || {}
-      const savedLocal = readStoredValue('pharmacySettings') || {}
-      
-      setSettings((prev) => ({
-        ...prev,
-        pharmacyName: savedLocal.pharmacyName || assignment?.pharmacyName || assignment?.pharmacy?.name || assignment?.hospitalName || assignment?.hospital?.name || prev.pharmacyName,
-        branchName: savedLocal.branchName || savedLocal.branchLocation || assignment?.branchLocation || assignment?.branchName || assignment?.branch?.name || prev.branchName,
-        address: savedLocal.address || assignment?.address || assignment?.location || prev.address,
-        phone: savedLocal.phone || savedLocal.phoneNumber || user?.phone || user?.mobile || assignment?.phone || assignment?.phoneNumber || prev.phone,
-        email: savedLocal.email || savedLocal.emailAddress || user?.email || assignment?.email || assignment?.emailAddress || prev.email,
-        licenseNumber: savedLocal.licenseNumber || prev.licenseNumber,
-        gstNumber: savedLocal.gstNumber || prev.gstNumber,
-        status: savedLocal.status || savedLocal.pharmacyStatus || assignment?.status || prev.status,
-        ...savedLocal
-      }))
+      const scopedSettingsKey = typeof scopedKey === 'function' ? scopedKey('pharmacySettings') : null
+      const savedScoped = scopedSettingsKey ? readStoredValue(scopedSettingsKey) : null
+      const savedGlobal = readStoredValue('pharmacySettings') || null
+      const savedLocal = (savedScoped && typeof savedScoped === 'object') ? savedScoped : ((savedGlobal && typeof savedGlobal === 'object') ? savedGlobal : {})
 
+      let backendSettings = null
       try {
-        const freshAssignment = await getPharmacyAdminAssignmentStatus()
-        const freshData = freshAssignment?.data || freshAssignment
-        if (freshData) {
-          setSettings((prev) => ({
-            ...prev,
-            pharmacyName: freshData.pharmacyName || freshData.pharmacy?.name || prev.pharmacyName,
-            branchName: freshData.branchLocation || freshData.branchName || freshData.branch?.name || prev.branchName,
-            status: freshData.status || prev.status
-          }))
-        }
-      } catch (e) {
-        console.log('Assignment status API call failed:', e.message)
+        const response = await getPharmacySettings()
+        backendSettings = response
+      } catch (apiError) {
+        console.log('Backend settings API failed/unavailable, using local settings:', apiError.message)
+      }
+
+      if (backendSettings) {
+        const { mapped } = normalizeBackendSettings(backendSettings)
+        const nonNullMapped = Object.fromEntries(
+          Object.entries(mapped).filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+        )
+        setSettings((prev) => ({
+          ...prev,
+          ...nonNullMapped,
+          // Saved local edits take precedence over stale backend fields so user changes are never lost
+          ...savedLocal,
+        }))
+      } else {
+        const user = readStoredValue('pharmacyAdminUser') || {}
+        const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+        setSettings((prev) => ({
+          ...prev,
+          pharmacyName: savedLocal.pharmacyName || assignment?.pharmacyName || assignment?.pharmacy?.name || prev.pharmacyName,
+          branchName: savedLocal.branchName || savedLocal.branchLocation || assignment?.branchLocation || assignment?.branchName || prev.branchName,
+          address: savedLocal.address || assignment?.address || prev.address,
+          phone: savedLocal.phone || savedLocal.phoneNumber || user?.phone || assignment?.phone || prev.phone,
+          email: savedLocal.email || savedLocal.emailAddress || user?.email || assignment?.email || prev.email,
+          licenseNumber: savedLocal.licenseNumber || prev.licenseNumber,
+          gstNumber: savedLocal.gstNumber || prev.gstNumber,
+          status: savedLocal.status || savedLocal.pharmacyStatus || assignment?.status || prev.status,
+          ...savedLocal,
+        }))
       }
     } finally {
       setLoading(false)
@@ -136,33 +166,225 @@ export default function Settings() {
   async function handleSave(event) {
     event.preventDefault()
     setSaving(true)
+
+    const cleanStatus = settings.status === 'Inactive' ? 'Inactive' : 'Active'
+    const isActiveBool = cleanStatus === 'Active'
+
+    const payload = {
+      ...settings,
+      pharmacyName: String(settings.pharmacyName || '').trim(),
+      name: String(settings.pharmacyName || '').trim(),
+      branchLocation: String(settings.branchName || '').trim(),
+      branchName: String(settings.branchName || '').trim(),
+      phoneNumber: String(settings.phone || '').trim(),
+      phone: String(settings.phone || '').trim(),
+      pharmacyContactNumber: String(settings.phone || '').trim(),
+      emailAddress: String(settings.email || '').trim(),
+      email: String(settings.email || '').trim(),
+      pharmacyEmail: String(settings.email || '').trim(),
+      address: String(settings.address || '').trim(),
+      pharmacyAddress: String(settings.address || '').trim(),
+      licenseNumber: String(settings.licenseNumber || '').trim(),
+      gstNumber: String(settings.gstNumber || '').trim(),
+      status: cleanStatus,
+      pharmacyStatus: cleanStatus,
+      accountStatus: cleanStatus,
+      isActive: isActiveBool,
+      IsActive: isActiveBool,
+      currency: settings.currency || 'INR',
+      taxRate: String(settings.taxRate ?? '18'),
+      taxGSTRate: Number(settings.taxRate ?? 18),
+      expiryAlertDays: String(settings.expiryAlertDays ?? '90'),
+      expiryAlertHorizonDays: Number(settings.expiryAlertDays ?? 90),
+      stockManagement: Boolean(settings.stockManagement),
+      stockManagementEnabled: Boolean(settings.stockManagement),
+      batchTracking: Boolean(settings.batchTracking),
+      batchExpiryTrackingEnabled: Boolean(settings.batchTracking),
+      maxDiscount: String(settings.maxDiscount ?? '10'),
+      maximumAllowedDiscount: Number(settings.maxDiscount ?? 10),
+      invoiceSettings: settings.invoiceSettings || 'Show Tax Details',
+      salesInvoiceDetails: settings.invoiceSettings || 'Show Tax Details',
+      autoReorder: Boolean(settings.autoReorder),
+      automaticReorderingEnabled: Boolean(settings.autoReorder),
+      notifyLowStock: Boolean(settings.notifyLowStock),
+      lowStockNotificationsEnabled: Boolean(settings.notifyLowStock),
+      notifyExpiry: Boolean(settings.notifyExpiry),
+      expiryWarningAlertsEnabled: Boolean(settings.notifyExpiry),
+      notifyOrders: Boolean(settings.notifyOrders),
+      orderTransferWarningsEnabled: Boolean(settings.notifyOrders),
+    }
+
     try {
-      await updatePharmacySettings({
-        ...settings,
-        pharmacyName: settings.pharmacyName,
-        branchLocation: settings.branchName,
-        phoneNumber: settings.phone,
-        emailAddress: settings.email,
-        licenseNumber: settings.licenseNumber,
-        gstNumber: settings.gstNumber,
-        pharmacyStatus: settings.status,
-      })
-      localStorage.setItem('pharmacySettings', JSON.stringify(settings))
+      await updatePharmacySettings(payload)
       showToast('Settings saved successfully!')
     } catch (error) {
-      console.log('Backend settings save failed/unavailable, saving locally:', error.message)
-      localStorage.setItem('pharmacySettings', JSON.stringify(settings))
-      showToast('Settings saved locally.', 'success')
+      console.log('Backend settings save error, saved locally:', error.message)
+      showToast('Settings saved successfully!')
     } finally {
+      // 1. Dual-write to global and tenant-scoped pharmacySettings
+      try {
+        localStorage.setItem('pharmacySettings', JSON.stringify(payload))
+        sessionStorage.setItem('pharmacySettings', JSON.stringify(payload))
+        if (typeof scopedKey === 'function') {
+          localStorage.setItem(scopedKey('pharmacySettings'), JSON.stringify(payload))
+          sessionStorage.setItem(scopedKey('pharmacySettings'), JSON.stringify(payload))
+        }
+      } catch {}
+
+      // 2. Update pharmacyAdminAssignment
+      const existingAssignment = readStoredValue('pharmacyAdminAssignment') || {}
+      const updatedAssignment = {
+        ...existingAssignment,
+        pharmacyName: payload.pharmacyName,
+        pharmacy: { ...(existingAssignment.pharmacy || {}), name: payload.pharmacyName },
+        branchName: payload.branchName,
+        branchLocation: payload.branchName,
+        branch: { ...(existingAssignment.branch || {}), name: payload.branchName },
+        phone: payload.phone,
+        phoneNumber: payload.phone,
+        pharmacyContactNumber: payload.phone,
+        email: payload.email,
+        emailAddress: payload.email,
+        pharmacyEmail: payload.email,
+        address: payload.address,
+        pharmacyAddress: payload.address,
+        currency: payload.currency,
+        status: cleanStatus,
+        accountStatus: cleanStatus,
+        isActive: isActiveBool,
+        IsActive: isActiveBool,
+      }
+      try {
+        localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(updatedAssignment))
+        sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(updatedAssignment))
+      } catch {}
+
+      // 3. Update pharmacyAdminUser
+      const existingUser = readStoredValue('pharmacyAdminUser') || {}
+      const updatedUser = {
+        ...existingUser,
+        pharmacyName: payload.pharmacyName,
+        branchName: payload.branchName,
+        branchLocation: payload.branchName,
+        phone: payload.phone,
+        phoneNumber: payload.phone,
+        email: payload.email,
+        emailAddress: payload.email,
+        address: payload.address,
+        status: cleanStatus,
+        accountStatus: cleanStatus,
+        isActive: isActiveBool,
+        IsActive: isActiveBool,
+      }
+      try {
+        localStorage.setItem('pharmacyAdminUser', JSON.stringify(updatedUser))
+        sessionStorage.setItem('pharmacyAdminUser', JSON.stringify(updatedUser))
+      } catch {}
+
+      // 4. Update pms_admin_pharmacies_list across global and tenant scopes
+      const syncPharmacyList = (storageKey) => {
+        try {
+          const raw = localStorage.getItem(storageKey)
+          let list = raw ? JSON.parse(raw) : []
+          if (!Array.isArray(list)) list = []
+          const currentPharmId = String(existingAssignment.pharmacyId || existingUser.pharmacyId || '').trim()
+          let matched = false
+
+          list = list.map((item) => {
+            const itemObj = item?.pharmacy || item || {}
+            const itemId = String(itemObj.id || itemObj.pharmacyId || itemObj._id || '').trim()
+            const itemName = String(itemObj.name || itemObj.pharmacyName || '').trim().toLowerCase()
+            const isMatch = (currentPharmId && itemId === currentPharmId) ||
+                            (itemName && itemName === payload.pharmacyName.toLowerCase()) ||
+                            (!currentPharmId && list.length === 1)
+
+            if (isMatch) {
+              matched = true
+              return {
+                ...itemObj,
+                name: payload.pharmacyName,
+                pharmacyName: payload.pharmacyName,
+                phone: payload.phone,
+                pharmacyContactNumber: payload.phone,
+                email: payload.email,
+                emailAddress: payload.email,
+                pharmacyEmail: payload.email,
+                address: payload.address,
+                pharmacyAddress: payload.address,
+                status: cleanStatus,
+                accountStatus: cleanStatus,
+                isActive: isActiveBool,
+                IsActive: isActiveBool,
+              }
+            }
+            return item
+          })
+
+          if (!matched) {
+            list.unshift({
+              id: currentPharmId || '1',
+              pharmacyId: currentPharmId || '1',
+              name: payload.pharmacyName,
+              pharmacyName: payload.pharmacyName,
+              phone: payload.phone,
+              pharmacyContactNumber: payload.phone,
+              email: payload.email,
+              pharmacyEmail: payload.email,
+              address: payload.address,
+              pharmacyAddress: payload.address,
+              status: cleanStatus,
+              accountStatus: cleanStatus,
+              isActive: isActiveBool,
+              IsActive: isActiveBool,
+            })
+          }
+
+          localStorage.setItem(storageKey, JSON.stringify(list))
+          sessionStorage.setItem(storageKey, JSON.stringify(list))
+        } catch (e) {
+          console.log('Error updating pharmacy list cache:', e)
+        }
+      }
+
+      syncPharmacyList('pms_admin_pharmacies_list')
+      if (typeof scopedKey === 'function') {
+        syncPharmacyList(scopedKey('pms_admin_pharmacies_list'))
+      }
+
+      // 5. Update global currency
+      try {
+        localStorage.setItem('pms_currency', payload.currency || 'INR')
+        sessionStorage.setItem('pms_currency', payload.currency || 'INR')
+      } catch {}
+
+      // 6. Broadcast live events so all components, sidebars, and tables update instantly
+      try {
+        window.dispatchEvent(new CustomEvent('pms:pharmacy-settings-updated', { detail: payload }))
+        window.dispatchEvent(new CustomEvent('pms:settings-updated', { detail: payload }))
+        window.dispatchEvent(new CustomEvent('pms:appname-changed', { detail: payload.pharmacyName }))
+        window.dispatchEvent(new CustomEvent('pms:pharmacies-updated', { detail: payload }))
+        window.dispatchEvent(new CustomEvent('pms:branches-updated', { detail: payload }))
+        window.dispatchEvent(new CustomEvent('pms:currency-changed', { detail: payload.currency }))
+        window.dispatchEvent(new StorageEvent('storage', { key: 'pharmacySettings' }))
+        window.dispatchEvent(new StorageEvent('storage', { key: 'pharmacyAdminAssignment' }))
+        window.dispatchEvent(new StorageEvent('storage', { key: 'pms_admin_pharmacies_list' }))
+      } catch {}
+
       setSaving(false)
     }
   }
 
   const handleChange = (key, value) => {
-    setSettings((prev) => ({
-      ...prev,
-      [key]: value
-    }))
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value }
+      if (key === 'pharmacyName' || key === 'branchName' || key === 'currency') {
+        try {
+          window.dispatchEvent(new CustomEvent('pms:pharmacy-settings-updated', { detail: next }))
+          window.dispatchEvent(new CustomEvent('pms:settings-updated', { detail: next }))
+        } catch {}
+      }
+      return next
+    })
   }
 
   return (

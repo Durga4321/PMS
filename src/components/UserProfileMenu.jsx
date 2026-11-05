@@ -98,16 +98,28 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
   const { showToast } = useToast()
   const wrapRef = useRef(null)
   const [open, setOpen] = useState(false)
-  const profile = getProfile(roleType)
+  const [profile, setProfile] = useState(() => getProfile(roleType))
 
   useEffect(() => {
     const close = (event) => {
       if (!wrapRef.current?.contains(event.target)) setOpen(false)
     }
 
+    function handleLiveSync() {
+      setProfile(getProfile(roleType))
+    }
+
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [])
+    window.addEventListener('pms:pharmacy-settings-updated', handleLiveSync)
+    window.addEventListener('pms:settings-updated', handleLiveSync)
+    window.addEventListener('storage', handleLiveSync)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      window.removeEventListener('pms:pharmacy-settings-updated', handleLiveSync)
+      window.removeEventListener('pms:settings-updated', handleLiveSync)
+      window.removeEventListener('storage', handleLiveSync)
+    }
+  }, [roleType])
 
   async function logout() {
     const tokenKey = roleType === 'pharmacist' ? 'pharmacistToken' : roleType === 'pharmacy-admin' ? 'pharmacyAdminToken' : 'superAdminToken'
