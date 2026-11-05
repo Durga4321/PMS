@@ -83,7 +83,8 @@ const VALID_BACKEND_MODULES = [
   'Returns',
   'Expiry Alerts',
   'Reports',
-  'Settings'
+  'Settings',
+  'CMS Integration',
 ]
 
 function permissionPayload(permissions) {
@@ -99,7 +100,7 @@ function permissionPayload(permissions) {
 
   const effective = {
     ...normalized,
-    Branches: branchesPerms
+    Branches: branchesPerms,
   }
 
   const modulePermissions = []
@@ -110,21 +111,17 @@ function permissionPayload(permissions) {
     if (seen.has(key)) return
     seen.add(key)
 
-    const act = effective[mod] || { view: true, create: true, edit: true, delete: true }
+    const act = effective[mod] || effective[mod.toLowerCase()] || permissions?.[mod] || permissions?.[mod.toLowerCase()] || { view: true, create: true, edit: true, delete: true }
     modulePermissions.push({
       module: mod,
-      canView: Boolean(act.view),
-      canCreate: Boolean(act.create),
-      canEdit: Boolean(act.edit),
-      canDelete: Boolean(act.delete),
-      view: Boolean(act.view),
-      create: Boolean(act.create),
-      edit: Boolean(act.edit),
-      delete: Boolean(act.delete),
+      canView: Boolean(act.canView ?? act.view),
+      canCreate: Boolean(act.canCreate ?? act.create),
+      canEdit: Boolean(act.canEdit ?? act.edit),
+      canDelete: Boolean(act.canDelete ?? act.delete),
     })
   })
 
-  return { permissions: modulePermissions, modulePermissions }
+  return modulePermissions
 }
 
 function permissionCount(permissions) {
@@ -252,10 +249,8 @@ export default function UsersPermissions() {
         if (normalized.Branches) {
           normalized.Pharmacies = { ...normalized.Branches }
         }
-        if (hasAnyPermission(normalized)) {
-          setPermissions(normalized)
-          savePermissionsLocallyForAdmin(targetId, normalized, adminEmail)
-        }
+        setPermissions(normalized)
+        savePermissionsLocallyForAdmin(targetId, normalized, adminEmail)
       } else if (!cached) {
         setPermissions(EMPTY_PERMISSIONS)
       }
@@ -448,14 +443,19 @@ export default function UsersPermissions() {
       if (selectedRoleId) {
         await assignPharmacyAdminRole(selectedAdminId, { roleId: selectedRoleId }).catch(() => null)
       }
-    } catch (requestError) {
-      console.warn('Backend savePermissions notice:', requestError)
-    } finally {
-      setSaving(false)
+
       const successMsg = `Permissions for ${adminName} saved successfully!`
       setSuccess(successMsg)
       setSaveFeedback({ type: 'success', message: successMsg })
       showToast(successMsg, 'success')
+    } catch (requestError) {
+      console.error('Backend savePermissions error:', requestError)
+      const errorMsg = requestError?.message || `Failed to save permissions for ${adminName}.`
+      setError(errorMsg)
+      setSaveFeedback({ type: 'error', message: errorMsg })
+      showToast(errorMsg, 'error')
+    } finally {
+      setSaving(false)
     }
   }
 

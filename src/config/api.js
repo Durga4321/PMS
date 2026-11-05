@@ -2562,9 +2562,46 @@ export function getPharmacistPermissions(id) {
 }
 
 export function updatePharmacistPermissions(id, payload) {
+  let list = []
+  if (Array.isArray(payload)) {
+    list = payload
+  } else if (Array.isArray(payload?.permissions)) {
+    list = payload.permissions
+  } else if (payload?.permissions && typeof payload.permissions === 'object') {
+    list = Object.entries(payload.permissions).map(([mod, val]) => {
+      const isObj = val && typeof val === 'object'
+      return {
+        module: mod,
+        canView: isObj ? Boolean(val.canView ?? val.view) : Boolean(val),
+        canCreate: isObj ? Boolean(val.canCreate ?? val.create) : Boolean(val),
+        canEdit: isObj ? Boolean(val.canEdit ?? val.edit) : Boolean(val),
+        canDelete: isObj ? Boolean(val.canDelete ?? val.delete) : Boolean(val),
+      }
+    })
+  } else if (payload && typeof payload === 'object') {
+    list = Object.entries(payload).map(([mod, val]) => {
+      const isObj = val && typeof val === 'object'
+      return {
+        module: mod,
+        canView: isObj ? Boolean(val.canView ?? val.view) : Boolean(val),
+        canCreate: isObj ? Boolean(val.canCreate ?? val.create) : Boolean(val),
+        canEdit: isObj ? Boolean(val.canEdit ?? val.edit) : Boolean(val),
+        canDelete: isObj ? Boolean(val.canDelete ?? val.delete) : Boolean(val),
+      }
+    })
+  }
+
+  const cleanList = list.map((item) => ({
+    module: String(item?.module || item?.Module || item?.name || item?.key || ''),
+    canView: Boolean(item?.canView ?? item?.view),
+    canCreate: Boolean(item?.canCreate ?? item?.create),
+    canEdit: Boolean(item?.canEdit ?? item?.edit),
+    canDelete: Boolean(item?.canDelete ?? item?.delete),
+  }))
+
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }), {
     method: 'PUT',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(cleanList),
   })
 }
 
@@ -3277,9 +3314,38 @@ export const updateSuperAdminRole = (id, payload) => updatePharmacyAdmin(id, pay
 export const deleteSuperAdminRole = (id) => request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), { method: 'DELETE' })
 export const getSuperAdminRolePermissions = (roleId) => request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }))
 export const updateSuperAdminRolePermissions = (roleId, payload) => {
-  const permsList = Array.isArray(payload) ? payload : (payload?.permissions || payload?.Permissions || payload?.modulePermissions || payload?.ModulePermissions || payload)
-  const bodyObj = Array.isArray(permsList) ? { permissions: permsList, Permissions: permsList, modulePermissions: permsList, ModulePermissions: permsList } : payload
-  return request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }), { method: 'PUT', body: JSON.stringify(apiPayload(bodyObj)) })
+  let list = []
+  if (Array.isArray(payload)) {
+    list = payload
+  } else if (Array.isArray(payload?.permissions)) {
+    list = payload.permissions
+  } else if (Array.isArray(payload?.modulePermissions)) {
+    list = payload.modulePermissions
+  } else if (payload && typeof payload === 'object') {
+    list = Object.entries(payload).map(([mod, val]) => {
+      const isObj = val && typeof val === 'object'
+      return {
+        module: mod,
+        canView: isObj ? Boolean(val.canView ?? val.view) : Boolean(val),
+        canCreate: isObj ? Boolean(val.canCreate ?? val.create) : Boolean(val),
+        canEdit: isObj ? Boolean(val.canEdit ?? val.edit) : Boolean(val),
+        canDelete: isObj ? Boolean(val.canDelete ?? val.delete) : Boolean(val),
+      }
+    })
+  }
+
+  const cleanList = list.map((item) => ({
+    module: String(item?.module || item?.Module || item?.name || item?.key || ''),
+    canView: Boolean(item?.canView ?? item?.view),
+    canCreate: Boolean(item?.canCreate ?? item?.create),
+    canEdit: Boolean(item?.canEdit ?? item?.edit),
+    canDelete: Boolean(item?.canDelete ?? item?.delete),
+  }))
+
+  return request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }), {
+    method: 'PUT',
+    body: JSON.stringify(cleanList),
+  })
 }
 export const listSuperAdminRoleDropdown = () => Promise.resolve({ data: [] })
 export const getPharmacyAdminPermissionsForSuperAdmin = (adminId) => getSuperAdminRolePermissions(adminId)
