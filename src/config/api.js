@@ -202,9 +202,12 @@ export async function syncPharmacyAdminTenantContext(assignmentHint = null) {
     }
   }
 
-  const rawPharmId = assignmentData?.pharmacyId || assignmentData?.PharmacyId || assignmentData?.pharmacy?.id || assignmentData?.pharmacy?.pharmacyId
-  const rawBranchId = assignmentData?.branchId || assignmentData?.BranchId || assignmentData?.mainBranchId || assignmentData?.MainBranchId || ''
-  const rawPharmName = assignmentData?.pharmacyName || assignmentData?.PharmacyName || assignmentData?.pharmacy?.name
+  const nestedAssignment = assignmentData?.assignment || assignmentData?.pharmacyAssignment || assignmentData?.assignedPharmacy || assignmentData?.tenant || {}
+  const pharmacyRecord = assignmentData?.pharmacy || nestedAssignment?.pharmacy || nestedAssignment
+  const branchRecord = assignmentData?.branch || nestedAssignment?.branch || {}
+  const rawPharmId = assignmentData?.pharmacyId || assignmentData?.PharmacyId || assignmentData?.assignedPharmacyId || assignmentData?.AssignedPharmacyId || pharmacyRecord?.id || pharmacyRecord?.pharmacyId || pharmacyRecord?.PharmacyId
+  const rawBranchId = assignmentData?.branchId || assignmentData?.BranchId || assignmentData?.mainBranchId || assignmentData?.MainBranchId || branchRecord?.id || branchRecord?.branchId || branchRecord?.BranchId || nestedAssignment?.mainBranchId || ''
+  const rawPharmName = assignmentData?.pharmacyName || assignmentData?.PharmacyName || pharmacyRecord?.name || pharmacyRecord?.pharmacyName
 
   const pharmacyId = parsePositiveInt(rawPharmId) ? String(rawPharmId) : (rawPharmId ? String(rawPharmId) : '')
   const branchId = parsePositiveInt(rawBranchId) ? String(rawBranchId) : (rawBranchId ? String(rawBranchId) : '')

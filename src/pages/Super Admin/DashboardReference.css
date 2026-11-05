@@ -58,6 +58,17 @@ body.dashboard-scroll-page #root {
   background: transparent;
 }
 
+/* Keep dashboard content slightly inset while the navbar remains edge-to-edge. */
+.reference-dashboard .dashboard-hero-card,
+.reference-dashboard .reference-message,
+.reference-dashboard .reference-stats-three,
+.reference-dashboard .reference-main-grid,
+.reference-dashboard .reference-directory,
+.reference-dashboard .reference-bottom-stats {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
 /* --------------------------------------------------------------------------
    Heading Card (matches white enclosed card with blue left accent bar)
    -------------------------------------------------------------------------- */

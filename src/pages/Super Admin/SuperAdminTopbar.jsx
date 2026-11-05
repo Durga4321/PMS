@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import UserProfileMenu from '../../components/UserProfileMenu'
+import ThemeToggle from '../../components/ThemeToggle'
 import { superAdminNavigation } from '../../components/superAdminNavigation'
 import { listSuperAdminNotifications } from '../../config/api'
 import './SuperAdminTopbar.css'
@@ -114,6 +115,7 @@ function SuperAdminTopbar({ onMenu, placeholder = 'Search dashboard, pharmacies,
       </form>
 
       <div className="super-admin-topbar-right">
+        <ThemeToggle />
         <button className="super-admin-topbar-notification" type="button" aria-label="Notifications" onClick={() => navigate('/super-admin/notifications')}>
           <Icon><path d="M6 9a6 6 0 0 1 12 0c0 7 2 7 2 9H4c0-2 2-2 2-9" /><path d="M10 21h4" /></Icon>
           {unreadCount > 0 ? <b>{unreadCount > 99 ? '99+' : unreadCount}</b> : null}

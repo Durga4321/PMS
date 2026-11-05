@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import PharmacistLayout from './PharmacistLayout'
+import DashboardGreeting from '../../components/DashboardGreeting'
 
 const listKeys = [
   'items',
@@ -274,14 +275,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
           <section className="branch-dashboard-header-redesign reference-heading-card">
             <div className="reference-heading-accent" />
             <div className="admin-heading-text-wrap">
-              <div className="header-title-badge-row">
-                <h1>Pharmacist Dashboard</h1>
-                <span className="live-status-pill">
-                  <i className="pulse-dot-green" />
-                  Live Operations
-                </span>
-              </div>
-              <p>Pharmacist operations management for prescriptions, dispensing, bills, and reports.</p>
+              <DashboardGreeting role="Pharmacist" subtitle="Pharmacist operations management for prescriptions, dispensing, bills, and reports." live />
             </div>
           </section>
         ) : null}
