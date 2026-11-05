@@ -1,6 +1,20 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { superAdminNavigation } from '../../components/superAdminNavigation'
 import './SuperAdminSidebar.css'
+
+function getStoredAppName() {
+  try {
+    const direct = localStorage.getItem('pms_app_name') || sessionStorage.getItem('pms_app_name')
+    if (direct) return direct
+    const raw = localStorage.getItem('pms_system_settings') || sessionStorage.getItem('pms_system_settings')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed.appName) return parsed.appName
+    }
+  } catch {}
+  return 'PMS'
+}
 
 function readStoredUser() {
   const value = sessionStorage.getItem('superAdminUser') || localStorage.getItem('superAdminUser')
@@ -25,6 +39,24 @@ function SuperAdminSidebar({ activeLabel = '' }) {
   const location = useLocation()
   const user = readStoredUser()
   const name = user?.name || user?.fullName || user?.email || 'Super Admin'
+  const [appName, setAppName] = useState(getStoredAppName)
+
+  useEffect(() => {
+    function handleSettings(e) {
+      const updated = e.detail?.appName !== undefined ? e.detail.appName : (typeof e.detail === 'string' ? e.detail : '')
+      if (typeof updated === 'string' && updated.trim()) {
+        setAppName(updated.trim())
+      } else {
+        setAppName(getStoredAppName())
+      }
+    }
+    window.addEventListener('pms:settings-updated', handleSettings)
+    window.addEventListener('pms:appname-changed', handleSettings)
+    return () => {
+      window.removeEventListener('pms:settings-updated', handleSettings)
+      window.removeEventListener('pms:appname-changed', handleSettings)
+    }
+  }, [])
 
   return (
     <aside className="super-admin-sidebar" aria-label="Super admin navigation">
@@ -35,7 +67,7 @@ function SuperAdminSidebar({ activeLabel = '' }) {
           </svg>
         </span>
         <div className="super-admin-brand-copy">
-          <strong>PMS</strong>
+          <strong>{appName || 'PMS'}</strong>
           <small>Admin Console</small>
         </div>
       </div>

@@ -12,7 +12,10 @@ import {
   updateSuperAdminPharmacy,
   getPharmacyAdminPharmacy,
   registerPharmacyAdminPharmacy,
+  syncPharmacyAdminTenantContext,
   updatePharmacySettings,
+  getPharmacyAdminAssignmentStatus,
+  listPharmacyBranches,
   scopedKey,
   migrateLegacyCache,
 } from '../../config/api'
@@ -43,12 +46,139 @@ function saveDeletedPharmacyIds(ids) {
   } catch {}
 }
 
-function removeDeletedPharmacyId(id) {
+function removeDeletedPharmacyId(id, name) {
   try {
     const key = scopedKey(DELETED_PHARMACIES_KEY)
-    const ids = readDeletedPharmacyIds().filter((d) => String(d) !== String(id))
+    const idStr = String(id || '')
+    const nameKey = name ? `name:${String(name).trim().toLowerCase()}` : ''
+    const ids = readDeletedPharmacyIds().filter((d) => {
+      if (idStr && String(d) === idStr) return false
+      if (nameKey && String(d) === nameKey) return false
+      return true
+    })
     localStorage.setItem(key, JSON.stringify(ids))
   } catch {}
+}
+
+function isPharmacyDeleted(item, deletedIds = []) {
+  if (!item || !deletedIds.length) return false
+  const unwrapped = unwrapPharmacy(item)
+  const id = String(idOf(unwrapped) || '')
+  const name = String(pharmacyName(unwrapped) || '').trim().toLowerCase()
+  if (id && deletedIds.includes(id)) return true
+  if (name && name !== '-' && deletedIds.includes(`name:${name}`)) return true
+  return false
+}
+
+function readStoredValue(key) {
+  const value = sessionStorage.getItem(key) || localStorage.getItem(key)
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+function isDefaultOwner(name) {
+  return String(name || '').trim().toLowerCase() === 'goutham pharmacy'
+}
+
+function buildPharmacyFromContext(settings = {}) {
+  const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+  const user = readStoredValue('pharmacyAdminUser') || {}
+  const localSettings = readStoredValue('pharmacySettings') || {}
+  const mergedSettings = { ...localSettings, ...(settings || {}) }
+  const pharmacy = assignment.pharmacy || user.pharmacy || {}
+
+  const pharmacyId =
+    assignment.pharmacyId ||
+    assignment.PharmacyId ||
+    pharmacy.id ||
+    pharmacy.pharmacyId ||
+    user.pharmacyId ||
+    user.PharmacyId ||
+    mergedSettings.pharmacyId ||
+    ''
+
+  const name =
+    (assignment.pharmacyName && !isDefaultOwner(assignment.pharmacyName) ? assignment.pharmacyName : '') ||
+    (user.pharmacyName && !isDefaultOwner(user.pharmacyName) ? user.pharmacyName : '') ||
+    (mergedSettings.pharmacyName && !isDefaultOwner(mergedSettings.pharmacyName) ? mergedSettings.pharmacyName : '') ||
+    (mergedSettings.name && !isDefaultOwner(mergedSettings.name) ? mergedSettings.name : '') ||
+    (pharmacy.name && !isDefaultOwner(pharmacy.name) ? pharmacy.name : '') ||
+    (pharmacy.pharmacyName && !isDefaultOwner(pharmacy.pharmacyName) ? pharmacy.pharmacyName : '')
+
+  if (!name) return null
+
+  const phone =
+    assignment.pharmacyContactNumber ||
+    assignment.phone ||
+    assignment.mobileNumber ||
+    mergedSettings.phoneNumber ||
+    mergedSettings.phone ||
+    pharmacy.contactNumber ||
+    pharmacy.phoneNumber ||
+    user.pharmacyContactNumber ||
+    user.mobileNumber ||
+    user.phone ||
+    ''
+
+  const email =
+    assignment.pharmacyEmail ||
+    assignment.email ||
+    mergedSettings.emailAddress ||
+    mergedSettings.email ||
+    pharmacy.email ||
+    user.pharmacyEmail ||
+    user.email ||
+    ''
+
+  const address =
+    assignment.pharmacyAddress ||
+    assignment.address ||
+    mergedSettings.address ||
+    mergedSettings.pharmacyAddress ||
+    pharmacy.address ||
+    user.pharmacyAddress ||
+    user.address ||
+    ''
+
+  const city = mergedSettings.city || assignment.city || pharmacy.city || user.city || ''
+  const district = mergedSettings.district || assignment.district || pharmacy.district || user.district || ''
+  const state = mergedSettings.state || assignment.state || pharmacy.state || user.state || ''
+  const country = mergedSettings.country || assignment.country || pharmacy.country || user.country || 'India'
+  const postalCode =
+    mergedSettings.postalCode ||
+    mergedSettings.pincode ||
+    assignment.postalCode ||
+    pharmacy.postalCode ||
+    user.postalCode ||
+    ''
+
+  const flag = mergedSettings.isActive ?? mergedSettings.IsActive ?? assignment.isActive
+  const status = typeof flag === 'boolean' ? (flag ? 'Active' : 'Inactive') : (mergedSettings.status || assignment.status || 'Active')
+  const isActive = typeof flag === 'boolean' ? flag : String(status).toLowerCase() === 'active'
+
+  return {
+    id: pharmacyId,
+    pharmacyId,
+    name,
+    pharmacyName: name,
+    phone,
+    pharmacyContactNumber: phone,
+    email,
+    pharmacyEmail: email,
+    address,
+    pharmacyAddress: address,
+    city,
+    district,
+    state,
+    country,
+    postalCode,
+    status,
+    isActive,
+  }
 }
 
 function readLocalPharmacies() {
@@ -114,11 +244,62 @@ function emailOf(item) {
   return text(p.pharmacyEmail || p.PharmacyEmail || p.email || p.Email)
 }
 
+function isMainBranchRecord(b, mainPharmacy) {
+  if (!b) return false
+  if (b?.isMainBranch || b?.IsMainBranch) return true
+  if (Number(idOf(b)) === 1 || Number(b?.branchId || b?.BranchId) === 1) return true
+  const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
+  if (bName.includes('main branch')) return true
+  if (mainPharmacy) {
+    const mName = String(pharmacyName(mainPharmacy) || '').trim().toLowerCase()
+    if (mName && (bName === mName || bName.startsWith(mName) || mName.startsWith(bName))) return true
+  }
+  return false
+}
+
+function formatAddress(item) {
+  if (!item) return '-'
+  const baseAddress = String(item.pharmacyAddress || item.PharmacyAddress || item.address || item.Address || '').trim()
+  const city = String(item.city || item.City || '').trim()
+  const district = String(item.district || item.District || '').trim()
+  const state = String(item.state || item.State || '').trim()
+  const country = String(item.country || item.Country || 'India').trim()
+  const postalCode = String(item.postalCode || item.PostalCode || item.pincode || item.Pincode || '').trim()
+
+  const tokens = []
+  const pushIfNew = (str) => {
+    if (!str) return
+    const cleaned = str.trim()
+    if (!cleaned) return
+    const exists = tokens.some((t) => t.toLowerCase() === cleaned.toLowerCase())
+    if (!exists) tokens.push(cleaned)
+  }
+
+  if (baseAddress) {
+    pushIfNew(baseAddress)
+  }
+  if (city && !baseAddress.toLowerCase().includes(city.toLowerCase())) {
+    pushIfNew(city)
+  }
+  if (district && !baseAddress.toLowerCase().includes(district.toLowerCase())) {
+    pushIfNew(district)
+  }
+  if (state && !baseAddress.toLowerCase().includes(state.toLowerCase())) {
+    pushIfNew(state)
+  }
+  if (country && !baseAddress.toLowerCase().includes(country.toLowerCase())) {
+    pushIfNew(country)
+  }
+  if (postalCode && !baseAddress.includes(postalCode)) {
+    pushIfNew(postalCode)
+  }
+
+  return tokens.length ? tokens.join(', ') : (baseAddress || country || '-')
+}
+
 function addressOf(item) {
   const p = unwrapPharmacy(item)
-  const address = p.pharmacyAddress || p.PharmacyAddress || p.address || p.Address || p.location || p.pharmacy?.address
-  const location = [p.city || p.City, p.state || p.State, p.country || p.Country, p.postalCode || p.PostalCode].filter(Boolean).join(', ')
-  return text([address, location].filter((part) => text(part, '')).join(', '))
+  return formatAddress(p)
 }
 
 function statusOf(item) {
@@ -183,56 +364,155 @@ export default function AdminPharmacies() {
     try {
       const deletedIds = readDeletedPharmacyIds()
 
-      // 1. Try to load the Pharmacy Admin's registered pharmacy
-      let adminPharmacy = null
+      // 1. Read locally stored pharmacies, stripping any deleted or default owner entries
+      let localItems = readLocalPharmacies()
+        .filter((p) => !isPharmacyDeleted(p, deletedIds))
+        .filter((p) => !isDefaultOwner(pharmacyName(p)))
+
+      // 1b. Query backend main branch to synchronize the real database address & contact
+      let dbMainBranch = null
       try {
-        const res = await getPharmacyAdminPharmacy()
-        adminPharmacy = res?.pharmacy || res?.data?.pharmacy || (res?.id || res?.pharmacyId ? res : null)
-      } catch (adminErr) {
-        // Not registered yet or other role
+        const bRes = await listPharmacyBranches()
+        const bList = listFrom(bRes)
+        const found = bList.find((b) => isMainBranchRecord(b, null)) || bList[0]
+        if (found) dbMainBranch = found
+      } catch {}
+
+      const dbPhone = dbMainBranch ? (dbMainBranch.phone || dbMainBranch.Phone || dbMainBranch.phoneNumber || dbMainBranch.PhoneNumber || dbMainBranch.contactNumber) : ''
+      const dbEmail = dbMainBranch ? (dbMainBranch.email || dbMainBranch.Email || dbMainBranch.emailAddress || dbMainBranch.EmailAddress) : ''
+      const dbAddress = dbMainBranch ? (dbMainBranch.address || dbMainBranch.Address || '') : ''
+      const dbCity = dbMainBranch ? (dbMainBranch.city || dbMainBranch.City || '') : ''
+      const dbDistrict = dbMainBranch ? (dbMainBranch.district || dbMainBranch.District || '') : ''
+      const dbState = dbMainBranch ? (dbMainBranch.state || dbMainBranch.State || '') : ''
+      const dbCountry = dbMainBranch ? (dbMainBranch.country || dbMainBranch.Country || 'India') : 'India'
+      const dbPostalCode = dbMainBranch ? (dbMainBranch.postalCode || dbMainBranch.PostalCode || dbMainBranch.pincode || '') : ''
+
+      if (dbMainBranch && localItems.length > 0) {
+        localItems = localItems.map((p, idx) => {
+          if (idx === 0) {
+            return {
+              ...p,
+              phone: dbPhone || p.phone || p.pharmacyContactNumber || '',
+              pharmacyContactNumber: dbPhone || p.pharmacyContactNumber || p.phone || '',
+              email: dbEmail || p.email || p.pharmacyEmail || '',
+              pharmacyEmail: dbEmail || p.pharmacyEmail || p.email || '',
+              address: dbAddress || p.address || p.pharmacyAddress || '',
+              pharmacyAddress: dbAddress || p.pharmacyAddress || p.address || '',
+              city: dbCity || p.city || '',
+              district: dbDistrict || p.district || '',
+              state: dbState || p.state || '',
+              country: dbCountry || p.country || 'India',
+              postalCode: dbPostalCode || p.postalCode || '',
+            }
+          }
+          return p
+        })
       }
 
-      // 1b. The real active/inactive flag lives in pharmacy settings
-      if (adminPharmacy) {
+      // 2. Check assignment and user context for the created pharmacy (e.g. Shiva Pharmacy)
+      const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+      const user = readStoredValue('pharmacyAdminUser') || {}
+      const rawSettings = readStoredValue('pharmacySettings') || {}
+
+      const candidateName =
+        (assignment.pharmacyName && !isDefaultOwner(assignment.pharmacyName) ? assignment.pharmacyName : '') ||
+        (user.pharmacyName && !isDefaultOwner(user.pharmacyName) ? user.pharmacyName : '')
+
+      if (candidateName && assignment.pharmacyId) {
+        const exists = localItems.some(
+          (p) => String(pharmacyName(p) || '').trim().toLowerCase() === candidateName.trim().toLowerCase()
+        )
+        if (!exists) {
+          const candidateRecord = {
+            id: assignment.pharmacyId || (dbMainBranch ? idOf(dbMainBranch) : ''),
+            pharmacyId: assignment.pharmacyId || (dbMainBranch ? idOf(dbMainBranch) : ''),
+            name: candidateName,
+            pharmacyName: candidateName,
+            phone:
+              dbPhone ||
+              assignment.pharmacyContactNumber ||
+              assignment.phone ||
+              assignment.mobileNumber ||
+              user.mobileNumber ||
+              user.phone ||
+              '',
+            pharmacyContactNumber:
+              dbPhone ||
+              assignment.pharmacyContactNumber ||
+              assignment.phone ||
+              assignment.mobileNumber ||
+              user.mobileNumber ||
+              user.phone ||
+              '',
+            email:
+              dbEmail ||
+              assignment.pharmacyEmail ||
+              assignment.email ||
+              user.email ||
+              '',
+            pharmacyEmail:
+              dbEmail ||
+              assignment.pharmacyEmail ||
+              assignment.email ||
+              user.email ||
+              '',
+            address:
+              dbAddress ||
+              assignment.pharmacyAddress ||
+              assignment.address ||
+              '',
+            pharmacyAddress:
+              dbAddress ||
+              assignment.pharmacyAddress ||
+              assignment.address ||
+              '',
+            city: dbCity || assignment.city || '',
+            district: dbDistrict || assignment.district || '',
+            state: dbState || assignment.state || '',
+            country: dbCountry || assignment.country || 'India',
+            postalCode: dbPostalCode || assignment.postalCode || '',
+            status: assignment.accountStatus || 'Active',
+            isActive: true,
+          }
+          if (!isPharmacyDeleted(candidateRecord, deletedIds) && candidateRecord.id) {
+            localItems.unshift(candidateRecord)
+          }
+        }
+      }
+
+      // 3. Fallback: query getPharmacyAdminPharmacy() if local list is still empty
+      if (!localItems.length) {
         try {
-          const sRes = await getPharmacySettings({ authRole: 'pharmacyAdmin' })
-          const settings = sRes?.settings || sRes?.data?.settings || sRes?.data || sRes || {}
-          const flag = settings.isActive ?? settings.IsActive
-          if (typeof flag === 'boolean') {
-            adminPharmacy = { ...unwrapPharmacy(adminPharmacy), isActive: flag, status: flag ? 'Active' : 'Inactive' }
+          const res = await getPharmacyAdminPharmacy()
+          const p = res?.pharmacy || res?.data?.pharmacy || (res?.id || res?.pharmacyId ? res : null)
+          if (p) {
+            const unwrapped = unwrapPharmacy(p)
+            const pName = String(pharmacyName(unwrapped) || '').trim().toLowerCase()
+            if (pName && !isDefaultOwner(pName) && !isPharmacyDeleted(unwrapped, deletedIds)) {
+              localItems.push(unwrapped)
+            }
           }
         } catch {}
       }
 
-      // 2. Read locally created pharmacies
-      const localItems = readLocalPharmacies().filter((p) => !deletedIds.includes(String(idOf(p))))
-
-      // 3. Merge admin pharmacy with local pharmacies (deduplicate by id)
-      const merged = []
-      const seenIds = new Set()
-
-      if (adminPharmacy && !deletedIds.includes(String(idOf(adminPharmacy)))) {
-        const unwrapped = unwrapPharmacy(adminPharmacy)
-        const id = String(idOf(unwrapped) || '')
-        if (id) seenIds.add(id)
-        merged.push(unwrapped)
-      }
-
+      // 4. Ensure strict deduplication by ID and normalized name
+      const uniqueItems = []
+      const seenKeys = new Set()
       for (const p of localItems) {
         const id = String(idOf(p) || '')
-        if (id && seenIds.has(id)) continue
-        if (id) seenIds.add(id)
-        merged.push(p)
+        const name = String(pharmacyName(p) || '').trim().toLowerCase()
+        if (id && seenKeys.has(`id:${id}`)) continue
+        if (name && name !== '-' && seenKeys.has(`name:${name}`)) continue
+        if (id) seenKeys.add(`id:${id}`)
+        if (name && name !== '-') seenKeys.add(`name:${name}`)
+        uniqueItems.push(p)
       }
 
-      // Update local cache with merged list
-      if (merged.length) writeLocalPharmacies(merged)
-      setPharmacies(merged)
+      writeLocalPharmacies(uniqueItems)
+      setPharmacies(uniqueItems)
     } catch (requestError) {
-      console.log('Unable to load pharmacies from API, reading local cache:', requestError.message)
-      const deletedIds = readDeletedPharmacyIds()
-      const localItems = readLocalPharmacies().filter((p) => !deletedIds.includes(String(idOf(p))))
-      setPharmacies(localItems)
+      console.log('Unable to load pharmacies:', requestError.message)
+      setPharmacies([])
     } finally {
       setLoading(false)
     }
@@ -243,20 +523,21 @@ export default function AdminPharmacies() {
   }, [])
 
   function openEdit(pharmacy) {
+    const p = unwrapPharmacy(pharmacy)
     setEditingPharmacy(pharmacy)
     setCreateOpen(false)
     setError('')
     setForm({
-      name: pharmacyName(pharmacy) === '-' ? '' : pharmacyName(pharmacy),
-      phone: contactNumber(pharmacy) === '-' ? '' : contactNumber(pharmacy),
-      email: emailOf(pharmacy) === '-' ? '' : emailOf(pharmacy),
-      address: addressOf(pharmacy) === '-' ? '' : addressOf(pharmacy),
-      city: pharmacy.city || pharmacy.City || '',
-      district: pharmacy.district || pharmacy.District || '',
-      state: pharmacy.state || pharmacy.State || '',
-      country: pharmacy.country || pharmacy.Country || 'India',
-      postalCode: pharmacy.postalCode || pharmacy.PostalCode || '',
-      status: statusOf(pharmacy),
+      name: pharmacyName(p) === '-' ? '' : pharmacyName(p),
+      phone: contactNumber(p) === '-' ? '' : contactNumber(p),
+      email: emailOf(p) === '-' ? '' : emailOf(p),
+      address: p.address || p.Address || p.pharmacyAddress || p.PharmacyAddress || '',
+      city: p.city || p.City || '',
+      district: p.district || p.District || '',
+      state: p.state || p.State || '',
+      country: p.country || p.Country || 'India',
+      postalCode: p.postalCode || p.PostalCode || p.pincode || '',
+      status: statusOf(p),
     })
   }
 
@@ -312,7 +593,7 @@ export default function AdminPharmacies() {
 
       if (editingPharmacy) {
         const id = idOf(editingPharmacy)
-        if (id) removeDeletedPharmacyId(id)
+        if (id) removeDeletedPharmacyId(id, payload.name)
         let updatedSuccess = false
         const isActive = String(form.status || 'Active').toLowerCase() === 'active'
         try {
@@ -325,6 +606,11 @@ export default function AdminPharmacies() {
               phoneNumber: payload.phone,
               emailAddress: payload.email,
               address: payload.address,
+              city: payload.city,
+              district: payload.district,
+              state: payload.state,
+              country: payload.country,
+              postalCode: payload.postalCode,
               isActive,
             })
             updatedSuccess = true
@@ -332,7 +618,46 @@ export default function AdminPharmacies() {
             console.error('Update pharmacy failed on both endpoints:', settingsErr)
           }
         }
-        
+
+        // Update stored assignment and settings
+        try {
+          const rawAssign = sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment')
+          const parsedAssign = rawAssign ? JSON.parse(rawAssign) : {}
+          const updatedAssign = {
+            ...parsedAssign,
+            pharmacyName: payload.name,
+            pharmacyContactNumber: payload.phone,
+            pharmacyEmail: payload.email,
+            pharmacyAddress: payload.address,
+            city: payload.city,
+            district: payload.district,
+            state: payload.state,
+            country: payload.country,
+            postalCode: payload.postalCode,
+          }
+          sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(updatedAssign))
+          localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(updatedAssign))
+        } catch {}
+
+        try {
+          const rawSettings = readStoredValue('pharmacySettings') || {}
+          const updatedSettings = {
+            ...rawSettings,
+            pharmacyName: payload.name,
+            phoneNumber: payload.phone,
+            emailAddress: payload.email,
+            address: payload.address,
+            city: payload.city,
+            district: payload.district,
+            state: payload.state,
+            country: payload.country,
+            postalCode: payload.postalCode,
+            isActive,
+            status: form.status || 'Active',
+          }
+          localStorage.setItem('pharmacySettings', JSON.stringify(updatedSettings))
+        } catch {}
+
         const updatedRecord = { ...editingPharmacy, ...payload, id, pharmacyId: id, status: form.status || 'Active', isActive }
         const currentList = readLocalPharmacies()
         const nextList = currentList.map((p) => String(idOf(p)) === String(id) ? updatedRecord : p)
@@ -341,22 +666,24 @@ export default function AdminPharmacies() {
         showToast('Pharmacy updated successfully.')
       } else {
         let createdRecord = null
-        let savedViaApi = false
         try {
           const response = await registerPharmacyAdminPharmacy(payload)
           createdRecord = response?.pharmacy || response?.data?.pharmacy || response
-          savedViaApi = true
           showToast(response?.message || 'Pharmacy created successfully! Main Branch 1 created and assigned.')
         } catch (regErr) {
           const msg = String(regErr.message || '').toLowerCase()
           if (msg.includes('already has a pharmacy')) {
-            savedViaApi = true
             try {
               await updatePharmacySettings({
                 pharmacyName: payload.name,
                 phoneNumber: payload.phone,
                 emailAddress: payload.email,
                 address: payload.address,
+                city: payload.city,
+                district: payload.district,
+                state: payload.state,
+                country: payload.country,
+                postalCode: payload.postalCode,
               })
               showToast('Pharmacy details updated in database successfully!')
             } catch (settingsErr) {
@@ -366,7 +693,6 @@ export default function AdminPharmacies() {
             try {
               const superRes = await createSuperAdminPharmacy(payload)
               createdRecord = superRes?.data?.pharmacy || superRes?.pharmacy || superRes
-              savedViaApi = true
               showToast('Pharmacy created successfully!')
             } catch {
               throw regErr
@@ -374,40 +700,84 @@ export default function AdminPharmacies() {
           }
         }
 
-        const id = createdRecord?.id || createdRecord?.pharmacyId || createdRecord?._id
-        if (id) {
-          removeDeletedPharmacyId(id)
-          try {
-            sessionStorage.setItem('workingPharmacyId', String(id))
-            localStorage.setItem('workingPharmacyId', String(id))
-            const rawAssign = sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment')
-            const parsedAssign = rawAssign ? JSON.parse(rawAssign) : {}
-            const updatedAssign = {
-              ...parsedAssign,
-              pharmacyId: id,
-              pharmacyName: payload.name,
-              pharmacy: createdRecord || payload,
-            }
-            sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(updatedAssign))
-            localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(updatedAssign))
-          } catch {}
-        }
+        const rawId = createdRecord?.pharmacyId || createdRecord?.PharmacyId || createdRecord?.id || createdRecord?.data?.pharmacyId || createdRecord?._id || `PHARM-${Date.now()}`
+        const id = String(rawId)
+        removeDeletedPharmacyId(id, payload.name)
 
-        // Only write to local cache when the API won't return this pharmacy automatically.
-        // If savedViaApi is true, loadPharmacies() below will fetch it from the backend,
-        // so we skip the manual cache write to prevent duplicates.
-        if (!savedViaApi) {
-          const tempId = `PHARM-${Date.now()}`
-          const newPharmacy = {
-            ...payload,
-            id: tempId,
-            pharmacyId: tempId,
-            status: form.status || 'Active',
-            isActive: form.status !== 'Inactive',
+        try {
+          sessionStorage.setItem('workingPharmacyId', String(id))
+          localStorage.setItem('workingPharmacyId', String(id))
+          sessionStorage.setItem('workingBranchId', '1')
+          localStorage.setItem('workingBranchId', '1')
+          const rawAssign = sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment')
+          const parsedAssign = rawAssign ? JSON.parse(rawAssign) : {}
+          const updatedAssign = {
+            ...parsedAssign,
+            pharmacyId: id,
+            branchId: '1',
+            mainBranchId: '1',
+            isPharmacyAssigned: true,
+            pharmacyName: payload.name,
+            pharmacy: createdRecord || payload,
+            pharmacyContactNumber: payload.phone,
+            pharmacyEmail: payload.email,
+            pharmacyAddress: payload.address,
+            city: payload.city,
+            district: payload.district,
+            state: payload.state,
+            country: payload.country || 'India',
+            postalCode: payload.postalCode,
           }
-          const currentList = readLocalPharmacies()
-          writeLocalPharmacies([newPharmacy, ...currentList])
+          sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(updatedAssign))
+          localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(updatedAssign))
+          if (typeof syncPharmacyAdminTenantContext === 'function') {
+            syncPharmacyAdminTenantContext(updatedAssign).catch(() => {})
+          }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('pms:tenant-updated', { detail: { pharmacyId: id, branchId: '1', pharmacyName: payload.name } }))
+          }
+        } catch {}
+
+        try {
+          const rawSettings = readStoredValue('pharmacySettings') || {}
+          const updatedSettings = {
+            ...rawSettings,
+            pharmacyId: id,
+            pharmacyName: payload.name,
+            phoneNumber: payload.phone,
+            emailAddress: payload.email,
+            address: payload.address,
+            city: payload.city,
+            district: payload.district,
+            state: payload.state,
+            country: payload.country,
+            postalCode: payload.postalCode,
+            isActive: form.status !== 'Inactive',
+            status: form.status || 'Active',
+          }
+          localStorage.setItem('pharmacySettings', JSON.stringify(updatedSettings))
+        } catch {}
+
+        // Always save newly created pharmacy in local cache!
+        const newPharmacy = {
+          ...payload,
+          id,
+          pharmacyId: id,
+          name: payload.name,
+          pharmacyName: payload.name,
+          status: form.status || 'Active',
+          isActive: form.status !== 'Inactive',
+          ...(createdRecord && typeof createdRecord === 'object' ? createdRecord : {}),
         }
+        const currentList = readLocalPharmacies().filter((p) => {
+          const pId = String(idOf(p))
+          const pName = String(pharmacyName(p)).trim().toLowerCase()
+          if (pId === String(id)) return false
+          if (pName === payload.name.trim().toLowerCase()) return false
+          if (isDefaultOwner(pName)) return false
+          return true
+        })
+        writeLocalPharmacies([newPharmacy, ...currentList])
       }
 
       await loadPharmacies()
@@ -430,37 +800,51 @@ export default function AdminPharmacies() {
     const nextActive = explicitActive !== undefined ? explicitActive : !currentActive
     const nextStatus = nextActive ? 'Active' : 'Inactive'
 
-    if (/^\d+$/.test(String(id))) {
-      let saved = false
-      let lastError = null
-      // Pharmacy admin: status is stored in pharmacy settings. Send the full settings object
-      // so other fields are not wiped, with the new isActive flag.
+    let saved = false
+    let lastError = null
+    // Pharmacy admin: status is stored in pharmacy settings. Send the full settings object
+    // so other fields are not wiped, with the new isActive flag.
+    try {
+      const sRes = await getPharmacySettings({ authRole: 'pharmacyAdmin' })
+      const current = sRes?.settings || sRes?.data?.settings || sRes?.data || sRes || {}
+      await updatePharmacySettings({
+        ...current,
+        pharmacyName: current.pharmacyName || pharmacyName(pharmacy),
+        isActive: nextActive,
+      })
+      saved = true
+    } catch (err) {
+      lastError = err
+    }
+    if (!saved && /^\d+$/.test(String(id))) {
       try {
-        const sRes = await getPharmacySettings({ authRole: 'pharmacyAdmin' })
-        const current = sRes?.settings || sRes?.data?.settings || sRes?.data || sRes || {}
-        await updatePharmacySettings({
-          ...current,
-          pharmacyName: current.pharmacyName || pharmacyName(pharmacy),
-          isActive: nextActive,
-        })
+        await changeSuperAdminPharmacyStatus(id, { isActive: nextActive, status: nextStatus })
         saved = true
       } catch (err) {
-        lastError = err
-      }
-      if (!saved) {
-        try {
-          await changeSuperAdminPharmacyStatus(id, { isActive: nextActive, status: nextStatus })
-          saved = true
-        } catch (err) {
-          lastError = lastError || err
-        }
-      }
-      if (!saved) {
-        showToast(lastError?.message || 'Unable to update pharmacy status.', 'error')
-        await loadPharmacies()
-        return
+        lastError = lastError || err
       }
     }
+
+    try {
+      const rawAssign = sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment')
+      if (rawAssign) {
+        const parsed = JSON.parse(rawAssign)
+        parsed.accountStatus = nextStatus
+        parsed.isActive = nextActive
+        sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(parsed))
+        localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(parsed))
+      }
+    } catch {}
+
+    try {
+      const rawSettings = readStoredValue('pharmacySettings') || {}
+      const updatedSettings = {
+        ...rawSettings,
+        isActive: nextActive,
+        status: nextStatus,
+      }
+      localStorage.setItem('pharmacySettings', JSON.stringify(updatedSettings))
+    } catch {}
 
     showToast(`Pharmacy marked as ${nextStatus}.`)
     const updated = { ...pharmacy, status: nextStatus, isActive: nextActive }
@@ -484,16 +868,22 @@ export default function AdminPharmacies() {
       }
     }
 
-    // 2. Mark this ID as deleted so it never reappears on reload
+    // 2. Mark this ID & name as deleted so it never reappears on reload
     const deleted = readDeletedPharmacyIds()
-    if (!deleted.includes(String(id))) {
-      saveDeletedPharmacyIds([...deleted, String(id)])
+    const idStr = String(id)
+    const nameKey = name && name !== '-' ? `name:${String(name).trim().toLowerCase()}` : ''
+    const toAdd = [idStr]
+    if (nameKey && !deleted.includes(nameKey)) toAdd.push(nameKey)
+    if (!deleted.includes(idStr)) {
+      saveDeletedPharmacyIds([...deleted, ...toAdd])
+    } else if (nameKey && !deleted.includes(nameKey)) {
+      saveDeletedPharmacyIds([...deleted, nameKey])
     }
 
     // 3. Immediately remove from local storage and React state
-    const currentList = readLocalPharmacies().filter((p) => String(idOf(p)) !== String(id))
+    const currentList = readLocalPharmacies().filter((p) => !isPharmacyDeleted(p, [...deleted, ...toAdd]))
     writeLocalPharmacies(currentList)
-    setPharmacies((current) => current.filter((p) => String(idOf(p)) !== String(id)))
+    setPharmacies((current) => current.filter((p) => !isPharmacyDeleted(p, [...deleted, ...toAdd])))
     showToast(`Pharmacy ${name} deleted successfully.`)
   }
 

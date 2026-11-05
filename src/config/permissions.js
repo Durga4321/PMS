@@ -1,6 +1,6 @@
 export const PERMISSION_ACTIONS = ['view', 'create', 'edit', 'delete']
 
-export const ADMIN_MODULES = ['Dashboard', 'Pharmacies', 'Users', 'Medicines', 'Branches', 'Stock', 'Suppliers', 'Purchase Orders', 'Stock Transfers', 'Prescriptions', 'Dispensing', 'Expiry Alerts', 'Reports', 'Settings', 'CMS Integration']
+export const ADMIN_MODULES = ['Dashboard', 'Pharmacies', 'Users', 'Medicines', 'Branches', 'Stock', 'Suppliers', 'Purchase Orders', 'Stock Transfers', 'Prescriptions', 'Dispensing', 'Expiry Alerts', 'Reports', 'Settings']
 
 export const MODULE_ALIASES = {
   Dashboard: ['dashboard'],
@@ -28,7 +28,6 @@ export const MODULE_ALIASES = {
   'Expiry Alerts': ['expiry alerts', 'expiry', 'near expiry'],
   Reports: ['reports'],
   Settings: ['settings'],
-  'CMS Integration': ['cms integration', 'cms'],
 }
 
 export function normalizePermissionKey(value) {
@@ -122,17 +121,6 @@ export function hasPermission(permissions, module, action = 'view') {
   if (Boolean(normalized[canonical]?.[action])) return true
   if (canonical === 'Pharmacies' && normalized['Branches']?.[action]) return true
   if (canonical === 'Branches' && normalized['Pharmacies']?.[action]) return true
-  if ((canonical === 'Pharmacies' || canonical === 'Branches') && action === 'view') return true
-
-  // Standard pharmacy admin core operations: Purchase Orders, Stock Transfers, Suppliers, Stock, Medicines, Dashboard
-  // Unless explicitly disabled (false) in permissions, allow access so admin is never locked out
-  if (['Purchase Orders', 'Stock Transfers', 'Suppliers', 'Stock', 'Medicines', 'Dashboard'].includes(canonical)) {
-    const rawVal = permissions?.[canonical] || permissions?.[module]
-    if (rawVal && (rawVal[action] === false || rawVal[`can${action.charAt(0).toUpperCase()}${action.slice(1)}`] === false)) {
-      return false
-    }
-    return true
-  }
   return false
 }
 
@@ -142,6 +130,30 @@ export function readAdminPermissions() {
   try {
     const user = rawUser ? JSON.parse(rawUser) : {}
     const assignment = rawAssignment ? JSON.parse(rawAssignment) : {}
+    const adminId = user?.id || user?.adminId || user?.adminUserId || user?.userId || assignment?.adminId || assignment?.userId
+    const email = String(user?.email || assignment?.email || '').trim().toLowerCase()
+
+    // 1. Check local storage for admin-specific saved permissions
+    if (adminId) {
+      const stored = localStorage.getItem(`pms_admin_permissions_${adminId}`) || sessionStorage.getItem(`pms_admin_permissions_${adminId}`)
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed && typeof parsed === 'object') return normalizePermissions(parsed)
+        } catch {}
+      }
+    }
+    if (email) {
+      const storedEmail = localStorage.getItem(`pms_admin_permissions_${email}`) || sessionStorage.getItem(`pms_admin_permissions_${email}`)
+      if (storedEmail) {
+        try {
+          const parsed = JSON.parse(storedEmail)
+          if (parsed && typeof parsed === 'object') return normalizePermissions(parsed)
+        } catch {}
+      }
+    }
+
+    // 2. Check source on user or assignment object
     const source = permissionSource(user) || permissionSource(assignment)
     return source ? normalizePermissions(source) : null
   } catch {

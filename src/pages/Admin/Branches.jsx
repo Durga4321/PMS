@@ -4,6 +4,10 @@ import { useToast } from '../../components/ToastProvider'
 import {
   changePharmacyBranchStatus,
   createPharmacyBranch,
+  readLocalSubBranches,
+  writeLocalSubBranches,
+  pharmacyTenantContext,
+  syncPharmacyAdminTenantContext,
   deletePharmacyBranch,
   getAddressByPincode,
   getPharmacyBranch,
@@ -101,58 +105,126 @@ function branchField(branch, field) {
   }
 }
 
+function formatAddress(item) {
+  if (!item) return '-'
+  const baseAddress = String(item.pharmacyAddress || item.PharmacyAddress || item.address || item.Address || '').trim()
+  const city = String(item.city || item.City || '').trim()
+  const district = String(item.district || item.District || '').trim()
+  const state = String(item.state || item.State || '').trim()
+  const country = String(item.country || item.Country || 'India').trim()
+  const postalCode = String(item.postalCode || item.PostalCode || item.pincode || item.Pincode || '').trim()
+
+  const tokens = []
+  const pushIfNew = (str) => {
+    if (!str) return
+    const cleaned = str.trim()
+    if (!cleaned) return
+    const exists = tokens.some((t) => t.toLowerCase() === cleaned.toLowerCase())
+    if (!exists) tokens.push(cleaned)
+  }
+
+  if (baseAddress) {
+    pushIfNew(baseAddress)
+  }
+  if (city && !baseAddress.toLowerCase().includes(city.toLowerCase())) {
+    pushIfNew(city)
+  }
+  if (district && !baseAddress.toLowerCase().includes(district.toLowerCase())) {
+    pushIfNew(district)
+  }
+  if (state && !baseAddress.toLowerCase().includes(state.toLowerCase())) {
+    pushIfNew(state)
+  }
+  if (country && !baseAddress.toLowerCase().includes(country.toLowerCase())) {
+    pushIfNew(country)
+  }
+  if (postalCode && !baseAddress.includes(postalCode)) {
+    pushIfNew(postalCode)
+  }
+
+  return tokens.length ? tokens.join(', ') : (baseAddress || country || '-')
+}
+
 const locationOf = (branch) => {
-  const parts = [
-    branch?.address || branch?.Address,
-    branch?.city || branch?.City,
-    branch?.district || branch?.District,
-    branch?.state || branch?.State,
-    branch?.country || branch?.Country || 'India',
-    branch?.postalCode || branch?.PostalCode || branch?.pincode,
-  ].filter(Boolean)
-  const unique = []
-  parts.forEach((p) => {
-    const trimmed = String(p).trim()
-    if (trimmed && !unique.includes(trimmed)) {
-      unique.push(trimmed)
-    }
-  })
-  return text(unique.join(', '))
+  return formatAddress(branch)
 }
 
 function payloadFrom(form) {
   return Object.fromEntries(Object.entries(form).filter(([, value]) => String(value || '').trim() !== ''))
 }
 
-function buildMainBranch(settings = {}) {
-  const assignment = readStoredValue('pharmacyAdminAssignment') || {}
-  const user = readStoredValue('pharmacyAdminUser') || {}
-  const pharmacy = assignment.pharmacy || user.pharmacy || {}
-  const branchId = assignment.branchId || assignment.BranchId || assignment.branch?.id || assignment.branch?.branchId || user.branchId || user.BranchId || user.branch?.id || user.branch?.branchId
-  const pharmacyId = assignment.pharmacyId || assignment.PharmacyId || pharmacy.id || pharmacy.pharmacyId || user.pharmacyId || user.PharmacyId || user.pharmacy?.id || user.pharmacy?.pharmacyId
-  const name = settings.pharmacyName || settings.name || assignment.pharmacyName || pharmacy.name || user.pharmacyName || assignment.branchName || user.branchName
-  const address = settings.address || settings.pharmacyAddress || settings.branchLocation || assignment.pharmacyAddress || pharmacy.address || user.pharmacyAddress || assignment.address || user.address
-  const phone = settings.phoneNumber || settings.phone || assignment.pharmacyContactNumber || pharmacy.contactNumber || user.pharmacyContactNumber || assignment.mobileNumber || user.mobileNumber
-  const email = settings.emailAddress || settings.email || assignment.pharmacyEmail || pharmacy.email || user.pharmacyEmail || assignment.email || user.email
+function isDefaultOwner(name) {
+  return String(name || '').trim().toLowerCase() === 'goutham pharmacy'
+}
 
-  if (!name && !address && !phone && !email) return null
+function buildMainBranch(settings = {}) {
+  const localPharmacies = readLocalPharmacies().filter((p) => {
+    const name = String(pharmacyNameOf(p) || p.name || p.pharmacyName || '').trim()
+    return name && !isDefaultOwner(name)
+  })
+  const firstPharmacy = localPharmacies[0]
+  const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+
+  let pharmacyRecord = firstPharmacy || null
+  if (!pharmacyRecord && assignment.pharmacyName && !isDefaultOwner(assignment.pharmacyName) && assignment.pharmacyId) {
+    pharmacyRecord = {
+      id: assignment.pharmacyId,
+      branchId: assignment.branchId || assignment.mainBranchId || assignment.pharmacyId,
+      name: assignment.pharmacyName,
+      branchName: assignment.pharmacyName,
+      phone: assignment.pharmacyContactNumber || assignment.phone || assignment.mobileNumber || '',
+      email: assignment.pharmacyEmail || assignment.email || '',
+      address: assignment.pharmacyAddress || assignment.address || '',
+      city: assignment.city || '',
+      district: assignment.district || '',
+      state: assignment.state || '',
+      country: assignment.country || 'India',
+      postalCode: assignment.postalCode || '',
+      status: 'Active',
+    }
+  }
+
+  if (!pharmacyRecord || !idOf(pharmacyRecord)) return null
+
+  const name = pharmacyNameOf(pharmacyRecord) || pharmacyRecord.pharmacyName || pharmacyRecord.name || pharmacyRecord.branchName
+  if (!name || isDefaultOwner(name)) return null
+
+  const phone = branchField(pharmacyRecord, 'phone') !== '-' ? branchField(pharmacyRecord, 'phone') : (pharmacyRecord.phone || pharmacyRecord.phoneNumber || pharmacyRecord.pharmacyContactNumber || '')
+  const email = branchField(pharmacyRecord, 'email') !== '-' ? branchField(pharmacyRecord, 'email') : (pharmacyRecord.email || pharmacyRecord.emailAddress || pharmacyRecord.pharmacyEmail || '')
+  const address = branchField(pharmacyRecord, 'address') !== '-' ? branchField(pharmacyRecord, 'address') : (pharmacyRecord.address || pharmacyRecord.pharmacyAddress || '')
 
   return {
-    id: branchId || pharmacyId || 'main',
-    branchId: branchId || pharmacyId || 'main',
-    name: name || 'Main Branch',
-    branchName: name || 'Main Branch',
+    id: idOf(pharmacyRecord) || pharmacyRecord.branchId,
+    branchId: idOf(pharmacyRecord) || pharmacyRecord.branchId,
+    name,
+    branchName: name,
     phone,
     email,
     address,
-    city: settings.city || assignment.city || pharmacy.city || user.city,
-    district: settings.district || assignment.district || pharmacy.district || user.district,
-    state: settings.state || assignment.state || pharmacy.state || user.state,
-    country: settings.country || assignment.country || pharmacy.country || user.country,
-    postalCode: settings.postalCode || settings.pincode || assignment.postalCode || pharmacy.postalCode || user.postalCode,
-    status: 'Active',
+    city: pharmacyRecord.city || '',
+    district: pharmacyRecord.district || '',
+    state: pharmacyRecord.state || '',
+    country: pharmacyRecord.country || 'India',
+    postalCode: pharmacyRecord.postalCode || '',
+    status: pharmacyRecord.status || 'Active',
     isMainBranch: true,
   }
+}
+
+function isMainBranchRecord(b, mainBranch) {
+  if (!b) return false
+  if (b.isMainBranch === false || b.isSubBranch === true) return false
+  if (b.isMainBranch === true || b.IsMainBranch === true) return true
+  const bName = String(nameOf(b) || '').trim().toLowerCase()
+  if (bName.includes('sub branch') || bName.includes('sub-branch')) return false
+  if (bName.includes('main branch')) return true
+  if (mainBranch) {
+    const mName = String(nameOf(mainBranch) || '').trim().toLowerCase().replace(/\s*-\s*main\s*branch/i, '')
+    if (mName && bName === mName && (String(idOf(b)) === String(idOf(mainBranch)) || Number(idOf(b)) === 1)) {
+      return true
+    }
+  }
+  return false
 }
 
 function BranchNameCell({ branch, index, pharmacies = [] }) {
@@ -160,7 +232,7 @@ function BranchNameCell({ branch, index, pharmacies = [] }) {
   const linkedId = branch?.pharmacyId || branch?.PharmacyId
   const linkedPharmacy = pharmacies.find((p) => String(pharmacyIdOf(p)) === String(linkedId))
   const pharmacyDisplay = branch?.pharmacyName || branch?.PharmacyName || (linkedPharmacy ? pharmacyNameOf(linkedPharmacy) : '') || (pharmacies.length ? pharmacyNameOf(pharmacies[0]) : '')
-  const isMain = branch?.isMainBranch || Number(id) === 1 || String(nameOf(branch)).toLowerCase().includes('main branch')
+  const isMain = Boolean(branch?.isMainBranch) || index === 0
   return (
     <span className="branches-name-cell">
       <span className="branches-location-icon">
@@ -199,80 +271,59 @@ export default function AdminBranches() {
   const [currentBranch, setCurrentBranch] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [mainBranch, setMainBranch] = useState(() => buildMainBranch())
+
   const displayBranches = useMemo(() => {
-    if (!branches.length) {
-      return mainBranch ? [mainBranch] : []
-    }
-
-    const backendMain = branches.find(
-      (b) => b?.isMainBranch || Number(idOf(b)) === 1 || String(nameOf(b)).toLowerCase().includes('main branch')
-    )
-
-    if (backendMain) {
-      return branches.map((b) => {
-        const isMain = b === backendMain || b?.isMainBranch || Number(idOf(b)) === 1 || String(nameOf(b)).toLowerCase().includes('main branch')
-        if (isMain) {
-          return {
-            ...b,
-            isMainBranch: true,
-            city: b.city || b.City || mainBranch?.city || '',
-            district: b.district || b.District || mainBranch?.district || '',
-            state: b.state || b.State || mainBranch?.state || '',
-            country: b.country || b.Country || mainBranch?.country || 'India',
-            postalCode: b.postalCode || b.PostalCode || b.pincode || mainBranch?.postalCode || '',
-            phone: b.phone || b.Phone || b.phoneNumber || mainBranch?.phone || '',
-            email: b.email || b.Email || b.emailAddress || mainBranch?.email || '',
-            address: b.address || b.Address || mainBranch?.address || '',
-          }
+    // 1. Detect if backend branches already has the Main Branch record
+    const backendMain = branches.find((b) => isMainBranchRecord(b, mainBranch))
+    const resolvedMain = backendMain
+      ? {
+          ...(mainBranch || {}),
+          ...backendMain,
+          isMainBranch: true,
+          name: (nameOf(mainBranch) && nameOf(mainBranch) !== '-' ? nameOf(mainBranch) : nameOf(backendMain)).replace(/\s*-\s*main\s+branch/i, ''),
+          branchName: (nameOf(mainBranch) && nameOf(mainBranch) !== '-' ? nameOf(mainBranch) : nameOf(backendMain)).replace(/\s*-\s*main\s+branch/i, ''),
+          phone: branchField(backendMain, 'phone') !== '-' ? branchField(backendMain, 'phone') : branchField(mainBranch, 'phone'),
+          email: branchField(backendMain, 'email') !== '-' ? branchField(backendMain, 'email') : branchField(mainBranch, 'email'),
+          address: backendMain.address || backendMain.Address || mainBranch?.address || '',
+          city: backendMain.city || backendMain.City || mainBranch?.city || '',
+          district: backendMain.district || backendMain.District || mainBranch?.district || '',
+          state: backendMain.state || backendMain.State || mainBranch?.state || '',
+          country: backendMain.country || backendMain.Country || mainBranch?.country || 'India',
+          postalCode: backendMain.postalCode || backendMain.PostalCode || backendMain.pincode || mainBranch?.postalCode || '',
         }
-        return b
-      })
-    }
+      : mainBranch
 
-    return mainBranch ? [mainBranch, ...branches] : branches
+    // 2. Only actual sub branches remain (eliminating ANY duplicate of main branch)
+    const subBranches = branches.filter((b) => {
+      if (backendMain && b === backendMain) return false
+      if (isMainBranchRecord(b, resolvedMain)) return false
+      return true
+    })
+
+    return resolvedMain ? [resolvedMain, ...subBranches] : subBranches
   }, [mainBranch, branches])
 
   async function loadMainBranchDetails() {
-    try {
-      const response = await getPharmacySettings({ authRole: 'pharmacyAdmin' })
-      const settings = response?.settings || response?.data?.settings || response?.data || response || {}
-      setMainBranch(buildMainBranch(settings))
-    } catch (requestError) {
-      console.log('Unable to load pharmacy settings for main branch:', requestError.message)
-    }
+    setMainBranch(buildMainBranch())
   }
 
   async function loadPharmaciesList() {
     try {
-      let pList = []
-      try {
-        const res = await getPharmacyAdminPharmacy()
-        const p = res?.pharmacy || res?.data?.pharmacy || (res?.id || res?.pharmacyId ? res : null)
-        if (p) pList.push(p)
-      } catch {}
-
-      if (!pList.length) {
-        const assignment = readStoredValue('pharmacyAdminAssignment') || {}
-        const user = readStoredValue('pharmacyAdminUser') || {}
-        const defaultP = assignment.pharmacy || user.pharmacy || (assignment.pharmacyName ? { id: assignment.pharmacyId, name: assignment.pharmacyName } : null)
-        if (defaultP && pharmacyIdOf(defaultP)) pList.push(defaultP)
+      const localItems = readLocalPharmacies().filter((p) => {
+        const name = String(pharmacyNameOf(p) || p.name || '').trim()
+        return name && !isDefaultOwner(name)
+      })
+      const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+      if (!localItems.length && assignment.pharmacyName && !isDefaultOwner(assignment.pharmacyName) && assignment.pharmacyId) {
+        localItems.push({
+          id: assignment.pharmacyId,
+          name: assignment.pharmacyName,
+          pharmacyName: assignment.pharmacyName,
+        })
       }
-
-      const localItems = readLocalPharmacies()
-      const map = new Map()
-      pList.forEach((p) => {
-        const id = pharmacyIdOf(p)
-        if (id) map.set(String(id), p)
-      })
-      localItems.forEach((p) => {
-        const id = pharmacyIdOf(p)
-        if (id && !map.has(String(id))) map.set(String(id), p)
-      })
-
-      const combined = [...map.values()]
-      setPharmacies(combined)
-      if (combined.length > 0) {
-        setForm((prev) => ({ ...prev, pharmacyId: prev.pharmacyId || pharmacyIdOf(combined[0]) }))
+      setPharmacies(localItems)
+      if (localItems.length > 0) {
+        setForm((prev) => ({ ...prev, pharmacyId: prev.pharmacyId || pharmacyIdOf(localItems[0]) }))
       }
     } catch {
       setPharmacies([])
@@ -283,13 +334,34 @@ export default function AdminBranches() {
     setLoading(true)
     setError('')
     try {
+      const storedPharmacyId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || ''
+      const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+      const user = readStoredValue('pharmacyAdminUser') || {}
+      const effectivePharmacyId = storedPharmacyId || assignment.pharmacyId || assignment.PharmacyId || user.pharmacyId || user.PharmacyId || ''
+      if (!effectivePharmacyId) {
+        setBranches([])
+        setLoading(false)
+        return
+      }
       const response = await listPharmacyBranches()
       const isDeletedRecord = (b) => Boolean(b?.isDeleted || b?.IsDeleted || b?.deletedAt || b?.DeletedAt || b?.deletedOn || b?.DeletedOn)
-      setBranches(listFrom(response).filter((b) => !isDeletedRecord(b)))
+      const remoteList = listFrom(response).filter((b) => !isDeletedRecord(b))
+      const localList = (typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []).filter((b) => !isDeletedRecord(b))
+      const map = new Map()
+      remoteList.forEach((b) => {
+        const id = String(idOf(b) || '')
+        if (id) map.set(id, b)
+      })
+      localList.forEach((b) => {
+        const id = String(idOf(b) || '')
+        if (id && !map.has(id)) map.set(id, b)
+      })
+      setBranches(Array.from(map.values()))
     } catch (requestError) {
-      setBranches([])
+      const localList = (typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : [])
+      setBranches(localList)
       console.log('Branch list API failed:', requestError.message)
-      if (!mainBranch) setError(requestError.message || 'Unable to load sub branches.')
+      if (!mainBranch && !localList.length) setError(requestError.message || 'Unable to load sub branches.')
     } finally {
       setLoading(false)
     }
@@ -299,11 +371,23 @@ export default function AdminBranches() {
     loadMainBranchDetails()
     loadBranches()
     loadPharmaciesList()
+
+    const onTenantUpdated = () => {
+      loadMainBranchDetails()
+      loadPharmaciesList()
+      loadBranches()
+    }
+    window.addEventListener('pms:tenant-updated', onTenantUpdated)
+    return () => window.removeEventListener('pms:tenant-updated', onTenantUpdated)
   }, [])
 
   function openCreate() {
+    if (!mainBranch && !pharmacies.length) {
+      showToast('Please create a pharmacy first before adding sub branches.', 'error')
+      return
+    }
     setCurrentBranch(null)
-    const defaultPid = pharmacies.length ? pharmacyIdOf(pharmacies[0]) : ''
+    const defaultPid = pharmacies.length ? pharmacyIdOf(pharmacies[0]) : (mainBranch?.id || '')
     setForm({ ...emptyForm, pharmacyId: defaultPid })
     setError('')
     setModal('form')
@@ -390,8 +474,17 @@ export default function AdminBranches() {
     try {
       const isEditing = Boolean(currentBranch)
       const selectedPharmacy = pharmacies.find((p) => String(pharmacyIdOf(p)) === String(form.pharmacyId))
+      const ctx = typeof pharmacyTenantContext === 'function' ? pharmacyTenantContext() : {}
+      const activePharmacyId = form.pharmacyId || (selectedPharmacy ? pharmacyIdOf(selectedPharmacy) : '') || ctx.pharmacyId
+      if (activePharmacyId) {
+        try {
+          sessionStorage.setItem('workingPharmacyId', String(activePharmacyId))
+          localStorage.setItem('workingPharmacyId', String(activePharmacyId))
+        } catch {}
+      }
       const pName = selectedPharmacy ? pharmacyNameOf(selectedPharmacy) : ''
       const payload = {
+        ...(activePharmacyId ? { pharmacyId: Number(activePharmacyId) || activePharmacyId, PharmacyId: Number(activePharmacyId) || activePharmacyId } : {}),
         name: form.name.trim(),
         phone: form.phone ? form.phone.trim() : '',
         email: form.email ? form.email.trim() : '',
@@ -438,7 +531,27 @@ export default function AdminBranches() {
         setBranches((items) => items.map(patch))
         if (isMain) setMainBranch((m) => (m ? { ...m, ...payload } : m))
       }
-      else await createPharmacyBranch(payload)
+      else {
+        const res = await createPharmacyBranch(payload)
+        const createdObj = res?.branch || res?.data?.branch || res?.data || res || {}
+        const createdId = createdObj?.branchId || createdObj?.BranchId || createdObj?.id || createdObj?._id || res?.branchId || res?.id || `sub_${Date.now()}`
+        const newBranch = {
+          ...payload,
+          ...(typeof createdObj === 'object' ? createdObj : {}),
+          id: String(createdId),
+          branchId: String(createdId),
+          BranchId: Number(createdId) || createdId,
+          isMainBranch: false,
+          isSubBranch: true,
+          status: payload.status || 'Active',
+          isActive: true,
+        }
+        const currentSub = (typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []).filter((b) => String(idOf(b)) !== String(createdId))
+        if (typeof writeLocalSubBranches === 'function') {
+          writeLocalSubBranches([...currentSub, newBranch])
+        }
+        setBranches((items) => [...items.filter((b) => String(idOf(b)) !== String(createdId)), newBranch])
+      }
       setModal(null)
       setCurrentBranch(null)
       setForm(emptyForm)

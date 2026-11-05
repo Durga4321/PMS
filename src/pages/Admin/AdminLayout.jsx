@@ -27,12 +27,47 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [showResults, setShowResults] = useState(false)
+  const [permissions, setPermissions] = useState(readAdminPermissions)
   const user = readStoredValue('pharmacyAdminUser') || {}
   const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+  const savedSettings = readStoredValue('pharmacySettings') || {}
   const adminName = user?.name || user?.fullName || user?.email || 'Admin'
-  const hospitalName = assignment?.hospitalName || assignment?.hospital?.name || assignment?.clinicName || assignment?.clinic?.name || 'PMS'
-  const branchName = assignment?.branchName || assignment?.branch?.name || assignment?.pharmacyName || assignment?.pharmacy?.name || 'Admin Console'
-  const permissions = readAdminPermissions()
+  const [hospitalName, setHospitalName] = useState(() => assignment?.hospitalName || assignment?.hospital?.name || assignment?.clinicName || assignment?.clinic?.name || 'PMS')
+  const [branchName, setBranchName] = useState(() => {
+    const assignedName = assignment?.pharmacyName || assignment?.pharmacy?.name || user?.pharmacyName || assignment?.branchName || assignment?.branch?.name
+    if (assignedName && String(assignedName).trim().toLowerCase() !== 'goutham pharmacy') return assignedName
+    const scope = user?.adminId || user?.id || user?.email || 'default'
+    const scopedSettingsKey = `pharmacySettings_admin_${String(scope).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+    const scopedSettings = readStoredValue(scopedSettingsKey) || {}
+    if (scopedSettings?.pharmacyName && String(scopedSettings.pharmacyName).trim().toLowerCase() !== 'goutham pharmacy') return scopedSettings.pharmacyName
+    return 'Admin Console'
+  })
+
+  useEffect(() => {
+    function handlePermissionsUpdate() {
+      setPermissions(readAdminPermissions())
+    }
+    function handleSettingsLive(e) {
+      const detail = e.detail || readStoredValue('pharmacySettings') || {}
+      if (detail.pharmacyName) {
+        setBranchName(detail.pharmacyName)
+      }
+      if (detail.hospitalName) {
+        setHospitalName(detail.hospitalName)
+      }
+    }
+    window.addEventListener('pms:permissions-updated', handlePermissionsUpdate)
+    window.addEventListener('pms:pharmacy-settings-updated', handleSettingsLive)
+    window.addEventListener('pms:settings-updated', handleSettingsLive)
+    window.addEventListener('storage', handleSettingsLive)
+    return () => {
+      window.removeEventListener('pms:permissions-updated', handlePermissionsUpdate)
+      window.removeEventListener('pms:pharmacy-settings-updated', handleSettingsLive)
+      window.removeEventListener('pms:settings-updated', handleSettingsLive)
+      window.removeEventListener('storage', handleSettingsLive)
+    }
+  }, [])
+
   const visibleNavigation = useMemo(() => adminNavigation.filter((item) => item.label === 'Dashboard' || hasPermission(permissions, item.label, 'view')), [permissions])
 
   // Re-fetch and persist assignment on every page load so tenant headers (X-Pharmacy-Id) are always populated
@@ -40,22 +75,26 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
     getPharmacyAdminAssignmentStatus()
       .then((res) => {
         const data = res?.data || res || {}
-        const pharmacyId = data?.pharmacyId || data?.PharmacyId || data?.pharmacy?.id || data?.pharmacy?.pharmacyId || ''
-        const branchId = data?.branchId || data?.BranchId || data?.mainBranchId || data?.branch?.id || ''
         const existing = readStoredValue('pharmacyAdminAssignment') || {}
-        const merged = { ...existing, ...data, pharmacyId: pharmacyId || existing.pharmacyId || '', branchId: branchId || existing.branchId || '' }
+        const pharmacyId = data?.pharmacyId || data?.PharmacyId || data?.pharmacy?.id || data?.pharmacy?.pharmacyId || existing.pharmacyId || ''
+        const branchId = data?.branchId || data?.BranchId || data?.mainBranchId || data?.branch?.id || existing.branchId || ''
+        const merged = { ...existing, ...data, pharmacyId: String(pharmacyId), branchId: String(branchId) }
         sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(merged))
         localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(merged))
-        if (pharmacyId) {
-          sessionStorage.setItem('workingPharmacyId', String(pharmacyId))
-          localStorage.setItem('workingPharmacyId', String(pharmacyId))
-        }
-        if (branchId) {
-          sessionStorage.setItem('workingBranchId', String(branchId))
-          localStorage.setItem('workingBranchId', String(branchId))
-        }
+        sessionStorage.setItem('workingPharmacyId', String(pharmacyId))
+        localStorage.setItem('workingPharmacyId', String(pharmacyId))
+        sessionStorage.setItem('workingBranchId', String(branchId))
+        localStorage.setItem('workingBranchId', String(branchId))
       })
-      .catch(() => {})
+      .catch(() => {
+        const existing = readStoredValue('pharmacyAdminAssignment') || {}
+        const pharmacyId = existing.pharmacyId || ''
+        const branchId = existing.branchId || ''
+        sessionStorage.setItem('workingPharmacyId', String(pharmacyId))
+        localStorage.setItem('workingPharmacyId', String(pharmacyId))
+        sessionStorage.setItem('workingBranchId', String(branchId))
+        localStorage.setItem('workingBranchId', String(branchId))
+      })
   }, [])
   
   const results = useMemo(() => {
@@ -149,4 +188,3 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
 }
 
 export default AdminLayout
-
