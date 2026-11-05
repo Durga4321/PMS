@@ -44,55 +44,6 @@ function rowStatus(item) {
   return typeof current === 'boolean' ? current ? 'Active' : 'Inactive' : String(current)
 }
 
-function stockStatus(item) {
-  const status = String(pick(item, ['stockStatus', 'inventoryStatus', 'status'], '')).toLowerCase()
-  if (status.includes('critical')) return 'Critical'
-  if (status.includes('low')) return 'Low'
-  const current = numeric(pick(item, ['stock', 'currentStock', 'quantity', 'qty'], 0))
-  const minimum = numeric(pick(item, ['minStock', 'minimumStock', 'reorderLevel', 'minimumLevel'], 0))
-  return current <= minimum ? 'Critical' : current <= minimum * 1.5 ? 'Low' : 'Normal'
-}
-
-function expiryStatus(item) {
-  const days = numeric(pick(item, ['daysRemaining', 'daysToExpiry', 'remainingDays'], 0))
-  return { days, label: days < 0 ? 'Expired' : `In ${days} days` }
-}
-
-function SmallTable({ type, rows }) {
-  const isPharmacies = type === 'Pharmacies'
-  const columns = isPharmacies ? ['Pharmacy Name', 'Contact', 'Address', 'Email', 'Status'] : ['Medicine Name', 'Category', 'Manufacturer', 'Stock', 'Min. Stock', 'Status']
-
-  return (
-    <div className="reference-table-wrap">
-      <table className="reference-table">
-        <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
-        <tbody>
-          {rows.length ? rows.slice(0, 4).map((row, index) => (
-            <tr key={pick(row, ['_id', 'id', 'branchId', 'medicineId', 'sku'], index)}>
-              {isPharmacies ? (
-                <>
-                  <td>{pick(row, ['pharmacyName', 'PharmacyName', 'name'], '-')}</td>
-                  <td>{pick(row, ['pharmacyContactNumber', 'mobileNumber', 'phone'], '-')}</td>
-                  <td>{[pick(row, ['pharmacyAddress', 'address'], ''), [pick(row, ['city'], ''), pick(row, ['state'], ''), pick(row, ['country'], ''), pick(row, ['postalCode'], '')].filter(Boolean).join(', ')].filter(Boolean).join(', ') || '-'}</td>
-                  <td>{pick(row, ['pharmacyEmail', 'email'], '-')}</td>
-                </>
-              ) : (
-                <>
-                  <td>{pick(row, ['medicineName', 'name', 'medicine'])}</td>
-                  <td>{pick(row, ['category', 'categoryName'])}</td>
-                  <td>{pick(row, ['manufacturer', 'brand', 'company'])}</td>
-                  <td>{pick(row, ['stock', 'currentStock', 'quantity', 'qty'], 0)}</td>
-                  <td>{pick(row, ['minStock', 'minimumStock', 'reorderLevel', 'minimumLevel'], 0)}</td>
-                </>
-              )}
-              <td><span className={`reference-status ${(isPharmacies ? rowStatus(row) : stockStatus(row)).toLowerCase()}`}>{isPharmacies ? rowStatus(row) : stockStatus(row)}</span></td>
-            </tr>
-          )) : <tr><td colSpan={columns.length}>No {type.toLowerCase()} available.</td></tr>}
-        </tbody>
-      </table>
-    </div>
-  )
-}
 
 function SuperAdminDashboard() {
   const navigate = useNavigate()
@@ -417,52 +368,6 @@ function SuperAdminDashboard() {
                   ))}
                 </div>
               </article>
-            </section>
-
-            <section className="reference-directory">
-              <article className="reference-card">
-                <header>
-                  <div className="card-header-left">
-                    <div className="card-header-icon blue">
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 21h18" />
-                        <path d="M5 21V7l8-4 6 3v15" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h2>Pharmacies</h2>
-                    </div>
-                  </div>
-                </header>
-                <SmallTable type="Pharmacies" rows={view.pharmacyRows} />
-              </article>
-
-              <article className="reference-card">
-                <header>
-                  <div className="card-header-left">
-                    <div className="card-header-icon purple">
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" />
-                        <path d="m8.5 8.5 7 7" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h2>Medicines</h2>
-                    </div>
-                  </div>
-                  <button onClick={() => navigate('/super-admin/medicines')} type="button" className="reference-card-btn">
-                    View All &gt;
-                  </button>
-                </header>
-                <SmallTable type="Medicines" rows={view.medicineRows} />
-              </article>
-            </section>
-            <section className="reference-card expiry-card"><header><div><h2>Expiry Alerts</h2><p>Medicines nearing expiry.</p></div><button onClick={() => navigate('/super-admin/reports')} type="button">View All</button></header><div className="reference-table-wrap"><table className="reference-table"><thead><tr>{['Medicine Name', 'Batch No.', 'Expiry Date', 'Status'].map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{view.expiry.length ? view.expiry.slice(0, 5).map((row, index) => { const status = expiryStatus(row); return <tr key={pick(row, ['_id', 'id', 'batchNo'], index)}><td>{pick(row, ['medicineName', 'name', 'medicine'])}</td><td>{pick(row, ['batchNo', 'batchNumber', 'batch'])}</td><td>{pick(row, ['expiryDate', 'expiresAt', 'expiry'])}</td><td><span className={`reference-status ${status.days <= 7 ? 'critical' : 'low'}`}>{status.label}</span></td></tr> }) : <tr><td colSpan="4">No expiry alerts available.</td></tr>}</tbody></table></div></section>
-            <section className="reference-stats reference-bottom-stats">
-              <article><i>Rs</i><div><strong>{view.purchases}</strong><span>Total Purchases (This Month)</span></div></article>
-              <article><i>+</i><div><strong>{view.medicineCount}</strong><span>Total Medicines (Active)</span></div></article>
-              <article><i>#</i><div><strong>{view.prescriptions}</strong><span>Total Prescriptions (This Month)</span></div></article>
-              <article><i>!</i><div><strong>{view.nearExpiry}</strong><span>Near Expiry Medicines (Within 30 Days)</span></div></article>
             </section>
           </>
         )}

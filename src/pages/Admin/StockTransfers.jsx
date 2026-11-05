@@ -9,7 +9,8 @@ import {
   getStockTransfer, 
   listStockTransfers, 
   receiveStockTransfer,
-  getPharmacyAdminDashboard
+  readLocalStockTransfers,
+  writeLocalStockTransfers
 } from '../../config/api'
 import './StockTransfers.css'
 
@@ -28,8 +29,16 @@ function getId(item, index) {
 
 export default function StockTransfers() {
   const { showToast } = useToast()
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState(() => {
+    try {
+      const local = readLocalStockTransfers()
+      return Array.isArray(local) ? local : []
+    } catch {
+      return []
+    }
+  })
   const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
   
   // Modal states
@@ -37,14 +46,16 @@ export default function StockTransfers() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
   
-  // Dashboard summaries
-  const [summary, setSummary] = useState({
-    total: 0,
-    pending: 0,
-    dispatched: 0,
-    received: 0,
-    cancelled: 0
-  })
+  // Dashboard summaries - strictly derived from items, completely stable
+  const summary = useMemo(() => {
+    return {
+      total: items.length,
+      pending: items.filter(t => String(t?.status || 'pending').toLowerCase() === 'pending').length,
+      dispatched: items.filter(t => ['dispatched', 'in transit'].includes(String(t?.status || '').toLowerCase())).length,
+      received: items.filter(t => ['received', 'completed'].includes(String(t?.status || '').toLowerCase())).length,
+      cancelled: items.filter(t => String(t?.status || '').toLowerCase() === 'cancelled').length
+    }
+  }, [items])
 
   // Create Form State
   const [createForm, setCreateForm] = useState({
@@ -195,38 +206,19 @@ export default function StockTransfers() {
     return Object.keys(errs).length === 0
   }
 
-  async function loadSummaryMetrics() {
-    try {
-      const response = await getPharmacyAdminDashboard()
-      const data = response?.data || response || {}
-      setSummary({
-        total: Number(data?.totalTransfers || data?.transfersCount || 0),
-        pending: Number(data?.pendingTransfers || data?.pendingTransfersCount || 0),
-        dispatched: Number(data?.dispatchedTransfers || data?.dispatchedCount || 0),
-        received: Number(data?.receivedTransfers || data?.receivedCount || 0),
-        cancelled: Number(data?.cancelledTransfers || data?.cancelledCount || 0)
-      })
-    } catch (e) {
-      console.log('Unable to load transfer metrics:', e.message)
-    }
-  }
-
   async function refresh() {
     setLoading(true)
     try {
       const response = await listStockTransfers()
       const list = normalizeList(response)
-      setItems(list)
-      // Recalculate summary totals locally if dashboard is offline
-      if (list.length > 0) {
-        setSummary(prev => ({
-          ...prev,
-          total: list.length,
-          pending: list.filter(t => String(t.status || 'pending').toLowerCase() === 'pending').length,
-          dispatched: list.filter(t => String(t.status).toLowerCase() === 'dispatched' || String(t.status).toLowerCase() === 'in transit').length,
-          received: list.filter(t => String(t.status).toLowerCase() === 'received' || String(t.status).toLowerCase() === 'completed').length,
-          cancelled: list.filter(t => String(t.status).toLowerCase() === 'cancelled').length
-        }))
+      if (Array.isArray(list) && list.length > 0) {
+        setItems(list)
+        writeLocalStockTransfers(list)
+      } else {
+        const local = readLocalStockTransfers()
+        if (Array.isArray(local) && local.length > 0) {
+          setItems(local)
+        }
       }
     } catch (error) {
       showToast(error.message, 'error')
@@ -236,20 +228,20 @@ export default function StockTransfers() {
   }
 
   useEffect(() => {
-    loadSummaryMetrics()
     refresh()
   }, [])
 
   // Filtered Stock Transfers list
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const medicine = (item?.medicineName || item?.medicine?.name || item?.name || '').toLowerCase()
-      const transId = (item?.transferId || item?._id || '').toLowerCase()
-      const batch = (item?.batchNo || item?.batchNumber || '').toLowerCase()
-      const fromLoc = (item?.fromLocation || item?.source || '').toLowerCase()
-      const toLoc = (item?.toLocation || item?.destination || '').toLowerCase()
-      const query = search.toLowerCase()
+      const medicine = String(item?.medicineName || item?.medicine?.name || item?.name || '').toLowerCase()
+      const transId = String(item?.transferId || item?._id || item?.id || '').toLowerCase()
+      const batch = String(item?.batchNo || item?.batchNumber || '').toLowerCase()
+      const fromLoc = String(item?.fromLocation || item?.source?.name || (typeof item?.source === 'string' ? item.source : '') || '').toLowerCase()
+      const toLoc = String(item?.toLocation || item?.destination?.name || (typeof item?.destination === 'string' ? item.destination : '') || '').toLowerCase()
+      const query = search.toLowerCase().trim()
       
+      if (!query) return true
       return medicine.includes(query) || transId.includes(query) || batch.includes(query) || fromLoc.includes(query) || toLoc.includes(query)
     })
   }, [items, search])
@@ -258,18 +250,26 @@ export default function StockTransfers() {
   async function handleCreateSubmit(e) {
     e.preventDefault()
     if (!validateCreateForm()) return
-    setLoading(true)
+    setSubmitting(true)
     try {
       const body = {
-        fromLocation: createForm.fromLocation,
-        toLocation: createForm.toLocation,
-        medicineName: createForm.medicineName,
-        batchNo: createForm.batchNo,
+        fromLocation: createForm.fromLocation.trim(),
+        toLocation: createForm.toLocation.trim(),
+        medicineName: createForm.medicineName.trim(),
+        batchNo: createForm.batchNo.trim(),
         quantity: Number(createForm.quantity || 1),
-        requestedBy: createForm.requestedBy,
-        approvedBy: createForm.approvedBy
+        requestedBy: createForm.requestedBy.trim(),
+        approvedBy: (createForm.approvedBy || '').trim()
       }
-      await createStockTransfer(body)
+      const res = await createStockTransfer(body)
+      const createdItem = res?.data || body
+
+      setItems(prev => {
+        const next = [createdItem, ...prev.filter(x => getId(x) !== getId(createdItem))]
+        writeLocalStockTransfers(next)
+        return next
+      })
+
       showToast('Stock transfer created successfully!')
       setCreateOpen(false)
       setCreateForm({
@@ -282,12 +282,11 @@ export default function StockTransfers() {
         approvedBy: ''
       })
       setCreateErrors({})
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (err) {
-      showToast(err.message, 'error')
+      showToast(err.message || 'Failed to create stock transfer request.', 'error')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -295,28 +294,32 @@ export default function StockTransfers() {
   async function handleUpdateSubmit(e) {
     e.preventDefault()
     if (!validateEditForm()) return
-    setLoading(true)
+    setSubmitting(true)
     try {
       const body = {
-        fromLocation: editForm.fromLocation,
-        toLocation: editForm.toLocation,
-        medicineName: editForm.medicineName,
-        batchNo: editForm.batchNo,
+        fromLocation: editForm.fromLocation.trim(),
+        toLocation: editForm.toLocation.trim(),
+        medicineName: editForm.medicineName.trim(),
+        batchNo: editForm.batchNo.trim(),
         quantity: Number(editForm.quantity || 1),
-        requestedBy: editForm.requestedBy,
-        approvedBy: editForm.approvedBy,
+        requestedBy: editForm.requestedBy.trim(),
+        approvedBy: (editForm.approvedBy || '').trim(),
         status: editForm.status
       }
       await changeStockTransferStatus(editForm.id, body)
+      setItems(prev => {
+        const next = prev.map(x => getId(x) === editForm.id ? { ...x, ...body } : x)
+        writeLocalStockTransfers(next)
+        return next
+      })
       showToast('Stock transfer updated successfully!')
       setEditItem(null)
       setEditErrors({})
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (err) {
-      showToast(err.message, 'error')
+      showToast(err.message || 'Failed to update stock transfer.', 'error')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -325,9 +328,13 @@ export default function StockTransfers() {
     setLoading(true)
     try {
       await dispatchStockTransfer(id, {})
+      setItems(prev => {
+        const next = prev.map(x => getId(x) === id ? { ...x, status: 'Dispatched' } : x)
+        writeLocalStockTransfers(next)
+        return next
+      })
       showToast('Stock transfer dispatched!')
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
@@ -339,9 +346,13 @@ export default function StockTransfers() {
     setLoading(true)
     try {
       await receiveStockTransfer(id, {})
+      setItems(prev => {
+        const next = prev.map(x => getId(x) === id ? { ...x, status: 'Received' } : x)
+        writeLocalStockTransfers(next)
+        return next
+      })
       showToast('Stock transfer received and finalized!')
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
@@ -353,9 +364,13 @@ export default function StockTransfers() {
     setLoading(true)
     try {
       await changeStockTransferStatus(id, { status: 'Cancelled' })
+      setItems(prev => {
+        const next = prev.map(x => getId(x) === id ? { ...x, status: 'Cancelled' } : x)
+        writeLocalStockTransfers(next)
+        return next
+      })
       showToast('Stock transfer cancelled.')
-      await refresh()
-      loadSummaryMetrics()
+      refresh()
     } catch (error) {
       showToast(error.message, 'error')
     } finally {
@@ -388,17 +403,46 @@ export default function StockTransfers() {
     }
   }
 
-  // Dynamic getters for columns
-  const getFromLoc = (item) => item?.fromLocation || item?.source || '-'
-  const getToLoc = (item) => item?.toLocation || item?.destination || '-'
-  const getMedicineName = (item) => item?.medicineName || item?.medicine?.name || item?.name || '-'
-  const getBatchNo = (item) => item?.batchNo || item?.batchNumber || '-'
-  const getQty = (item) => item?.quantity || item?.qty || 0
+  // Dynamic getters for columns - 100% object-safe to prevent React crashes
+  const getFromLoc = (item) => {
+    const val = item?.fromLocation || item?.source || '-'
+    if (val && typeof val === 'object') return val.name || val.location || '-'
+    return val || '-'
+  }
+  const getToLoc = (item) => {
+    const val = item?.toLocation || item?.destination || '-'
+    if (val && typeof val === 'object') return val.name || val.location || '-'
+    return val || '-'
+  }
+  const getMedicineName = (item) => {
+    const val = item?.medicineName || item?.medicine?.name || item?.name || '-'
+    if (val && typeof val === 'object') return val.name || val.medicineName || '-'
+    return val || '-'
+  }
+  const getBatchNo = (item) => {
+    const val = item?.batchNo || item?.batchNumber || '-'
+    if (val && typeof val === 'object') return val.number || val.batchNo || '-'
+    return val || '-'
+  }
+  const getQty = (item) => {
+    const val = item?.quantity || item?.qty || 0
+    if (val && typeof val === 'object') return val.amount || val.qty || 0
+    return val
+  }
   const getDate = (item) => {
     const d = item?.createdAt || item?.date || '-'
-    return d.includes('T') ? d.split('T')[0] : d
+    if (typeof d === 'string' && d.includes('T')) return d.split('T')[0]
+    if (d && typeof d === 'object') {
+      if (d instanceof Date) return d.toISOString().split('T')[0]
+      return d.date || d.formatted || '-'
+    }
+    return String(d || '-')
   }
-  const getTransferId = (item) => item?.transferId || item?._id || '-'
+  const getTransferId = (item) => {
+    const val = item?.transferId || item?._id || '-'
+    if (val && typeof val === 'object') return val.number || val.id || '-'
+    return String(val || '-')
+  }
 
   // Badge Status Class
   const getStatusBadge = (item) => {
@@ -701,9 +745,9 @@ export default function StockTransfers() {
                   </div>
                 </div>
                 <div className="transfer-modal-footer">
-                  <button type="button" className="transfer-btn transfer-btn-secondary" onClick={() => setCreateOpen(false)} disabled={loading}>Cancel</button>
-                  <button type="submit" className="transfer-btn transfer-btn-primary" disabled={loading}>
-                    {loading ? 'Requesting...' : 'Request Transfer'}
+                  <button type="button" className="transfer-btn transfer-btn-secondary" onClick={() => setCreateOpen(false)} disabled={submitting}>Cancel</button>
+                  <button type="submit" className="transfer-btn transfer-btn-primary" disabled={submitting}>
+                    {submitting ? 'Requesting...' : 'Request Transfer'}
                   </button>
                 </div>
               </form>
@@ -855,9 +899,9 @@ export default function StockTransfers() {
                   </div>
                 </div>
                 <div className="transfer-modal-footer">
-                  <button type="button" className="transfer-btn transfer-btn-secondary" onClick={() => setEditItem(null)} disabled={loading}>Cancel</button>
-                  <button type="submit" className="transfer-btn transfer-btn-primary" disabled={loading}>
-                    {loading ? 'Updating...' : 'Update Transfer'}
+                  <button type="button" className="transfer-btn transfer-btn-secondary" onClick={() => setEditItem(null)} disabled={submitting}>Cancel</button>
+                  <button type="submit" className="transfer-btn transfer-btn-primary" disabled={submitting}>
+                    {submitting ? 'Updating...' : 'Update Transfer'}
                   </button>
                 </div>
               </form>

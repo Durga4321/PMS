@@ -528,14 +528,14 @@ export default function Medicines() {
   // Filtered local medicines list matching query across relevant Excel fields
   const filteredMedicines = useMemo(() => {
     return medicines.filter((medicine) => {
-      const nameVal = getName(medicine).toLowerCase()
-      const genVal = (medicine?.genericName || medicine?.GenericName || '').toLowerCase()
-      const brandVal = (medicine?.brandName || medicine?.BrandName || '').toLowerCase()
-      const codeVal = (medicine?.medicineCode || medicine?.MedicineCode || medicine?.code || '').toLowerCase()
-      const batchVal = (medicine?.batchNumber || medicine?.BatchNumber || '').toLowerCase()
-      const mfgVal = (medicine?.manufacturer || medicine?.Manufacturer || '').toLowerCase()
-      const supVal = (medicine?.supplierName || medicine?.SupplierName || '').toLowerCase()
-      const searchVal = query.toLowerCase()
+      const nameVal = String(getName(medicine) || '').toLowerCase()
+      const genVal = String(medicine?.genericName || medicine?.GenericName || '').toLowerCase()
+      const brandVal = String(medicine?.brandName || medicine?.BrandName || '').toLowerCase()
+      const codeVal = String(medicine?.medicineCode || medicine?.MedicineCode || medicine?.code || '').toLowerCase()
+      const batchVal = String(medicine?.batchNumber || medicine?.BatchNumber || '').toLowerCase()
+      const mfgVal = String(medicine?.manufacturer || medicine?.Manufacturer || '').toLowerCase()
+      const supVal = String(medicine?.supplierName || medicine?.SupplierName || '').toLowerCase()
+      const searchVal = String(query || '').toLowerCase()
       
       const matchesSearch = !searchVal || 
         nameVal.includes(searchVal) || 
@@ -549,10 +549,10 @@ export default function Medicines() {
       const matchesCategory = !category || getCategory(medicine) === category
       const matchesDosage = !dosageForm || getDosageForm(medicine) === dosageForm
       
-      const itemStatus = getStatus(medicine).toLowerCase()
+      const itemStatus = String(getStatus(medicine) || '').toLowerCase()
       const qty = getStock(medicine)
       const reorder = getReorderLevel(medicine)
-      const filterVal = statusFilter.toLowerCase()
+      const filterVal = String(statusFilter || 'all').toLowerCase()
       let matchesStatus = statusFilter === 'all'
       if (!matchesStatus) {
         if (filterVal === 'out of stock') matchesStatus = qty <= 0

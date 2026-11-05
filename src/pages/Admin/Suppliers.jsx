@@ -322,9 +322,9 @@ export default function Suppliers() {
   // Filtered Suppliers list
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const sName = (item?.name || item?.supplierName || '').toLowerCase()
-      const sPhone = (item?.phone || '').toLowerCase()
-      const sEmail = (item?.email || '').toLowerCase()
+      const sName = String(item?.name || item?.supplierName || '').toLowerCase()
+      const sPhone = String(item?.phone || '').toLowerCase()
+      const sEmail = String(item?.email || '').toLowerCase()
       const query = search.toLowerCase()
       
       const matchesSearch = sName.includes(query) || sPhone.includes(query) || sEmail.includes(query)

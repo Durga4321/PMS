@@ -36,6 +36,7 @@ import PharmacistReturns from './pages/Pharmacist/Returns'
 import PharmacistReports from './pages/Pharmacist/Reports'
 import ToastProvider from './components/ToastProvider'
 import FormValidationGuard from './components/FormValidationGuard'
+import ErrorBoundary from './components/ErrorBoundary'
 import { hasPermission, readAdminPermissions } from './config/permissions'
 import './App.css'
 
@@ -43,82 +44,81 @@ function AdminPermissionRoute({ module, children }) {
   const permissions = readAdminPermissions()
   return hasPermission(permissions, module, 'view') ? children : <Navigate to="/admin/dashboard" replace />
 }
+
 function App() {
   return (
-    <ToastProvider>
-      <FormValidationGuard />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<PmsLanding />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
-          <Route path="/superadmin" element={<Navigate to="/super-admin/dashboard" replace />} />
-          <Route path="/superadmin/dashboard" element={<SuperAdminDashboard />} />
-          <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
-          <Route path="/super-admin/admins" element={<Admins />} />
-          <Route path="/super-admin/clinics/add" element={<Navigate to="/super-admin/dashboard" replace />} />
-          <Route path="/super-admin/clinics" element={<Navigate to="/super-admin/dashboard" replace />} />
-          <Route path="/super-admin/branches" element={<Navigate to="/super-admin/dashboard" replace />} />
-          <Route path="/super-admin/users-permissions" element={<UsersPermissions />} />
-          <Route path="/super-admin/roles" element={<UsersPermissions />} />
-          <Route path="/superadmin/roles" element={<UsersPermissions />} />
-          <Route path="/super-admin/medicines" element={<Medicines />} />
-          <Route path="/super-admin/system-settings" element={<SystemSettings />} />
-          <Route path="/superadmin/settings" element={<SystemSettings />} />
-          <Route path="/super-admin/reports" element={<Reports />} />
-          <Route path="/super-admin/audit-logs" element={<ActivityLogs />} />
-          <Route path="/super-admin/activity-logs" element={<Navigate to="/super-admin/audit-logs" replace />} />
-          <Route path="/super-admin/notifications" element={<Notifications />} />
-          <Route path="/profile" element={<SuperAdminProfile initialTab="profile" />} />
-          <Route path="/change-password" element={<SuperAdminProfile initialTab="password" />} />
-          <Route path="/super-admin/profile" element={<SuperAdminProfile initialTab="profile" />} />
-          <Route path="/super-admin/change-password" element={<SuperAdminProfile initialTab="password" />} />
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/users" element={<AdminPermissionRoute module="Users"><AdminUsers /></AdminPermissionRoute>} />
-          <Route path="/admin/users/add" element={<AdminPermissionRoute module="Users"><AdminUsers initialAdd={true} /></AdminPermissionRoute>} />
-          <Route path="/admin/medicines" element={<AdminPermissionRoute module="Medicines"><AdminMedicines /></AdminPermissionRoute>} />
-          <Route path="/admin/pharmacies" element={<AdminPermissionRoute module="Pharmacies"><AdminPharmacies /></AdminPermissionRoute>} />
-          <Route path="/admin/branches" element={<AdminPermissionRoute module="Branches"><AdminBranches /></AdminPermissionRoute>} />
-          <Route path="/admin/stock" element={<AdminPermissionRoute module="Stock"><AdminStock /></AdminPermissionRoute>} />
-          <Route path="/inventory" element={<AdminStock initialView="inventory" />} />
-          <Route path="/low-stock" element={<AdminStock initialView="low" />} />
-          <Route path="/near-expiry" element={<AdminStock initialView="near" />} />
-          <Route path="/out-of-stock" element={<AdminStock initialView="out" />} />
-          <Route path="/stock-summary" element={<AdminStock initialView="summary" />} />
-          <Route path="/transactions" element={<AdminStock initialView="transactions" />} />
-          <Route path="/valuation" element={<AdminStock initialView="valuation" />} />
-          <Route path="/expired" element={<AdminStock initialView="expired" />} />
-          <Route path="/admin/suppliers" element={<AdminPermissionRoute module="Suppliers"><AdminSuppliers /></AdminPermissionRoute>} />
-          <Route path="/admin/purchase-orders" element={<AdminPermissionRoute module="Purchase Orders"><AdminPurchaseOrders /></AdminPermissionRoute>} />
-          <Route path="/admin/stock-transfers" element={<AdminPermissionRoute module="Stock Transfers"><AdminStockTransfers /></AdminPermissionRoute>} />
-          <Route path="/admin/prescriptions" element={<AdminPermissionRoute module="Prescriptions"><AdminPrescriptions /></AdminPermissionRoute>} />
-          <Route path="/admin/dispensing" element={<AdminPermissionRoute module="Dispensing"><AdminDispensing /></AdminPermissionRoute>} />
-          <Route path="/admin/expiry-alerts" element={<AdminPermissionRoute module="Expiry Alerts"><AdminExpiryAlerts /></AdminPermissionRoute>} />
-          <Route path="/admin/reports" element={<AdminPermissionRoute module="Reports"><AdminReports /></AdminPermissionRoute>} />
-          <Route path="/admin/settings" element={<AdminPermissionRoute module="Settings"><AdminSettings /></AdminPermissionRoute>} />
-          <Route path="/admin/profile" element={<SuperAdminProfile initialTab="profile" roleType="pharmacy-admin" />} />
-          <Route path="/admin/change-password" element={<SuperAdminProfile initialTab="password" roleType="pharmacy-admin" />} />
-          <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
-          <Route path="/pharmacist/pending" element={<PharmacistPending />} />
-          <Route path="/pharmacist/dispensing" element={<PharmacistDispensing />} />
-          <Route path="/pharmacist/bills" element={<PharmacistBills />} />
-          <Route path="/pharmacist/returns" element={<PharmacistReturns />} />
-          <Route path="/pharmacist/reports" element={<PharmacistReports />} />
-          <Route path="/pharmacist/profile" element={<SuperAdminProfile initialTab="profile" roleType="pharmacist" />} />
-          <Route path="/pharmacist/change-password" element={<SuperAdminProfile initialTab="password" roleType="pharmacist" />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/verify-otp" element={<VerifyOTP />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <FormValidationGuard />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<PmsLanding />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="/superadmin" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="/superadmin/dashboard" element={<SuperAdminDashboard />} />
+            <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
+            <Route path="/super-admin/admins" element={<Admins />} />
+            <Route path="/super-admin/clinics/add" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="/super-admin/clinics" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="/super-admin/branches" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="/super-admin/users-permissions" element={<UsersPermissions />} />
+            <Route path="/super-admin/roles" element={<UsersPermissions />} />
+            <Route path="/superadmin/roles" element={<UsersPermissions />} />
+            <Route path="/super-admin/medicines" element={<Medicines />} />
+            <Route path="/super-admin/system-settings" element={<SystemSettings />} />
+            <Route path="/superadmin/settings" element={<SystemSettings />} />
+            <Route path="/super-admin/reports" element={<Reports />} />
+            <Route path="/super-admin/audit-logs" element={<ActivityLogs />} />
+            <Route path="/super-admin/activity-logs" element={<Navigate to="/super-admin/audit-logs" replace />} />
+            <Route path="/super-admin/notifications" element={<Notifications />} />
+            <Route path="/profile" element={<SuperAdminProfile initialTab="profile" />} />
+            <Route path="/change-password" element={<SuperAdminProfile initialTab="password" />} />
+            <Route path="/super-admin/profile" element={<SuperAdminProfile initialTab="profile" />} />
+            <Route path="/super-admin/change-password" element={<SuperAdminProfile initialTab="password" />} />
+            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/users" element={<AdminPermissionRoute module="Users"><AdminUsers /></AdminPermissionRoute>} />
+            <Route path="/admin/users/add" element={<AdminPermissionRoute module="Users"><AdminUsers initialAdd={true} /></AdminPermissionRoute>} />
+            <Route path="/admin/medicines" element={<AdminPermissionRoute module="Medicines"><AdminMedicines /></AdminPermissionRoute>} />
+            <Route path="/admin/pharmacies" element={<AdminPermissionRoute module="Pharmacies"><AdminPharmacies /></AdminPermissionRoute>} />
+            <Route path="/admin/branches" element={<AdminPermissionRoute module="Branches"><AdminBranches /></AdminPermissionRoute>} />
+            <Route path="/admin/stock" element={<AdminPermissionRoute module="Stock"><AdminStock /></AdminPermissionRoute>} />
+            <Route path="/inventory" element={<AdminStock initialView="inventory" />} />
+            <Route path="/low-stock" element={<AdminStock initialView="low" />} />
+            <Route path="/near-expiry" element={<AdminStock initialView="near" />} />
+            <Route path="/out-of-stock" element={<AdminStock initialView="out" />} />
+            <Route path="/stock-summary" element={<AdminStock initialView="summary" />} />
+            <Route path="/transactions" element={<AdminStock initialView="transactions" />} />
+            <Route path="/valuation" element={<AdminStock initialView="valuation" />} />
+            <Route path="/expired" element={<AdminStock initialView="expired" />} />
+            <Route path="/admin/suppliers" element={<AdminPermissionRoute module="Suppliers"><AdminSuppliers /></AdminPermissionRoute>} />
+            <Route path="/admin/purchase-orders" element={<AdminPermissionRoute module="Purchase Orders"><AdminPurchaseOrders /></AdminPermissionRoute>} />
+            <Route path="/admin/stock-transfers" element={<AdminPermissionRoute module="Stock Transfers"><AdminStockTransfers /></AdminPermissionRoute>} />
+            <Route path="/admin/prescriptions" element={<AdminPermissionRoute module="Prescriptions"><AdminPrescriptions /></AdminPermissionRoute>} />
+            <Route path="/admin/dispensing" element={<AdminPermissionRoute module="Dispensing"><AdminDispensing /></AdminPermissionRoute>} />
+            <Route path="/admin/expiry-alerts" element={<AdminPermissionRoute module="Expiry Alerts"><AdminExpiryAlerts /></AdminPermissionRoute>} />
+            <Route path="/admin/reports" element={<AdminPermissionRoute module="Reports"><AdminReports /></AdminPermissionRoute>} />
+            <Route path="/admin/settings" element={<AdminPermissionRoute module="Settings"><AdminSettings /></AdminPermissionRoute>} />
+            <Route path="/admin/profile" element={<SuperAdminProfile initialTab="profile" roleType="pharmacy-admin" />} />
+            <Route path="/admin/change-password" element={<SuperAdminProfile initialTab="password" roleType="pharmacy-admin" />} />
+            <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
+            <Route path="/pharmacist/pending" element={<PharmacistPending />} />
+            <Route path="/pharmacist/dispensing" element={<PharmacistDispensing />} />
+            <Route path="/pharmacist/bills" element={<PharmacistBills />} />
+            <Route path="/pharmacist/returns" element={<PharmacistReturns />} />
+            <Route path="/pharmacist/reports" element={<PharmacistReports />} />
+            <Route path="/pharmacist/profile" element={<SuperAdminProfile initialTab="profile" roleType="pharmacist" />} />
+            <Route path="/pharmacist/change-password" element={<SuperAdminProfile initialTab="password" roleType="pharmacist" />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/verify-otp" element={<VerifyOTP />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
+    </ErrorBoundary>
   )
 }
 
 export default App
-
-
-
-

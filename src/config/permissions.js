@@ -115,9 +115,9 @@ export function serializePermissions(permissions, modules = ADMIN_MODULES) {
 
 export function hasPermission(permissions, module, action = 'view') {
   if (!permissions || Object.keys(permissions).length === 0) return true
-  const normalized = normalizePermissions(permissions)
   const canonical = canonicalModule(module)
   if (!canonical) return true
+  const normalized = normalizePermissions(permissions)
   if (Boolean(normalized[canonical]?.[action])) return true
   if (canonical === 'Pharmacies' && normalized['Branches']?.[action]) return true
   if (canonical === 'Branches' && normalized['Pharmacies']?.[action]) return true

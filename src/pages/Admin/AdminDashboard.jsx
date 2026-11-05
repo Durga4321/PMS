@@ -77,11 +77,34 @@ const unwrapArray = (response) => {
     ].find(Array.isArray) || []
   )
 }
-const pick = (source, keys, fallback = 0) => keys.map((key) => source?.[key]).find((value) => value !== undefined && value !== null && value !== '') ?? fallback
-const list = (source, keys) => keys.map((key) => source?.[key]).find(Array.isArray) || []
-const text = (source, keys, fallback = '-') => pick(source, keys, fallback)
+const pick = (source, keys, fallback = 0) => {
+  if (!source || typeof source !== 'object') return fallback
+  for (const key of keys) {
+    const val = source[key]
+    if (val !== undefined && val !== null && val !== '') return val
+  }
+  return fallback
+}
+const list = (source, keys) => {
+  if (!source || typeof source !== 'object') return []
+  for (const key of keys) {
+    if (Array.isArray(source[key])) return source[key]
+  }
+  return []
+}
+const text = (source, keys, fallback = '-') => {
+  if (!source || typeof source !== 'object') return fallback
+  const val = pick(source, keys, null)
+  if (val === null || val === undefined || val === '') return fallback
+  if (typeof val === 'object') {
+    if (val instanceof Date) return val.toISOString().split('T')[0]
+    return val.name || val.categoryName || val.title || val.medicineName || val.userName || val.label || fallback
+  }
+  return String(val)
+}
 
 function getItemStock(item) {
+  if (!item || typeof item !== 'object') return 0
   const val = pick(item, ['stock', 'stockQuantity', 'initialStockCount', 'currentStock', 'totalStock', 'availableStock', 'quantity', 'qty'], null)
   if (val !== null && !isNaN(Number(val)) && Number(val) > 0) return Number(val)
   const unitMatch = String(item?.unit || '').trim().match(/^(\d+)\s*(units?|tablets?|capsules?|strips?|bottles?|vials?|packs?)?$/i)
@@ -143,28 +166,6 @@ function AdminDashboard() {
     const dashMedicines = list(dashboard, ['topMedicines', 'topSelling', 'medicines'])
     const dashStock = list(dashboard, ['stock', 'inventory', 'lowStockItems'])
 
-    // Pool all available medicines across backend and local storage
-    const localMeds = readLocalMedicines()
-    const allItemsMap = new Map()
-    medicinesList.forEach(m => {
-      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
-      if (k) allItemsMap.set(k, m)
-    })
-    localMeds.forEach(m => {
-      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
-      if (k) {
-        const existing = allItemsMap.get(k) || {}
-        allItemsMap.set(k, { ...existing, ...m })
-      }
-    })
-    inventoryList.forEach(inv => {
-      const k = String(inv?.id || inv?._id || inv?.batchNo || inv?.batchNumber || inv?.medicineName || '').trim().toLowerCase()
-      if (k && !allItemsMap.has(k)) allItemsMap.set(k, inv)
-    })
-    const pooledStock = Array.from(allItemsMap.values())
-
-    const effectiveMedicines = pooledStock.length ? pooledStock : (dashMedicines.length ? dashMedicines : medicinesList)
-    const effectiveStock = pooledStock.length ? pooledStock : (dashStock.length ? dashStock : medicinesList)
 
     const computedLowStock = effectiveMedicines.filter((m) => {
       const qty = getItemStock(m)
@@ -188,27 +189,6 @@ function AdminDashboard() {
       const daysDiff = Math.round((expDate.getTime() - today.getTime()) / 86400000)
       return daysDiff <= 90
     }).length
-
-    // Calculate total sales from pharmacist billing, dispensing, and daily reports
-    const dashSalesNum = Number(pick(source, ['todaySales', 'salesToday', 'dailySales', 'totalSales', 'totalRevenue', 'todayRevenue', 'revenue', 'sales'], 0)) || 0
-    const billsTotal = billsList.reduce((acc, b) => {
-      const amt = Number(b?.totalAmount || b?.total || b?.amount || b?.grandTotal || b?.paidAmount || 0)
-      return acc + (!isNaN(amt) && amt > 0 ? amt : 0)
-    }, 0)
-    const paymentsTotal = paymentsList.reduce((acc, p) => {
-      const amt = Number(p?.paidAmount || p?.amount || p?.total || 0)
-      return acc + (!isNaN(amt) && amt > 0 ? amt : 0)
-    }, 0)
-    const dailyTotal = Number(dailySalesData?.totalSales || dailySalesData?.totalRevenue || dailySalesData?.total || dailySalesData?.sales || 0) || 0
-    let localSales = 0
-    try {
-      const storedBills = JSON.parse(localStorage.getItem('pms_bills') || sessionStorage.getItem('pms_bills') || '[]')
-      if (Array.isArray(storedBills)) {
-        localSales = storedBills.reduce((acc, b) => acc + (Number(b?.totalAmount || b?.amount || 0) || 0), 0)
-      }
-    } catch {}
-
-    const totalSalesValue = Math.max(dashSalesNum, billsTotal, paymentsTotal, dailyTotal, localSales)
 
     const rawLowStock = Number(pick(source, ['lowStock', 'lowStockCount', 'lowStockMedicines'], 0)) || 0
     const rawExpiryAlerts = Number(pick(source, ['expiryAlerts', 'expiryAlertsCount', 'nearExpiryCount'], 0)) || 0
@@ -282,7 +262,6 @@ function AdminDashboard() {
   return (
     <AdminLayout activeLabel="Dashboard" title="Admin Dashboard" subtitle="Admin / Dashboard">
       {/* Dashboard Page Header */}
-      {/* Dashboard Page Header */}
       <section className="branch-dashboard-header-redesign reference-heading-card">
         <div className="reference-heading-accent" />
         <div className="admin-heading-text-wrap">
@@ -290,7 +269,7 @@ function AdminDashboard() {
         </div>
       </section>
 
-      {/* Top 4 Equal-Sized Statistic Cards */}
+      {/* Top 3 Equal-Sized Statistic Cards */}
       <section className="branch-summary-4grid">
         {view.stats.map((card) => (
           <div
@@ -445,7 +424,7 @@ function AdminDashboard() {
           rows={view.recentStock.map((item) => {
             const qty = getItemStock(item)
             const rawExpiry = text(item, ['expiryDate', 'expiry', 'expiresAt'], '-')
-            const expiryText = typeof rawExpiry === 'string' && rawExpiry.includes('T') ? rawExpiry.split('T')[0] : rawExpiry
+            const expiryText = typeof rawExpiry === 'string' && rawExpiry.includes('T') ? rawExpiry.split('T')[0] : String(rawExpiry || '-')
             return [
               text(item, ['medicineName', 'name', 'genericName']),
               text(item, ['batchNo', 'batchNumber', 'code', 'medicineCode'], 'BATCH-01'),
