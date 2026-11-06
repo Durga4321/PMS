@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import UserProfileMenu from '../../components/UserProfileMenu'
 import ThemeToggle from '../../components/ThemeToggle'
 import { superAdminNavigation } from '../../components/superAdminNavigation'
@@ -20,6 +20,25 @@ function listFrom(response) {
 
 function SuperAdminTopbar({ onMenu, placeholder = 'Search dashboard, pharmacies, admins, reports...' }) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const headerRef = useRef(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('pms_super_admin_sidebar_collapsed') === 'true' } catch { return false }
+  })
+
+  useEffect(() => {
+    const shell = headerRef.current?.closest('.super-admin-shell, .admins-page-shell, .profile-super-admin-shell')
+    shell?.classList.toggle('sidebar-collapsed', sidebarCollapsed)
+    try { localStorage.setItem('pms_super_admin_sidebar_collapsed', String(sidebarCollapsed)) } catch {}
+  }, [sidebarCollapsed, location.pathname])
+
+  function toggleSidebar() {
+    if (window.matchMedia('(max-width: 640px)').matches) {
+      onMenu?.()
+      return
+    }
+    setSidebarCollapsed((value) => !value)
+  }
   const [query, setQuery] = useState('')
   const [showResults, setShowResults] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -80,7 +99,10 @@ function SuperAdminTopbar({ onMenu, placeholder = 'Search dashboard, pharmacies,
   }
 
   return (
-    <header className="super-admin-topbar">
+    <header className="super-admin-topbar" ref={headerRef}>
+      <button className="super-admin-topbar-menu" type="button" onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!sidebarCollapsed}>
+        <Icon><path d="M4 6h16M4 12h16M4 18h16" /></Icon>
+      </button>
 
 
       <form

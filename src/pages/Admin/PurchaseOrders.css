@@ -18,14 +18,14 @@
 .po-summary-card {
   background: #ffffff;
   border: 1px solid var(--card-border, #e2e8f0);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 13px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  min-height: 84px;
+  min-height: 64px;
 }
 
 .po-summary-card:hover {
@@ -34,8 +34,8 @@
 }
 
 .po-summary-icon-wrap {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: var(--card-bg, #eff6ff);
   color: var(--card-accent, #2563eb);
@@ -51,8 +51,8 @@
 }
 
 .po-summary-icon-wrap svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .po-summary-info {
@@ -67,13 +67,15 @@
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
+  letter-spacing: 0.02em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 
 .po-summary-card span {
-  font-size: 22px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 700;
   color: #0f172a;
   line-height: 1.1;
   white-space: nowrap;
@@ -335,3 +337,57 @@
     max-width: 100%;
   }
 }
+
+/* Purchase actions and search share the table card, matching Medicines. */
+.po-layout-container .po-record-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.po-record-header h2 { margin: 0; }
+.po-record-actions { margin-left: auto; min-width: 0; }
+.po-record-actions .po-action-btns { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.po-layout-container .dispense-table-panel .po-record-filters {
+  padding: 0 0 12px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Purchase workflow tabs match the full-width Inventory navigation row. */
+.po-layout-container .po-workflow-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+.po-workflow-tabs .po-workflow-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--pms-border);
+  border-radius: 12px;
+  background: var(--pms-surface);
+  color: var(--pms-accent-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+.po-workflow-tabs .po-workflow-tab:hover,
+.po-workflow-tabs .po-workflow-tab:active {
+  border-color: var(--pms-accent);
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+}
+@media (max-width: 640px) {
+  .po-layout-container .po-workflow-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Match Inventory tab icon sizing and spacing. */
+.po-workflow-tabs .po-workflow-tab { height: 42px; gap: 8px; padding: 0 18px; }
+.po-workflow-tabs .po-workflow-tab svg { width: 18px; height: 18px; flex: 0 0 18px; color: inherit; stroke: currentColor; }

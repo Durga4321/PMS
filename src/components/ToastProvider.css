@@ -118,3 +118,23 @@
     font-size: 12px;
   }
 }
+
+/* Notification popups follow the selected application theme. */
+[data-pms-theme] .toast {
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  color: var(--pms-text);
+}
+[data-pms-theme] .toast-success { border-left-color: var(--pms-accent); }
+[data-pms-theme] .toast-success .toast-icon { background: var(--pms-gradient); }
+[data-pms-theme] .toast-copy span { color: var(--pms-text); }
+[data-pms-theme] .toast p { color: var(--pms-muted); }
+[data-pms-theme] .toast button { color: var(--pms-accent-strong); }
+[data-pms-theme] .toast button:hover {
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+}
+[data-pms-theme] .toast button:focus-visible {
+  outline: 2px solid var(--pms-accent);
+  outline-offset: 2px;
+}
+[data-pms-theme] .toast-error { border-left-color: #ef4444; }

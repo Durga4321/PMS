@@ -174,6 +174,7 @@ function Login() {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (isSubmitting) return
     setError('')
     setIsSubmitting(true)
 
@@ -194,6 +195,10 @@ function Login() {
         sessionStorage.setItem('__pms_admin_pending_auth', JSON.stringify({ email, password }))
       }
 
+      // Start independent access checks together; keep navigation gated on both.
+      const permissionsRequest = flow.role === 'pharmacy-admin'
+        ? getPharmacyAdminAuthPermissions().then((response) => ({ response }), () => ({ response: null }))
+        : null
       let storedUser = { ...user, role: user?.role || flow.role }
       if (flow.assignment) {
         try {
@@ -258,7 +263,7 @@ function Login() {
       if (flow.role === 'pharmacy-admin') {
         let backendPermissions = null
         try {
-          const permissionResponse = await getPharmacyAdminAuthPermissions()
+          const { response: permissionResponse } = await permissionsRequest
           const permissionData = permissionResponse?.data || permissionResponse || {}
           backendPermissions = permissionSource(permissionResponse) || permissionSource(permissionData)
           if (permissionData.role || permissionResponse?.role) {
@@ -300,7 +305,7 @@ function Login() {
   }
 
   return (
-    <AuthLayout title="PMS Login" subtitle="Welcome back to your Pharmacy Management System">
+    <AuthLayout title="PMS Login" subtitle="Welcome back to your Pharmacy Management System" hideThemePicker>
       <form className="auth-form" onSubmit={handleSubmit} autoComplete="off">
         <label>
           Email Address

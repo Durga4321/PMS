@@ -2,6 +2,96 @@
   min-height: 360px;
 }
 
+/* System Settings follows the selected application theme. */
+[data-pms-theme] .settings-page .super-admin-main {
+  background: var(--pms-page-gradient) !important;
+  background-attachment: fixed !important;
+  color: var(--pms-text);
+}
+
+[data-pms-theme] .settings-page .settings-heading h1,
+[data-pms-theme] .settings-page .settings-section-intro strong,
+[data-pms-theme] .settings-page .settings-section-heading strong {
+  color: var(--pms-text);
+}
+
+[data-pms-theme] .settings-page .settings-heading span,
+[data-pms-theme] .settings-page .settings-section-intro small,
+[data-pms-theme] .settings-page .settings-section-heading small,
+[data-pms-theme] .settings-page .settings-field-label {
+  color: var(--pms-muted);
+}
+
+[data-pms-theme] .settings-page .settings-card {
+  border-color: var(--pms-border);
+  background: color-mix(in srgb, var(--pms-surface) 90%, var(--pms-page-bg));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--pms-accent) 10%, transparent);
+}
+
+[data-pms-theme] .settings-page .settings-card::before {
+  background: var(--pms-gradient);
+}
+
+[data-pms-theme] .settings-page .settings-tabs button,
+[data-pms-theme] .settings-page .settings-live {
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .settings-page .settings-tabs button.active,
+[data-pms-theme] .settings-page .settings-tabs button.general.active,
+[data-pms-theme] .settings-page .settings-tabs button.email.active,
+[data-pms-theme] .settings-page .settings-tabs button.sms.active,
+[data-pms-theme] .settings-page .settings-tabs button.payment.active {
+  border-color: var(--pms-accent);
+  background: color-mix(in srgb, var(--pms-accent) 14%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .settings-page .settings-icon,
+[data-pms-theme] .settings-page .settings-section-intro .settings-icon,
+[data-pms-theme] .settings-page .settings-section-heading .settings-icon {
+  border: 1px solid var(--pms-border);
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .settings-page .settings-control {
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  color: var(--pms-text);
+}
+
+[data-pms-theme] .settings-page .settings-field input,
+[data-pms-theme] .settings-page .settings-field select,
+[data-pms-theme] .settings-page .settings-field textarea,
+[data-pms-theme] .settings-page .settings-notes textarea {
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  color: var(--pms-text);
+}
+
+[data-pms-theme] .settings-page .settings-field input::placeholder,
+[data-pms-theme] .settings-page .settings-field textarea::placeholder {
+  color: var(--pms-muted);
+}
+
+[data-pms-theme] .settings-page .settings-control:focus-within,
+[data-pms-theme] .settings-page .settings-field input:focus,
+[data-pms-theme] .settings-page .settings-field select:focus,
+[data-pms-theme] .settings-page .settings-field textarea:focus {
+  border-color: var(--pms-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pms-accent) 16%, transparent);
+}
+
+[data-pms-theme] .settings-page .settings-actions button {
+  border-color: transparent;
+  background: var(--pms-gradient);
+  color: #fff;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--pms-accent) 22%, transparent);
+}
+
 .settings-page .super-admin-main {
   background: #f4f7fb;
   font-family: 'Lexend', 'Inter', sans-serif;
@@ -12,7 +102,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
-  padding: 16px 0 13px;
+  padding: 20px 0 16px;
 }
 
 .settings-heading p {
@@ -62,7 +152,7 @@
   position: relative;
   padding: 20px 24px 18px;
   border: 1px solid #b8e4ff;
-  border-radius: 20px;
+  border-radius: 13px;
   background: #f4fbff;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
@@ -533,4 +623,18 @@
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+/* Match Roles & Permissions heading position and outer card gaps. */
+.settings-page .settings-heading {
+  padding: 16px 0 12px;
+  margin: 0 16px;
+  align-items: center;
+}
+.settings-page .settings-heading h1 { font-size: 24px; letter-spacing: 0; }
+.settings-page .settings-heading > div > span { margin-top: 6px; font-size: 12px; }
+.settings-page .settings-card {
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+  border-radius: 13px;
 }

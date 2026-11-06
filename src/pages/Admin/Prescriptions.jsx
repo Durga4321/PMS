@@ -2,11 +2,11 @@ import { useEffect, useState, useMemo } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
-import { 
-  cancelDoctorPrescription, 
-  completeDoctorPrescription, 
-  createManualPharmacyPrescription, 
-  getDoctorPrescription, 
+import {
+  cancelDoctorPrescription,
+  completeDoctorPrescription,
+  createManualPharmacyPrescription,
+  getDoctorPrescription,
   updateDoctorPrescription,
   getPharmacyPrescriptions,
   getPharmacyAdminDashboard
@@ -31,12 +31,12 @@ export default function Prescriptions() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
-  
+
   // Modal states
   const [viewingItem, setViewingItem] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
-  
+
   // Dashboard summaries
   const [summary, setSummary] = useState({
     total: 0,
@@ -124,7 +124,7 @@ export default function Prescriptions() {
       const rxId = (item?.prescriptionId || item?.rxNo || item?._id || '').toLowerCase()
       const dName = (item?.doctorName || item?.doctor?.name || item?.doctor || '').toLowerCase()
       const query = search.toLowerCase()
-      
+
       return pName.includes(query) || rxId.includes(query) || dName.includes(query)
     })
   }, [items, search])
@@ -290,15 +290,22 @@ export default function Prescriptions() {
   }
 
   return (
-    <AdminLayout activeLabel="Prescriptions" title="Doctor Prescriptions" subtitle="View and manage prescriptions received from doctors.">
+    <AdminLayout headerAction={<button
+              type="button"
+              className="page-heading-refresh"
+              onClick={refresh}
+            >
+              <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Refresh
+            </button>} activeLabel="Prescriptions" title="Doctor Prescriptions" subtitle="View and manage prescriptions received from doctors.">
       <div className="stock-scroll-area">
         <div className="presc-layout-container">
 
           {/* Workflow Buttons Toolbar */}
           <div className="presc-toolbar" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '8px' }}>
             <div className="presc-action-btns">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="presc-btn presc-btn-primary"
                 onClick={() => setCreateOpen(true)}
               >
@@ -306,14 +313,7 @@ export default function Prescriptions() {
                 Create Prescription
               </button>
             </div>
-            <button 
-              type="button" 
-              className="presc-btn presc-btn-secondary"
-              onClick={refresh}
-            >
-              <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-              Refresh
-            </button>
+
           </div>
 
           {/* Summary Cards (5 Equal Sized Cards) */}
@@ -388,10 +388,10 @@ export default function Prescriptions() {
           <div className="presc-toolbar">
             <div className="presc-search-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-              <input 
-                value={search} 
-                onChange={(e) => setSearch(e.target.value)} 
-                placeholder="Search patient, prescription ID, doctor..." 
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search patient, prescription ID, doctor..."
               />
             </div>
           </div>
@@ -399,7 +399,7 @@ export default function Prescriptions() {
           {/* Prescriptions Table */}
           <section className="dispense-table-panel">
             <h2>Prescription Records</h2>
-            
+
             {loading ? (
               <div className="dispense-skeleton-row">
                 <div className="dispense-skeleton-line" style={{ width: '80%' }}></div>
@@ -463,73 +463,73 @@ export default function Prescriptions() {
                   <div className="presc-detail-row">
                     <div className="presc-form-group">
                       <label>Patient Name</label>
-                      <input 
-                        type="text" 
-                        value={createForm.patientName} 
-                        onChange={(e) => setCreateForm({...createForm, patientName: e.target.value})} 
-                        required 
+                      <input
+                        type="text"
+                        value={createForm.patientName}
+                        onChange={(e) => setCreateForm({...createForm, patientName: e.target.value})}
+                        required
                       />
                     </div>
                     <div className="presc-form-group">
                       <label>Doctor Name</label>
-                      <input 
-                        type="text" 
-                        value={createForm.doctorName} 
-                        onChange={(e) => setCreateForm({...createForm, doctorName: e.target.value})} 
-                        required 
+                      <input
+                        type="text"
+                        value={createForm.doctorName}
+                        onChange={(e) => setCreateForm({...createForm, doctorName: e.target.value})}
+                        required
                       />
                     </div>
                   </div>
                   <div className="presc-detail-row">
                     <div className="presc-form-group">
                       <label>Medicine Name</label>
-                      <input 
-                        type="text" 
-                        value={createForm.medicineName} 
-                        onChange={(e) => setCreateForm({...createForm, medicineName: e.target.value})} 
-                        required 
+                      <input
+                        type="text"
+                        value={createForm.medicineName}
+                        onChange={(e) => setCreateForm({...createForm, medicineName: e.target.value})}
+                        required
                       />
                     </div>
                     <div className="presc-form-group">
                       <label>Dosage</label>
-                      <input 
-                        type="text" 
-                        value={createForm.dosage} 
-                        onChange={(e) => setCreateForm({...createForm, dosage: e.target.value})} 
+                      <input
+                        type="text"
+                        value={createForm.dosage}
+                        onChange={(e) => setCreateForm({...createForm, dosage: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="presc-detail-row">
                     <div className="presc-form-group">
                       <label>Frequency</label>
-                      <input 
-                        type="text" 
-                        value={createForm.frequency} 
-                        onChange={(e) => setCreateForm({...createForm, frequency: e.target.value})} 
+                      <input
+                        type="text"
+                        value={createForm.frequency}
+                        onChange={(e) => setCreateForm({...createForm, frequency: e.target.value})}
                       />
                     </div>
                     <div className="presc-form-group">
                       <label>Duration</label>
-                      <input 
-                        type="text" 
-                        value={createForm.duration} 
-                        onChange={(e) => setCreateForm({...createForm, duration: e.target.value})} 
+                      <input
+                        type="text"
+                        value={createForm.duration}
+                        onChange={(e) => setCreateForm({...createForm, duration: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="presc-form-group">
                     <label>Quantity</label>
-                    <input 
-                      type="number" 
-                      value={createForm.quantity} 
-                      onChange={(e) => setCreateForm({...createForm, quantity: e.target.value})} 
+                    <input
+                      type="number"
+                      value={createForm.quantity}
+                      onChange={(e) => setCreateForm({...createForm, quantity: e.target.value})}
                     />
                   </div>
                   <div className="presc-form-group">
                     <label>Instructions</label>
-                    <textarea 
-                      value={createForm.instructions} 
-                      onChange={(e) => setCreateForm({...createForm, instructions: e.target.value})} 
+                    <textarea
+                      value={createForm.instructions}
+                      onChange={(e) => setCreateForm({...createForm, instructions: e.target.value})}
                     />
                   </div>
                 </div>
@@ -553,73 +553,73 @@ export default function Prescriptions() {
                   <div className="presc-detail-row">
                     <div className="presc-form-group">
                       <label>Patient Name</label>
-                      <input 
-                        type="text" 
-                        value={editForm.patientName} 
-                        onChange={(e) => setEditForm({...editForm, patientName: e.target.value})} 
-                        required 
+                      <input
+                        type="text"
+                        value={editForm.patientName}
+                        onChange={(e) => setEditForm({...editForm, patientName: e.target.value})}
+                        required
                       />
                     </div>
                     <div className="presc-form-group">
                       <label>Doctor Name</label>
-                      <input 
-                        type="text" 
-                        value={editForm.doctorName} 
-                        onChange={(e) => setEditForm({...editForm, doctorName: e.target.value})} 
-                        required 
+                      <input
+                        type="text"
+                        value={editForm.doctorName}
+                        onChange={(e) => setEditForm({...editForm, doctorName: e.target.value})}
+                        required
                       />
                     </div>
                   </div>
                   <div className="presc-detail-row">
                     <div className="presc-form-group">
                       <label>Medicine Name</label>
-                      <input 
-                        type="text" 
-                        value={editForm.medicineName} 
-                        onChange={(e) => setEditForm({...editForm, medicineName: e.target.value})} 
-                        required 
+                      <input
+                        type="text"
+                        value={editForm.medicineName}
+                        onChange={(e) => setEditForm({...editForm, medicineName: e.target.value})}
+                        required
                       />
                     </div>
                     <div className="presc-form-group">
                       <label>Dosage</label>
-                      <input 
-                        type="text" 
-                        value={editForm.dosage} 
-                        onChange={(e) => setEditForm({...editForm, dosage: e.target.value})} 
+                      <input
+                        type="text"
+                        value={editForm.dosage}
+                        onChange={(e) => setEditForm({...editForm, dosage: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="presc-detail-row">
                     <div className="presc-form-group">
                       <label>Frequency</label>
-                      <input 
-                        type="text" 
-                        value={editForm.frequency} 
-                        onChange={(e) => setEditForm({...editForm, frequency: e.target.value})} 
+                      <input
+                        type="text"
+                        value={editForm.frequency}
+                        onChange={(e) => setEditForm({...editForm, frequency: e.target.value})}
                       />
                     </div>
                     <div className="presc-form-group">
                       <label>Duration</label>
-                      <input 
-                        type="text" 
-                        value={editForm.duration} 
-                        onChange={(e) => setEditForm({...editForm, duration: e.target.value})} 
+                      <input
+                        type="text"
+                        value={editForm.duration}
+                        onChange={(e) => setEditForm({...editForm, duration: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="presc-detail-row">
                     <div className="presc-form-group">
                       <label>Quantity</label>
-                      <input 
-                        type="number" 
-                        value={editForm.quantity} 
-                        onChange={(e) => setEditForm({...editForm, quantity: e.target.value})} 
+                      <input
+                        type="number"
+                        value={editForm.quantity}
+                        onChange={(e) => setEditForm({...editForm, quantity: e.target.value})}
                       />
                     </div>
                     <div className="presc-form-group">
                       <label>Status</label>
-                      <select 
-                        value={editForm.status} 
+                      <select
+                        value={editForm.status}
                         onChange={(e) => setEditForm({...editForm, status: e.target.value})}
                       >
                         <option value="Pending">Pending</option>
@@ -631,9 +631,9 @@ export default function Prescriptions() {
                   </div>
                   <div className="presc-form-group">
                     <label>Instructions</label>
-                    <textarea 
-                      value={editForm.instructions} 
-                      onChange={(e) => setEditForm({...editForm, instructions: e.target.value})} 
+                    <textarea
+                      value={editForm.instructions}
+                      onChange={(e) => setEditForm({...editForm, instructions: e.target.value})}
                     />
                   </div>
                 </div>
@@ -654,7 +654,7 @@ export default function Prescriptions() {
                   <button type="button" className="presc-modal-close" onClick={() => setViewingItem(null)}>&times;</button>
                 </div>
                 <div className="presc-modal-body">
-                  
+
                   <div className="presc-detail-row">
                     <div className="presc-detail-item">
                       <label>Patient Information</label>

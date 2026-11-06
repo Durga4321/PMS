@@ -2,12 +2,12 @@ import { useEffect, useState, useMemo } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
-import { 
-  changePurchaseOrderStatus, 
-  createPurchaseOrder, 
-  getPurchaseOrder, 
-  listPendingPurchaseOrders, 
-  listPurchaseOrders, 
+import {
+  changePurchaseOrderStatus,
+  createPurchaseOrder,
+  getPurchaseOrder,
+  listPendingPurchaseOrders,
+  listPurchaseOrders,
   receivePurchaseOrder,
   getPharmacyAdminDashboard,
   updatePurchaseOrder,
@@ -52,12 +52,12 @@ export default function PurchaseOrders() {
   const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
   const [suppliers, setSuppliers] = useState([])
-  
+
   // Modal states
   const [viewingItem, setViewineItem] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
-  
+
   // Dashboard summaries
   const [summary, setSummary] = useState({
     total: 0,
@@ -312,7 +312,7 @@ export default function PurchaseOrders() {
       const batch = String(item?.batchNo || item?.batchNumber || '').toLowerCase()
       const supplier = String(item?.supplierName || item?.supplier?.name || (typeof item?.supplier === 'string' ? item.supplier : '') || '').toLowerCase()
       const query = search.toLowerCase().trim()
-      
+
       if (!query) return true
       return medicine.includes(query) || poNum.includes(query) || batch.includes(query) || supplier.includes(query)
     })
@@ -684,61 +684,16 @@ export default function PurchaseOrders() {
   }
 
   return (
-    <AdminLayout activeLabel="Purchase Orders" title="Purchase Orders" subtitle="Create and manage medicine purchase orders from suppliers.">
-      <div className="stock-scroll-area">
-        <div className="po-layout-container">
-
-          {/* Workflow Buttons Toolbar */}
-          <div className="po-toolbar" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '8px' }}>
-            <div className="po-action-btns">
-              <button 
-                type="button" 
-                className="po-btn po-btn-primary"
-                onClick={() => setCreateOpen(true)}
-              >
-                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Create Purchase Order
-              </button>
-              <button 
-                type="button" 
-                className="po-btn po-btn-secondary"
-                onClick={refresh}
-              >
-                View Orders
-              </button>
-              <button 
-                type="button" 
-                className="po-btn po-btn-success"
-                onClick={refresh}
-              >
-                Receive Stock
-              </button>
-              <button 
-                type="button" 
-                className="po-btn po-btn-primary"
-                style={{ background: '#7c3aed', boxShadow: '0 4px 10px rgba(124, 58, 237, 0.15)' }}
-                onClick={refresh}
-              >
-                Order Status
-              </button>
-              <button 
-                type="button" 
-                className="po-btn po-btn-secondary"
-                style={{ background: '#fffbeb', color: '#d97706', borderColor: '#fef3c7' }}
-                onClick={loadPending}
-              >
-                Pending Orders
-              </button>
-            </div>
-            <button 
-              type="button" 
-              className="po-btn po-btn-secondary"
+    <AdminLayout headerAction={<button
+              type="button"
+              className="page-heading-refresh"
               onClick={refresh}
             >
               <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh
-            </button>
-          </div>
+            </button>} activeLabel="Purchase Orders" title="Purchase Orders" subtitle="Create and manage medicine purchase orders from suppliers.">
+      <div className="stock-scroll-area">
+        <div className="po-layout-container">
 
           {/* Summary Cards (6 Equal Sized Cards) */}
           <div className="po-summary-grid">
@@ -821,22 +776,78 @@ export default function PurchaseOrders() {
             </div>
           </div>
 
+          <nav className="po-workflow-tabs" aria-label="Purchase order actions">
+<button
+                type="button"
+                className="po-workflow-tab"
+                onClick={refresh}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6M9 13h6M9 17h4"/></svg>
+                View Orders
+              </button>
+<button
+                type="button"
+                className="po-workflow-tab"
+                onClick={refresh}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg>
+                Receive Stock
+              </button>
+<button
+                type="button"
+                className="po-workflow-tab"
+                onClick={refresh}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
+                Order Status
+              </button>
+<button
+                type="button"
+                className="po-workflow-tab"
+                onClick={loadPending}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                Pending Orders
+              </button>
+          </nav>
+
+          {/* Table Results */}
+          <section className="dispense-table-panel">
+            <header className="po-record-header"><h2>Purchase Records</h2>
+          {/* Workflow Buttons Toolbar */}
+          <div className="po-record-actions">
+            <div className="po-action-btns">
+              <button
+                type="button"
+                className="po-btn po-btn-primary"
+                onClick={() => setCreateOpen(true)}
+              >
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Create Purchase Order
+              </button>
+
+
+
+
+            </div>
+
+          </div>
+
+            </header>
           {/* Search Inputs */}
-          <div className="po-toolbar">
+          <div className="po-toolbar po-record-filters">
             <div className="po-search-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-              <input 
-                value={search} 
-                onChange={(e) => setSearch(e.target.value)} 
-                placeholder="Search PO number, supplier, medicine, batch..." 
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search PO number, supplier, medicine, batch..."
               />
             </div>
           </div>
 
-          {/* Table Results */}
-          <section className="dispense-table-panel">
-            <h2>Purchase Records</h2>
-            
+
+
             {loading ? (
               <div className="dispense-skeleton-row">
                 <div className="dispense-skeleton-line" style={{ width: '80%' }}></div>
@@ -912,16 +923,16 @@ export default function PurchaseOrders() {
                   <div className="po-detail-row">
                     <div className="po-form-group">
                       <label>Supplier Name *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-supplierName"
-                        value={createForm.supplierName} 
+                        value={createForm.supplierName}
                         onChange={(e) => {
                           setCreateForm({...createForm, supplierName: e.target.value})
                           if (createErrors.supplierName) setCreateErrors({...createErrors, supplierName: ''})
-                        }} 
+                        }}
                         style={createErrors.supplierName ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.supplierName && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.supplierName}</span>
@@ -929,16 +940,16 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-form-group">
                       <label>Supplier Contact Phone *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         inputMode="numeric" maxLength={10} pattern="[0-9]{10}" id="create-supplierContact"
-                        value={createForm.supplierContact} 
+                        value={createForm.supplierContact}
                         onChange={(e) => {
                           setCreateForm({...createForm, supplierContact: digitsOnly(e.target.value)})
                           if (createErrors.supplierContact) setCreateErrors({...createErrors, supplierContact: ''})
-                        }} 
+                        }}
                         style={createErrors.supplierContact ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.supplierContact && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.supplierContact}</span>
@@ -948,16 +959,16 @@ export default function PurchaseOrders() {
                   <div className="po-detail-row">
                     <div className="po-form-group">
                       <label>Medicine Name *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-medicineName"
-                        value={createForm.medicineName} 
+                        value={createForm.medicineName}
                         onChange={(e) => {
                           setCreateForm({...createForm, medicineName: e.target.value})
                           if (createErrors.medicineName) setCreateErrors({...createErrors, medicineName: ''})
-                        }} 
+                        }}
                         style={createErrors.medicineName ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.medicineName && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.medicineName}</span>
@@ -965,16 +976,16 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-form-group">
                       <label>Batch Number *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-batchNo"
-                        value={createForm.batchNo} 
+                        value={createForm.batchNo}
                         onChange={(e) => {
                           setCreateForm({...createForm, batchNo: e.target.value})
                           if (createErrors.batchNo) setCreateErrors({...createErrors, batchNo: ''})
-                        }} 
+                        }}
                         style={createErrors.batchNo ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.batchNo && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.batchNo}</span>
@@ -984,16 +995,16 @@ export default function PurchaseOrders() {
                   <div className="po-detail-row">
                     <div className="po-form-group">
                       <label>Order Quantity *</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         id="create-quantity"
-                        value={createForm.quantity} 
+                        value={createForm.quantity}
                         onChange={(e) => {
                           setCreateForm({...createForm, quantity: e.target.value})
                           if (createErrors.quantity) setCreateErrors({...createErrors, quantity: ''})
-                        }} 
+                        }}
                         style={createErrors.quantity ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.quantity && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.quantity}</span>
@@ -1001,16 +1012,16 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-form-group">
                       <label>Unit Price (₹) *</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         id="create-unitPrice"
-                        value={createForm.unitPrice} 
+                        value={createForm.unitPrice}
                         onChange={(e) => {
                           setCreateForm({...createForm, unitPrice: e.target.value})
                           if (createErrors.unitPrice) setCreateErrors({...createErrors, unitPrice: ''})
-                        }} 
+                        }}
                         style={createErrors.unitPrice ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.unitPrice && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.unitPrice}</span>
@@ -1020,8 +1031,8 @@ export default function PurchaseOrders() {
                   <div className="po-detail-row">
                     <div className="po-form-group">
                       <label>Payment Status</label>
-                      <select 
-                        value={createForm.paymentStatus} 
+                      <select
+                        value={createForm.paymentStatus}
                         onChange={(e) => setCreateForm({...createForm, paymentStatus: e.target.value})}
                       >
                         <option value="Unpaid">Unpaid</option>
@@ -1030,8 +1041,8 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-form-group">
                       <label>Order Status</label>
-                      <select 
-                        value={createForm.status} 
+                      <select
+                        value={createForm.status}
                         onChange={(e) => setCreateForm({...createForm, status: e.target.value})}
                       >
                         <option value="Pending">Pending</option>
@@ -1062,16 +1073,16 @@ export default function PurchaseOrders() {
                   <div className="po-detail-row">
                     <div className="po-form-group">
                       <label>Supplier Name *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-supplierName"
-                        value={editForm.supplierName} 
+                        value={editForm.supplierName}
                         onChange={(e) => {
                           setEditForm({...editForm, supplierName: e.target.value})
                           if (editErrors.supplierName) setEditErrors({...editErrors, supplierName: ''})
-                        }} 
+                        }}
                         style={editErrors.supplierName ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.supplierName && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.supplierName}</span>
@@ -1079,16 +1090,16 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-form-group">
                       <label>Supplier Contact Phone *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         inputMode="numeric" maxLength={10} pattern="[0-9]{10}" id="edit-supplierContact"
-                        value={editForm.supplierContact} 
+                        value={editForm.supplierContact}
                         onChange={(e) => {
                           setEditForm({...editForm, supplierContact: digitsOnly(e.target.value)})
                           if (editErrors.supplierContact) setEditErrors({...editErrors, supplierContact: ''})
-                        }} 
+                        }}
                         style={editErrors.supplierContact ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.supplierContact && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.supplierContact}</span>
@@ -1098,16 +1109,16 @@ export default function PurchaseOrders() {
                   <div className="po-detail-row">
                     <div className="po-form-group">
                       <label>Medicine Name *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-medicineName"
-                        value={editForm.medicineName} 
+                        value={editForm.medicineName}
                         onChange={(e) => {
                           setEditForm({...editForm, medicineName: e.target.value})
                           if (editErrors.medicineName) setEditErrors({...editErrors, medicineName: ''})
-                        }} 
+                        }}
                         style={editErrors.medicineName ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.medicineName && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.medicineName}</span>
@@ -1115,16 +1126,16 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-form-group">
                       <label>Batch Number *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-batchNo"
-                        value={editForm.batchNo} 
+                        value={editForm.batchNo}
                         onChange={(e) => {
                           setEditForm({...editForm, batchNo: e.target.value})
                           if (editErrors.batchNo) setEditErrors({...editErrors, batchNo: ''})
-                        }} 
+                        }}
                         style={editErrors.batchNo ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.batchNo && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.batchNo}</span>
@@ -1134,16 +1145,16 @@ export default function PurchaseOrders() {
                   <div className="po-detail-row">
                     <div className="po-form-group">
                       <label>Order Quantity *</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         id="edit-quantity"
-                        value={editForm.quantity} 
+                        value={editForm.quantity}
                         onChange={(e) => {
                           setEditForm({...editForm, quantity: e.target.value})
                           if (editErrors.quantity) setEditErrors({...editErrors, quantity: ''})
-                        }} 
+                        }}
                         style={editErrors.quantity ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.quantity && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.quantity}</span>
@@ -1151,16 +1162,16 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-form-group">
                       <label>Unit Price (₹) *</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         id="edit-unitPrice"
-                        value={editForm.unitPrice} 
+                        value={editForm.unitPrice}
                         onChange={(e) => {
                           setEditForm({...editForm, unitPrice: e.target.value})
                           if (editErrors.unitPrice) setEditErrors({...editErrors, unitPrice: ''})
-                        }} 
+                        }}
                         style={editErrors.unitPrice ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.unitPrice && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.unitPrice}</span>
@@ -1170,8 +1181,8 @@ export default function PurchaseOrders() {
                   <div className="po-detail-row">
                     <div className="po-form-group">
                       <label>Payment Status</label>
-                      <select 
-                        value={editForm.paymentStatus} 
+                      <select
+                        value={editForm.paymentStatus}
                         onChange={(e) => setEditForm({...editForm, paymentStatus: e.target.value})}
                       >
                         <option value="Unpaid">Unpaid</option>
@@ -1180,8 +1191,8 @@ export default function PurchaseOrders() {
                     </div>
                     <div className="po-form-group">
                       <label>Order Status</label>
-                      <select 
-                        value={editForm.status} 
+                      <select
+                        value={editForm.status}
                         onChange={(e) => setEditForm({...editForm, status: e.target.value})}
                       >
                         <option value="Pending">Pending</option>

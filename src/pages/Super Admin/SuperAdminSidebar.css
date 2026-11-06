@@ -7,6 +7,9 @@
 }
 
 .super-admin-sidebar {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
   width: 248px;
   height: 100vh;
   max-height: 100dvh;
@@ -37,11 +40,13 @@
 }
 
 .super-admin-brand {
+  flex: 0 0 48px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 8px 18px;
-  border-bottom: 1px solid #dbeaf6;
+  padding: 0 8px 8px;
+  border-bottom: 1px solid var(--pms-border, #dbeaf6);
   margin-bottom: 12px;
 }
 
@@ -72,10 +77,12 @@
   color: #64748b;
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.4;
 }
 
 .super-admin-nav {
   flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -85,6 +92,8 @@
 }
 
 .super-admin-nav-link {
+  height: 44px;
+  flex: 0 0 44px;
   width: 100%;
   display: flex;
   align-items: center;
@@ -101,7 +110,7 @@
   line-height: 1.2;
   text-align: left;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .nav-icon-badge {
@@ -157,7 +166,7 @@
 }
 
 .super-admin-nav-link:hover .nav-icon-badge {
-  transform: scale(1.05);
+  transform: none;
 }
 
 .super-admin-nav-link.is-active {
@@ -348,4 +357,15 @@
   .sidebar-open .super-admin-sidebar-footer div {
     display: block;
   }
+}
+
+/* Keep the collapsed sidebar limited to its navigation icons. */
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-brand-copy {
+  display: none;
+}
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .super-admin-brand {
+  flex-direction: row;
+  justify-content: center;
+  padding: 0 0 8px;
+  gap: 0;
 }

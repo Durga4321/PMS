@@ -53,3 +53,23 @@
   color: #53657d;
   font-size: 20px;
 }
+
+/* Match the Admin Management heading and card geometry. */
+.notifications-page .notifications-heading { padding: 20px 0 16px; }
+.notifications-page .notifications-heading .super-admin-eyebrow { display: none; }
+.notifications-page .notifications-heading > div > p:last-child { margin-top: 6px; }
+.notifications-page .notifications-panel { border-radius: 13px; }
+
+/* Match Roles & Permissions heading position and outer card gaps. */
+.notifications-page .notifications-heading {
+  padding: 16px 0 12px;
+  margin: 0 16px;
+  align-items: center;
+}
+.notifications-page .notifications-heading h1 { font-size: 24px; letter-spacing: 0; }
+.notifications-page .notifications-heading > div > p:last-child { margin-top: 6px; font-size: 12px; }
+.notifications-page > .notifications-panel {
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+  border-radius: 13px;
+}

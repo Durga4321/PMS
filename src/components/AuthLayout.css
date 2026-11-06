@@ -2,7 +2,7 @@
 
 :root { --auth-teal:#08a99f; --auth-deep-teal:#007a78; --auth-navy:#102b4b; --auth-muted:#63738e; --auth-mint:#e9fbfa; }
 .auth-container { min-height:100svh; width:100%; display:flex; align-items:center; justify-content:center; gap:clamp(28px,5vw,92px); position:relative; overflow:hidden; box-sizing:border-box; padding:clamp(22px,4vw,54px); background:#e9fbfc; font-family:'Inter',system-ui,sans-serif; }
-.auth-theme-control { position:fixed; z-index:20; top:18px; right:20px; }
+.auth-theme-control { position:absolute; z-index:20; top:14px; right:14px; }
 .auth-bg,.auth-veil { position:absolute; inset:0; pointer-events:none; }
 .auth-bg { background-image:linear-gradient(90deg,rgba(232,252,253,.48),rgba(232,252,253,.12)),url('/pms-pharmacy-background.png'); background-position:center; background-size:100% 100%; background-repeat:no-repeat; }
 .auth-bg::before,.auth-bg::after { display:none; }

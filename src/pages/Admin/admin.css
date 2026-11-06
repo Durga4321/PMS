@@ -968,3 +968,252 @@ button.btn-secondary:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* Shared Admin appearance matches the Super Admin theme and spacing. */
+.branch-admin-page .branch-dashboard-header-redesign {
+  background: transparent;
+  border-color: var(--pms-border);
+  box-shadow: none;
+}
+
+.branch-admin-page {
+  --primary: var(--pms-accent);
+  --primary-hover: var(--pms-accent-strong);
+  --primary-light: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+  --text-primary: var(--pms-text);
+  --text-secondary: var(--pms-muted);
+  --border: var(--pms-border);
+}
+.branch-admin-page .branch-admin-main { padding: 0 0 20px !important; }
+.branch-admin-page .branch-admin-header { margin: 0 !important; padding: 0 14px !important; }
+.branch-admin-page .admin-heading-card {
+  margin: 0 16px;
+  padding: 16px 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+}
+.branch-admin-page .admin-heading-card .reference-heading-accent { display: none; }
+.branch-admin-page .admin-heading-card h1 { color: var(--pms-text); font-size: 24px; letter-spacing: 0; line-height: 1.6; }
+.branch-admin-page .admin-heading-card p { margin: 6px 0 0; color: var(--pms-muted); font-size: 12px; }
+.branch-admin-page .branch-admin-content { margin: 0 16px; padding: 0 0 20px !important; }
+.branch-admin-page .branch-admin-content.is-dashboard { padding: 16px 0 20px !important; }
+.branch-admin-page .branch-panel { border-radius: 13px; margin-bottom: 12px; }
+
+[data-pms-theme] .branch-admin-page table thead th {
+  color: var(--pms-accent-strong) !important;
+  background: color-mix(in srgb, var(--pms-accent) 8%, var(--pms-surface)) !important;
+  border-color: var(--pms-border);
+}
+
+[data-pms-theme] .branch-admin-page :is(
+  .stat-card-icon-wrap, .summary-card-icon-wrap, .med-summary-icon-container,
+  .stock-summary-icon-container, .sup-summary-icon-wrap, .po-summary-icon-wrap,
+  .presc-summary-icon-wrap, .dispense-summary-icon-wrap, .dispense-card-icon-wrap,
+  .transfer-summary-icon-wrap, .report-card-icon, .med-section-icon,
+  .admin-avatar, .clinic-avatar, .medicine-icon
+) {
+  background: color-mix(in srgb, var(--pms-accent) 18%, var(--pms-surface)) !important;
+  color: var(--pms-accent-strong) !important;
+  border-color: var(--pms-border);
+}
+
+[data-pms-theme] .branch-admin-page :is(
+  .btn-primary, .admin-btn-primary, .sa-btn-primary, .med-btn-primary, .med-btn-save,
+  .btn-create-sale, .po-btn-primary, .presc-btn-primary, .stock-btn-primary,
+  .sup-btn-primary, .transfer-btn-primary, .dispense-btn-primary, .btn-table-action
+) {
+  background: var(--pms-gradient) !important;
+  color: #fff !important;
+  border-color: var(--pms-accent) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--pms-accent) 20%, transparent) !important;
+}
+[data-pms-theme] .branch-admin-page :is(
+  .btn-secondary, .sa-btn-secondary, .med-btn-secondary, .med-btn-cancel,
+  .po-btn-secondary, .presc-btn-secondary, .stock-btn-secondary, .sup-btn-secondary,
+  .transfer-btn-secondary, .dispense-btn-secondary, .report-refresh-btn, .btn-view-all,
+  .nav-tab-btn
+) {
+  color: var(--pms-accent-strong) !important;
+  border-color: var(--pms-border) !important;
+  background: var(--pms-surface) !important;
+}
+[data-pms-theme] .branch-admin-page :is(.nav-tab-btn.active, .nav-tab-btn.is-active) {
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface)) !important;
+  border-color: var(--pms-accent) !important;
+}
+[data-pms-theme] .branch-admin-page .row-action-button:not(.delete):not(.status) {
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+  border-color: var(--pms-border);
+}
+[data-pms-theme] .branch-admin-page button:focus-visible { outline: 2px solid var(--pms-accent); outline-offset: 3px; }
+
+/* Dashboard accents and filter controls use the active application palette. */
+[data-pms-theme] .branch-admin-page .branch-admin-content.is-dashboard .reference-heading-accent {
+  background: var(--pms-accent);
+}
+[data-pms-theme] .branch-admin-page .branch-admin-content.is-dashboard .branch-dashboard-header-redesign {
+  background: transparent !important;
+  border-color: var(--pms-border);
+  box-shadow: none;
+}
+[data-pms-theme] .branch-admin-page .branch-admin-content.is-dashboard .branch-panel {
+  border-color: var(--pms-border);
+  border-top-color: var(--pms-accent);
+}
+[data-pms-theme] .branch-admin-page .branch-admin-content.is-dashboard .branch-panel-heading {
+  border-bottom-color: var(--pms-border);
+}
+[data-pms-theme] .branch-admin-page .branch-admin-content.is-dashboard .branch-panel-heading button {
+  background: var(--pms-gradient) !important;
+  border-color: var(--pms-accent) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--pms-accent) 20%, transparent) !important;
+}
+[data-pms-theme] .branch-admin-page .branch-admin-content.is-dashboard .chart-filter-pills {
+  background: color-mix(in srgb, var(--pms-accent) 10%, var(--pms-surface));
+}
+[data-pms-theme] .branch-admin-page .branch-admin-content.is-dashboard .chart-filter-pills button:not(.active) {
+  background: var(--pms-surface) !important;
+  color: var(--pms-accent-strong) !important;
+  box-shadow: none !important;
+}
+[data-pms-theme] .branch-admin-page .branch-admin-content.is-dashboard .analytics-empty-icon {
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface)) !important;
+  color: var(--pms-accent-strong) !important;
+}
+
+/* Pharmacist filters use the same separate card layout as Medicines. */
+.branch-admin-page .pharmacist-filter-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 16px 20px;
+  border: 1px solid var(--pms-border);
+  border-radius: 13px;
+  background: var(--pms-surface);
+}
+.pharmacist-filter-search { display: flex; align-items: center; gap: 10px; flex: 1 1 280px; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--pms-border); border-radius: 8px; color: var(--pms-muted); }
+.pharmacist-filter-search svg { width: 18px; height: 18px; flex-shrink: 0; }
+.pharmacist-filter-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--pms-text); font-size: 13px; }
+.pharmacist-filter-card select { height: 40px; padding: 0 12px; border: 1px solid var(--pms-border); border-radius: 8px; background: var(--pms-surface); color: var(--pms-text); }
+.pharmacist-filter-search:focus-within { border-color: var(--pms-accent); }
+
+/* Pharmacists card accents follow the active theme. */
+[data-pms-theme] .branch-admin-page .pharmacist-panel {
+  border-color: var(--pms-border);
+  border-top-color: var(--pms-accent);
+}
+[data-pms-theme] .branch-admin-page .pharmacist-panel .branch-panel-heading {
+  border-bottom-color: var(--pms-border);
+}
+[data-pms-theme] .branch-admin-page .pharmacist-panel .branch-table-wrap {
+  border-color: var(--pms-border);
+}
+
+/* Compact Pharmacy Management toolbar with search aligned left. */
+.branch-admin-page .admin-pharmacies-panel .super-admin-module-header {
+  padding: 12px 16px;
+  margin-bottom: 0;
+}
+.admin-pharmacies-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+}
+.admin-pharmacies-toolbar .sa-search-wrap { max-width: 100%; }
+.admin-pharmacies-toolbar .sa-search-wrap input { max-width: 100%; }
+
+.branch-admin-page .admin-branches-panel .super-admin-module-header {
+  padding: 12px 16px;
+  margin-bottom: 0;
+}
+.admin-branches-search {
+  width: min(360px, 100%);
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--pms-border);
+  border-radius: 10px;
+  background: var(--pms-surface);
+  color: var(--pms-text);
+  font-size: 13px;
+}
+.admin-branches-search:focus-visible { outline: 2px solid var(--pms-accent); outline-offset: 2px; }
+
+/* Keep pharmacist filters and actions inside the table card. */
+.pharmacist-panel .branch-panel-heading { flex-wrap: wrap; gap: 12px; }
+.pharmacist-header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+.branch-admin-page .pharmacist-panel .pharmacist-filter-card {
+  border: 0;
+  padding: 0;
+  margin: 12px 0;
+  border-radius: 0;
+  background: transparent;
+}
+.branch-admin-page .pharmacist-panel .pharmacist-filter-search { flex: 1 1 280px; }
+
+.pharmacist-panel .branch-panel-heading > .pharmacist-filter-search { flex: 1 1 260px; }
+.pharmacist-header-actions select {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--pms-border);
+  border-radius: 8px;
+  background: var(--pms-surface);
+  color: var(--pms-text);
+  font-size: 13px;
+}
+.pharmacist-load-error { color: #b91c1c; font-size: 13px; }
+
+/* Pharmacist toolbar interactions use soft tints of the selected theme. */
+[data-pms-theme] .branch-admin-page .pharmacist-header-actions button:hover:not(:disabled),
+[data-pms-theme] .branch-admin-page .pharmacist-header-actions button:focus-visible {
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface)) !important;
+  color: var(--pms-accent-strong) !important;
+  border-color: var(--pms-accent) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--pms-accent) 14%, transparent) !important;
+  transform: none !important;
+}
+[data-pms-theme] .branch-admin-page .pharmacist-header-actions button:active:not(:disabled) {
+  background: color-mix(in srgb, var(--pms-accent) 20%, var(--pms-surface)) !important;
+  color: var(--pms-accent-strong) !important;
+  border-color: var(--pms-accent) !important;
+  transform: none !important;
+}
+
+/* Refresh actions belong at the far right of the page heading. */
+.branch-admin-page .admin-heading-action { margin-left: auto; flex: 0 0 auto; }
+.branch-admin-page .page-heading-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--pms-border);
+  border-radius: 9px;
+  background: var(--pms-surface);
+  color: var(--pms-accent-strong);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.branch-admin-page .page-heading-refresh svg { width: 16px; height: 16px; fill: none; stroke: currentColor; }
+.branch-admin-page .page-heading-refresh:hover:not(:disabled) { background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface)); border-color: var(--pms-accent); }
+.branch-admin-page .page-heading-refresh:disabled { opacity: .6; cursor: wait; }
+
+.pharmacist-page .admin-heading-action { margin-left: auto; flex: 0 0 auto; }
+.pharmacist-page .page-heading-refresh {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 38px; padding: 0 14px; border: 1px solid var(--pms-border);
+  border-radius: 9px; background: var(--pms-surface); color: var(--pms-accent-strong);
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.pharmacist-page .page-heading-refresh:hover:not(:disabled) { background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface)); }
+.pharmacist-page .page-heading-refresh:disabled { opacity: .6; cursor: wait; }

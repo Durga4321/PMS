@@ -912,10 +912,9 @@ export default function AdminPharmacies() {
       title="Pharmacy Management"
       subtitle="Create and manage pharmacy profiles, addresses, contact details, and operational status."
     >
-      <section className="super-admin-module-panel">
+      <section className="super-admin-module-panel admin-pharmacies-panel">
         <div className="super-admin-module-header">
-          <h2>Pharmacy Management</h2>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div className="admin-pharmacies-toolbar">
             <div className="sa-search-wrap" style={{ position: 'relative' }}>
               <input
                 type="text"
@@ -994,7 +993,6 @@ export default function AdminPharmacies() {
                           isActive={String(status).toLowerCase() === 'active'}
                           onView={() => setViewingPharmacy(pharmacy)}
                           onEdit={() => openEdit(pharmacy)}
-                          onStatus={() => toggleStatus(pharmacy)}
                           onDelete={() => handleDeletePharmacy(pharmacy)}
                         />
                       </td>

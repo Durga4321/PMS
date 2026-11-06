@@ -7,7 +7,7 @@
 }
 
 .clinics-heading {
-  padding: 18px 0 14px;
+  padding: 20px 0 16px;
 }
 
 .clinics-heading h1 {
@@ -25,7 +25,7 @@
 .clinics-panel {
   overflow: hidden;
   border: 1px solid #e3eaf1;
-  border-radius: 12px;
+  border-radius: 13px;
   background: #ffffff;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }

@@ -12,10 +12,10 @@ export const superAdminNavigation = [
   item('Dashboard', '/super-admin/dashboard', 'dashboard', 'blue'),
   item('Admins', '/super-admin/admins', 'admins', 'orange'),
   item('Roles & Permissions', '/super-admin/users-permissions', 'roles', 'amber'),
-  item('Settings', '/super-admin/system-settings', 'settings', 'cyan'),
   item('Reports', '/super-admin/reports', 'reports', 'purple'),
   item('Audit Logs', '/super-admin/audit-logs', 'audit', 'green'),
   item('Notifications', '/super-admin/notifications', 'notifications', 'red'),
+  item('Settings', '/super-admin/system-settings', 'settings', 'cyan'),
 ]
 
 
