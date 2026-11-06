@@ -914,35 +914,58 @@ export default function AdminPharmacies() {
     >
       <section className="super-admin-module-panel admin-pharmacies-panel">
         <div className="super-admin-module-header">
-          <div className="admin-pharmacies-toolbar">
-            <div className="sa-search-wrap" style={{ position: 'relative' }}>
-              <input
-                type="text"
-                placeholder="Search pharmacy management..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  padding: '9px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '13px',
-                  width: '260px',
-                  outline: 'none',
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              className="sa-btn-primary"
-              onClick={() => {
-                setEditingPharmacy(null)
-                setForm(emptyForm)
-                setError('')
-                setCreateOpen(true)
+          <div className="admin-pharmacies-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div className="sa-search-wrap" style={{ position: 'relative', flex: '1', maxWidth: '480px', minWidth: '260px' }}>
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="#64748b"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                position: 'absolute',
+                left: '14px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
               }}
             >
-              + Create Pharmacy
-            </button>
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              aria-label="Search pharmacy management"
+              placeholder="Search pharmacies by name, contact, address..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                padding: '10px 14px 10px 38px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                fontSize: '13px',
+                width: '100%',
+                outline: 'none',
+                backgroundColor: '#ffffff',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            className="sa-btn-primary"
+            onClick={() => {
+              setEditingPharmacy(null)
+              setForm(emptyForm)
+              setError('')
+              setCreateOpen(true)
+            }}
+          >
+            + Create Pharmacy
+          </button>
           </div>
         </div>
 
@@ -993,6 +1016,7 @@ export default function AdminPharmacies() {
                           isActive={String(status).toLowerCase() === 'active'}
                           onView={() => setViewingPharmacy(pharmacy)}
                           onEdit={() => openEdit(pharmacy)}
+                          onStatus={() => toggleStatus(pharmacy)}
                           onDelete={() => handleDeletePharmacy(pharmacy)}
                         />
                       </td>

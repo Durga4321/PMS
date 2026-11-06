@@ -34,9 +34,75 @@ function getId(item, index) {
   return item?._id || item?.id || `${index}`
 }
 
+function getInitialSuppliersData() {
+  try {
+    const localPOs = typeof readLocalPurchaseOrders === 'function' ? readLocalPurchaseOrders() : []
+    const poMap = new Map()
+    let localPurchasesTotal = 0
+
+    localPOs.forEach(po => {
+      const sName = String(po?.supplierName || po?.supplier?.name || po?.supplier || '').trim().toLowerCase()
+      const raw = po?.orderDate || po?.createdAt || po?.date
+      if (sName && raw) {
+        const dStr = String(raw).includes('T') ? String(raw).split('T')[0] : String(raw)
+        const existing = poMap.get(sName)
+        if (!existing || new Date(dStr) > new Date(existing)) {
+          poMap.set(sName, dStr)
+        }
+      }
+      const val = Number(
+        po?.totalAmount ||
+        po?.grandTotal ||
+        po?.total ||
+        po?.amount ||
+        po?.totalPrice ||
+        (Number(po?.quantity || 0) * Number(po?.unitPrice || po?.price || 0)) ||
+        0
+      )
+      if (!isNaN(val)) localPurchasesTotal += val
+    })
+
+    const medicineSuppliers = typeof extractSuppliersFromMedicines === 'function' ? extractSuppliersFromMedicines() : []
+    const supplierMap = new Map()
+
+    medicineSuppliers.forEach((ms) => {
+      const key = String(ms?.name || ms?.supplierName || '').trim().toLowerCase()
+      if (!key) return
+      const poDate = poMap.get(key)
+      supplierMap.set(key, {
+        ...ms,
+        lastPurchaseDate: poDate || ms.lastPurchaseDate || '-'
+      })
+    })
+
+    const list = Array.from(supplierMap.values())
+    const activeCount = list.filter(s => String(s?.status || 'Active').toLowerCase() === 'active').length
+    const pendingCount = list.filter(s => String(s?.status || '').toLowerCase() === 'pending').length
+
+    return {
+      items: list,
+      poMap,
+      summary: {
+        total: list.length,
+        active: activeCount,
+        pending: pendingCount,
+        purchases: localPurchasesTotal > 0 ? `₹${localPurchasesTotal.toLocaleString('en-IN')}` : '₹0'
+      }
+    }
+  } catch (err) {
+    console.error('Error computing initial suppliers:', err)
+    return {
+      items: [],
+      poMap: new Map(),
+      summary: { total: 0, active: 0, pending: 0, purchases: '₹0' }
+    }
+  }
+}
+
 export default function Suppliers() {
   const { showToast } = useToast()
-  const [items, setItems] = useState([])
+  const initialData = useMemo(() => getInitialSuppliersData(), [])
+  const [items, setItems] = useState(() => initialData.items)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -50,12 +116,8 @@ export default function Suppliers() {
   const [historyLoading, setHistoryLoading] = useState(false)
 
   // Dashboard summaries
-  const [summary, setSummary] = useState({
-    total: 0,
-    active: 0,
-    pending: 0,
-    purchases: '₹0'
-  })
+  const [summary, setSummary] = useState(() => initialData.summary)
+  const [poDates, setPoDates] = useState(() => initialData.poMap)
 
   // Create Form State
   const [createForm, setCreateForm] = useState({
@@ -198,39 +260,56 @@ export default function Suppliers() {
     try {
       const response = await getPharmacyAdminDashboard()
       const data = response?.data || response || {}
-      setSummary({
-        total: Number(data?.totalSuppliers || data?.suppliersCount || 0),
-        active: Number(data?.activeSuppliers || data?.activeSuppliersCount || 0),
-        pending: Number(data?.pendingSuppliers || data?.pendingSuppliersCount || 0),
-        purchases: `₹${data?.totalPurchases || data?.purchasesTotal || 0}`
+      const backendTotal = Number(data?.totalSuppliers || data?.suppliersCount || 0)
+      const backendActive = Number(data?.activeSuppliers || data?.activeSuppliersCount || 0)
+      const backendPending = Number(data?.pendingSuppliers || data?.pendingSuppliersCount || 0)
+      const rawPurchases = Number(data?.totalPurchases || data?.purchasesTotal || 0)
+
+      setSummary(prev => {
+        const effectiveTotal = Math.max(backendTotal, prev.total || 0)
+        const effectiveActive = Math.max(backendActive, prev.active || 0)
+        const effectivePending = Math.max(backendPending, prev.pending || 0)
+        const purchasesVal = rawPurchases > 0 
+          ? `₹${rawPurchases.toLocaleString('en-IN')}` 
+          : (prev.purchases && prev.purchases !== '₹0' ? prev.purchases : '₹0')
+
+        return {
+          total: effectiveTotal,
+          active: effectiveActive,
+          pending: effectivePending,
+          purchases: purchasesVal
+        }
       })
     } catch (e) {
       console.log('Unable to load Supplier metrics:', e.message)
     }
   }
 
-  // Map of supplier name -> latest purchase order date
-  const [poDates, setPoDates] = useState(new Map())
-
-  async function refresh() {
-    setLoading(true)
+  async function refresh(showSpinner = false) {
+    if (showSpinner) {
+      setLoading(true)
+    }
     try {
+      const [supRes, poRes] = await Promise.allSettled([
+        listSuppliers(),
+        listPurchaseOrders()
+      ])
+
       let list = []
-      try {
-        const response = await listSuppliers()
-        list = normalizeList(response)
-      } catch (e) {
-        console.warn('Backend listSuppliers notice:', e.message)
+      if (supRes.status === 'fulfilled') {
+        list = normalizeList(supRes.value)
       }
 
-      // Fetch purchase orders to find the true latest purchase date per supplier
       let poList = []
-      try {
-        poList = await listPurchaseOrders()
-      } catch {
-        poList = readLocalPurchaseOrders()
+      if (poRes.status === 'fulfilled') {
+        poList = normalizeList(poRes.value)
       }
+      if (!poList.length) {
+        poList = typeof readLocalPurchaseOrders === 'function' ? readLocalPurchaseOrders() : []
+      }
+
       const poMap = new Map()
+      let poPurchasesTotal = 0
       poList.forEach(po => {
         const sName = String(po?.supplierName || po?.supplier?.name || po?.supplier || '').trim().toLowerCase()
         const raw = po?.orderDate || po?.createdAt || po?.date
@@ -241,11 +320,21 @@ export default function Suppliers() {
             poMap.set(sName, dStr)
           }
         }
+        const val = Number(
+          po?.totalAmount ||
+          po?.grandTotal ||
+          po?.total ||
+          po?.amount ||
+          po?.totalPrice ||
+          (Number(po?.quantity || 0) * Number(po?.unitPrice || po?.price || 0)) ||
+          0
+        )
+        if (!isNaN(val)) poPurchasesTotal += val
       })
       setPoDates(poMap)
 
       // Automatically derive and include all suppliers from medicines catalogue / Excel import
-      const medicineSuppliers = extractSuppliersFromMedicines()
+      const medicineSuppliers = typeof extractSuppliersFromMedicines === 'function' ? extractSuppliersFromMedicines() : []
       const supplierMap = new Map()
 
       // First insert backend suppliers
@@ -287,15 +376,24 @@ export default function Suppliers() {
       const combinedList = Array.from(supplierMap.values())
       setItems(combinedList)
 
-      // Recalculate summary totals
-      setSummary(prev => ({
-        ...prev,
-        total: combinedList.length,
-        active: combinedList.filter(s => String(s.status || 'active').toLowerCase() === 'active').length,
-        pending: combinedList.filter(s => String(s.status).toLowerCase() === 'pending').length
-      }))
+      // Recalculate summary totals accurately without zero-wiping
+      const totalCount = combinedList.length
+      const activeCount = combinedList.filter(s => String(s?.status || 'active').toLowerCase() === 'active').length
+      const pendingCount = combinedList.filter(s => String(s?.status || '').toLowerCase() === 'pending').length
+
+      setSummary(prev => {
+        const purchasesText = poPurchasesTotal > 0
+          ? `₹${poPurchasesTotal.toLocaleString('en-IN')}`
+          : (prev.purchases && prev.purchases !== '₹0' ? prev.purchases : '₹0')
+        return {
+          total: Math.max(totalCount, prev.total || 0),
+          active: Math.max(activeCount, prev.active || 0),
+          pending: Math.max(pendingCount, prev.pending || 0),
+          purchases: purchasesText
+        }
+      })
     } catch (error) {
-      showToast(error.message, 'error')
+      console.warn('Suppliers refresh notice:', error?.message)
     } finally {
       setLoading(false)
     }
@@ -565,16 +663,47 @@ export default function Suppliers() {
   }
 
   return (
-    <AdminLayout headerAction={<button
-              type="button"
-              className="page-heading-refresh"
-              onClick={refresh}
+<AdminLayout
+      headerAction={
+        <button
+          type="button"
+          className="page-heading-refresh"
+          onClick={() => { refresh(true); loadSummaryMetrics(); }}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+          </svg>
+          Refresh
+        </button>
+      }
+      activeLabel="Suppliers"
+      title="Suppliers"
+      subtitle="Manage medicine suppliers, contacts, purchases, and supplier status."
+    >
+      <div className="stock-scroll-area">
+        <div className="sup-layout-container">
+
+          {/* Workflow Buttons Toolbar */}
+          <div className="sup-toolbar" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '8px' }}>
+            <div className="sup-action-btns">
+              <button 
+                type="button" 
+                className="sup-btn sup-btn-primary"
+                onClick={() => setCreateOpen(true)}
+              >
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Supplier
+              </button>
+            </div>
+            <button 
+              type="button" 
+              className="sup-btn sup-btn-secondary"
+              onClick={() => { refresh(true); loadSummaryMetrics(); }}
             >
               <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh
-            </button>} activeLabel="Suppliers" title="Suppliers" subtitle="Manaee medicine suppliers, contacts, purchases, and supplier status.">
-      <div className="stock-scroll-area">
-        <div className="sup-layout-container">
+            </button>
+          </div>
 
           {/* Summary Cards (4 Equal Sized Cards) */}
           <div className="sup-summary-grid">

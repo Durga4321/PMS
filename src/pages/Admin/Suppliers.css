@@ -93,7 +93,7 @@
 .sup-search-wrap {
   position: relative;
   flex: 1;
-  max-width: 320px;
+  max-width: 480px;
   display: flex;
   align-items: center;
 }
