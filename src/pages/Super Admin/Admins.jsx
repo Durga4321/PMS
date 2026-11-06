@@ -127,6 +127,8 @@ function Admins() {
   const [pharmacyOptions, setPharmacyOptions] = useState([])
   const [assigningAdminId, setAssigningAdminId] = useState('')
   const [assignmentPharmacyId, setAssignmentPharmacyId] = useState('')
+  const [assigningAdmin, setAssigningAdmin] = useState(null)
+  const [selectedAssignPharmacyId, setSelectedAssignPharmacyId] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
@@ -136,16 +138,6 @@ function Admins() {
   const [saving, setSaving] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
-
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting, setDeleting] = useState(false)
-  const deleteDialogRef = useRef(null)
-
-  useEffect(() => {
-    const dialog = deleteDialogRef.current
-    if (deleteTarget && !dialog.open) dialog.showModal()
-    else if (!deleteTarget && dialog.open) dialog.close()
-  }, [deleteTarget])
 
   const [editingAdmin, setEditingAdmin] = useState(null)
   const [viewingAdmin, setViewingAdmin] = useState(null)
@@ -178,7 +170,7 @@ function Admins() {
       if (!assignmentPharmacyId && options[0]) setAssignmentPharmacyId(String(getId(options[0]) || ''))
     } catch (error) {
       setPharmacyOptions([])
-      showToast(error.message || 'Unable to load pharmacies for assignment.', 'error')
+      console.warn('Background load pharmacies notice:', error)
     }
   }
 
@@ -296,9 +288,9 @@ function Admins() {
       setViewingAdmin(unwrapAdmin(admin))
     }
   }
-  async function handleAssignPharmacy(admin) {
+  async function handleAssignPharmacy(admin, targetPharmacyId = null) {
     const adminId = getId(admin)
-    const pharmacyId = Number(assignmentPharmacyId)
+    const pharmacyId = Number(targetPharmacyId || assignmentPharmacyId)
     if (!adminId || !pharmacyId) return showToast('Select a pharmacy before assignment.', 'error')
     setAssigningAdminId(String(adminId))
     try {
@@ -336,18 +328,14 @@ function Admins() {
       showToast('Unable to delete admin: missing admin ID.', 'error')
       return
     }
-    if (deleting) return
-    setDeleting(true)
+    if (!window.confirm(`Are you sure you want to delete ${getName(admin)}?`)) return
 
     try {
       const response = await deleteSuperAdminRole(adminId)
-      setDeleteTarget(null)
       showToast(response?.message || 'Admin deleted successfully.')
       await loadAdmins()
     } catch (error) {
       showToast(error.message || 'Unable to delete admin.', 'error')
-    } finally {
-      setDeleting(false)
     }
   }
 
@@ -369,15 +357,6 @@ function Admins() {
 
   return (
     <div className={`admins-page-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
-      <dialog ref={deleteDialogRef} className="admins-delete-dialog" aria-labelledby="admin-delete-title" aria-describedby="admin-delete-description" onCancel={(event) => { if (deleting) event.preventDefault(); else setDeleteTarget(null) }}>
-        <div className="admins-delete-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18M8 6V4h8v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg></div>
-        <h2 id="admin-delete-title">Delete admin?</h2>
-        <p id="admin-delete-description">Are you sure you want to delete <strong>{deleteTarget ? getName(deleteTarget) : ''}</strong>? This action cannot be undone.</p>
-        <div className="admins-delete-actions">
-          <button type="button" autoFocus disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button>
-          <button type="button" className="admins-delete-confirm" disabled={deleting} onClick={() => handleDelete(deleteTarget)}>{deleting ? 'Deleting...' : 'Delete admin'}</button>
-        </div>
-      </dialog>
       <SuperAdminSidebar activeLabel="Admins" />
 
       <main className="admins-main">
@@ -476,23 +455,36 @@ function Admins() {
                 ) : visibleAdmins.length ? visibleAdmins.map((admin, index) => (
                   <tr key={getId(admin)}>
                     <td>{(page - 1) * pageSize + index + 1}</td>
-                    <td><div className="admin-name-cell">
+                    <td className="admin-name-cell">
                       <span className="admin-avatar">{getName(admin).split(' ').slice(0,2).map((part) => part.charAt(0)).join('').slice(0,2).toUpperCase() || 'A'}</span>
-                      <span className="admin-name-text">{getName(admin)}</span>
-                    </div></td>
+                      {getName(admin)}
+                    </td>
                     <td>{getAssignedPharmacyName(admin)}</td>
                     <td>{admin?.email || '-'}</td>
                     <td>{getMobileNumber(admin)}</td>
                     <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
                     <td>
-                      <RowActions
-                        itemName={getName(admin)}
-                        isActive={String(getStatus(admin)).toLowerCase() === 'active'}
-                        onView={() => openView(admin)}
-                        onEdit={() => openEdit(admin)}
-                        onStatus={() => handleStatus(admin)}
-                        onDelete={() => setDeleteTarget(admin)}
-                      />
+                      <span className="row-actions">
+                        <button
+                          type="button"
+                          className="row-action-button view"
+                          title="Assign pharmacy"
+                          disabled={assigningAdminId === String(getId(admin))}
+                          onClick={() => {
+                            setAssigningAdmin(admin)
+                            setSelectedAssignPharmacyId(assignmentPharmacyId || (pharmacyOptions[0] ? String(getId(pharmacyOptions[0])) : ''))
+                          }}
+                        >
+                          Assign
+                        </button>
+                        <RowActions
+                          itemName={getName(admin)}
+                          isActive={String(getStatus(admin)).toLowerCase() === 'active'}
+                          onView={() => openView(admin)}
+                          onEdit={() => openEdit(admin)}
+                          onDelete={() => handleDelete(admin)}
+                        />
+                      </span>
                     </td>
                   </tr>
                 )) : (
@@ -525,6 +517,57 @@ function Admins() {
           </div>
         </section>
       </main>
+
+      {assigningAdmin && (
+        <div className="admins-modal-backdrop" onClick={() => setAssigningAdmin(null)}>
+          <div className="admins-modal-card small-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="admins-modal-header">
+              <div className="admins-modal-title-wrap">
+                <span className="admins-modal-icon">✦</span>
+                <div>
+                  <h2>Assign Pharmacy</h2>
+                  <strong>Admin: {getName(assigningAdmin)}</strong>
+                </div>
+              </div>
+              <button type="button" className="admins-modal-close" onClick={() => setAssigningAdmin(null)} aria-label="Close">×</button>
+            </div>
+            <div className="admins-form">
+              <div className="admins-form-grid single-column">
+                <label className="admins-field">
+                  <span>Select Pharmacy</span>
+                  <select 
+                    value={selectedAssignPharmacyId} 
+                    onChange={(event) => setSelectedAssignPharmacyId(event.target.value)}
+                  >
+                    <option value="">Select pharmacy to assign</option>
+                    {pharmacyOptions.map((pharmacy) => (
+                      <option key={getId(pharmacy)} value={getId(pharmacy)}>
+                        {getPharmacyOptionName(pharmacy)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="admins-form-actions">
+                <button type="button" className="admins-cancel-button" onClick={() => setAssigningAdmin(null)}>Cancel</button>
+                <button
+                  type="button"
+                  className="admins-submit-button"
+                  disabled={!selectedAssignPharmacyId || assigningAdminId === String(getId(assigningAdmin))}
+                  onClick={async () => {
+                    const pid = selectedAssignPharmacyId
+                    setAssignmentPharmacyId(pid)
+                    await handleAssignPharmacy(assigningAdmin, pid)
+                    setAssigningAdmin(null)
+                  }}
+                >
+                  {assigningAdminId === String(getId(assigningAdmin)) ? 'Assigning...' : 'Assign Pharmacy'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {viewingAdmin && (
         <div className="sa-modal-backdrop" onClick={() => setViewingAdmin(null)}>

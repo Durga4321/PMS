@@ -83,7 +83,7 @@ const VALID_BACKEND_MODULES = [
   'Returns',
   'Expiry Alerts',
   'Reports',
-  'Settings'
+  'Settings',
 ]
 
 function permissionPayload(permissions) {
@@ -99,7 +99,7 @@ function permissionPayload(permissions) {
 
   const effective = {
     ...normalized,
-    Branches: branchesPerms
+    Branches: branchesPerms,
   }
 
   const modulePermissions = []
@@ -107,24 +107,23 @@ function permissionPayload(permissions) {
 
   VALID_BACKEND_MODULES.forEach((mod) => {
     const key = mod.toLowerCase()
-    if (seen.has(key)) return
+    if (seen.has(key) || key === 'cms integration' || key === 'cms') return
     seen.add(key)
 
-    const act = effective[mod] || { view: true, create: true, edit: true, delete: true }
+    const act = effective[mod] || effective[mod.toLowerCase()] || permissions?.[mod] || permissions?.[mod.toLowerCase()] || { view: true, create: true, edit: true, delete: true }
     modulePermissions.push({
       module: mod,
-      canView: Boolean(act.view),
-      canCreate: Boolean(act.create),
-      canEdit: Boolean(act.edit),
-      canDelete: Boolean(act.delete),
-      view: Boolean(act.view),
-      create: Boolean(act.create),
-      edit: Boolean(act.edit),
-      delete: Boolean(act.delete),
+      canView: Boolean(act.canView ?? act.view),
+      canCreate: Boolean(act.canCreate ?? act.create),
+      canEdit: Boolean(act.canEdit ?? act.edit),
+      canDelete: Boolean(act.canDelete ?? act.delete),
     })
   })
 
-  return { permissions: modulePermissions, modulePermissions }
+  return modulePermissions.filter((item) => {
+    const mod = String(item?.module || '').trim().toLowerCase()
+    return mod && mod !== 'cms integration' && mod !== 'cms'
+  })
 }
 
 function permissionCount(permissions) {
@@ -248,14 +247,22 @@ export default function UsersPermissions() {
       const response = await getSuperAdminRolePermissions(targetId)
       const src = permissionSource(response, null)
       if (src && (Array.isArray(src) ? src.length > 0 : Object.keys(src).length > 0)) {
-        const normalized = normalizePermissions(src, MODULES)
+        // Filter out obsolete CMS Integration from server response
+        const cleanSrc = Array.isArray(src)
+          ? src.filter((item) => {
+              const mod = String(item?.module || item?.Module || item?.name || item?.key || '').trim().toLowerCase()
+              return mod !== 'cms integration' && mod !== 'cms'
+            })
+          : src
+        const normalized = normalizePermissions(cleanSrc, MODULES)
         if (normalized.Branches) {
           normalized.Pharmacies = { ...normalized.Branches }
         }
-        if (hasAnyPermission(normalized)) {
-          setPermissions(normalized)
-          savePermissionsLocallyForAdmin(targetId, normalized, adminEmail)
-        }
+        delete normalized['CMS Integration']
+        delete normalized['cms integration']
+        delete normalized['cms']
+        setPermissions(normalized)
+        savePermissionsLocallyForAdmin(targetId, normalized, adminEmail)
       } else if (!cached) {
         setPermissions(EMPTY_PERMISSIONS)
       }
@@ -448,14 +455,22 @@ export default function UsersPermissions() {
       if (selectedRoleId) {
         await assignPharmacyAdminRole(selectedAdminId, { roleId: selectedRoleId }).catch(() => null)
       }
-    } catch (requestError) {
-      console.warn('Backend savePermissions notice:', requestError)
-    } finally {
-      setSaving(false)
+
       const successMsg = `Permissions for ${adminName} saved successfully!`
       setSuccess(successMsg)
       setSaveFeedback({ type: 'success', message: successMsg })
       showToast(successMsg, 'success')
+
+      // Refresh permissions from GET API with latest server response
+      await loadRolePermissions(selectedAdminId, adminEmail)
+    } catch (requestError) {
+      console.error('Backend savePermissions error:', requestError)
+      const errorMsg = requestError?.message || `Failed to save permissions for ${adminName}.`
+      setError(errorMsg)
+      setSaveFeedback({ type: 'error', message: errorMsg })
+      showToast(errorMsg, 'error')
+    } finally {
+      setSaving(false)
     }
   }
 

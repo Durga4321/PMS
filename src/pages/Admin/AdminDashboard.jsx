@@ -173,8 +173,7 @@ function AdminDashboard() {
     ])
       .then(([dashRes, medRes, invRes, billsRes, dailyRes, payRes]) => {
         setDashboard(dashRes.status === 'fulfilled' ? unwrap(dashRes.value) : {})
-        const meds = medRes.status === 'fulfilled' ? unwrapArray(medRes.value) : []
-        if (meds.length) setMedicinesList(meds)
+        setMedicinesList(medRes.status === 'fulfilled' ? unwrapArray(medRes.value) : [])
         setInventoryList(invRes.status === 'fulfilled' ? unwrapArray(invRes.value) : [])
         setBillsList(billsRes.status === 'fulfilled' ? unwrapArray(billsRes.value) : [])
         setDailySalesData(dailyRes.status === 'fulfilled' ? unwrap(dailyRes.value) : null)
@@ -282,6 +281,36 @@ function AdminDashboard() {
       if (nameKey) medMap.set(`name:${nameKey}`, merged)
     })
 
+    // 3. Merge inventoryList items if not already present
+    const backendInv = Array.isArray(inventoryList) ? inventoryList : []
+    backendInv.forEach((inv) => {
+      const k = String(inv?.id || inv?._id || inv?.medicineCode || inv?.code || inv?.medicineName || '').trim().toLowerCase()
+      const nameKey = String(inv?.medicineName || inv?.name || '').trim().toLowerCase()
+      if ((k && !medMap.has(k)) && (!nameKey || !medMap.has(`name:${nameKey}`))) {
+        const qty = extractAnyStock(inv)
+        const rawBatch = inv?.batchNo || inv?.batchNumber || inv?.BatchNumber || inv?.code || 'BAT-01'
+        const rawExpiry = inv?.expiryDate || inv?.ExpiryDate || inv?.expiresAt || '-'
+        const rawStatus = inv?.status || (qty > 0 ? 'Active' : 'Out of Stock')
+        const invNormalized = {
+          ...inv,
+          medicineName: inv?.medicineName || inv?.name || '-',
+          name: inv?.medicineName || inv?.name || '-',
+          batchNo: rawBatch,
+          batchNumber: rawBatch,
+          quantity: qty,
+          stock: qty,
+          availableQty: qty,
+          StockQuantity: qty,
+          expiryDate: rawExpiry,
+          reorderLevel: Number(inv?.reorderLevel ?? 5) || 5,
+          status: rawStatus,
+          isActive: String(rawStatus).toLowerCase() === 'active'
+        }
+        if (k) medMap.set(k, invNormalized)
+        if (nameKey) medMap.set(`name:${nameKey}`, invNormalized)
+      }
+    })
+
     // Extract unique master medicines in reliable sequence
     const seenKeys = new Set()
     const masterMedicines = []
@@ -324,13 +353,6 @@ function AdminDashboard() {
       }
     })
 
-    // Compute sales value from billsList, paymentsList, or dashboard summary
-    const rawSales = pick(source, ['totalSales', 'todaySales', 'salesToday', 'dailySales', 'revenue'], 0)
-    const billsTotal = billsList.reduce((sum, b) => sum + (Number(b?.total || b?.totalAmount || b?.grandTotal || b?.amount || 0) || 0), 0)
-    const paymentsTotal = paymentsList.reduce((sum, p) => sum + (Number(p?.amount || p?.total || 0) || 0), 0)
-    const dailyTotal = Number(dailySalesData?.totalSales || dailySalesData?.total || 0)
-    const totalSalesValue = (typeof rawSales === 'number' && rawSales > 0 ? rawSales : (typeof rawSales === 'string' && Number(rawSales) > 0 ? Number(rawSales) : 0)) || billsTotal || paymentsTotal || dailyTotal || 0
-
     const computedLowStock = effectiveMedicines.filter((m) => {
       const qty = getItemStock(m)
       const reorder = Number(pick(m, ['reorderLevel', 'reorderStockLevel', 'minStock', 'minimumStock'], 5))
@@ -353,6 +375,27 @@ function AdminDashboard() {
       const daysDiff = Math.round((expDate.getTime() - today.getTime()) / 86400000)
       return daysDiff <= 90
     }).length
+
+    // Calculate total sales from pharmacist billing, dispensing, and daily reports
+    const dashSalesNum = Number(pick(source, ['todaySales', 'salesToday', 'dailySales', 'totalSales', 'totalRevenue', 'todayRevenue', 'revenue', 'sales'], 0)) || 0
+    const billsTotal = billsList.reduce((acc, b) => {
+      const amt = Number(b?.totalAmount || b?.total || b?.amount || b?.grandTotal || b?.paidAmount || 0)
+      return acc + (!isNaN(amt) && amt > 0 ? amt : 0)
+    }, 0)
+    const paymentsTotal = paymentsList.reduce((acc, p) => {
+      const amt = Number(p?.paidAmount || p?.amount || p?.total || 0)
+      return acc + (!isNaN(amt) && amt > 0 ? amt : 0)
+    }, 0)
+    const dailyTotal = Number(dailySalesData?.totalSales || dailySalesData?.totalRevenue || dailySalesData?.total || dailySalesData?.sales || 0) || 0
+    let localSales = 0
+    try {
+      const storedBills = JSON.parse(localStorage.getItem('pms_bills') || sessionStorage.getItem('pms_bills') || '[]')
+      if (Array.isArray(storedBills)) {
+        localSales = storedBills.reduce((acc, b) => acc + (Number(b?.totalAmount || b?.amount || 0) || 0), 0)
+      }
+    } catch {}
+
+    const totalSalesValue = Math.max(dashSalesNum, billsTotal, paymentsTotal, dailyTotal, localSales)
 
     const rawLowStock = Number(pick(source, ['lowStock', 'lowStockCount', 'lowStockMedicines'], 0)) || 0
     const rawExpiryAlerts = Number(pick(source, ['expiryAlerts', 'expiryAlertsCount', 'nearExpiryCount'], 0)) || 0
@@ -503,7 +546,7 @@ function AdminDashboard() {
                     <strong>{billsList.length || 1} completed</strong>
                   </div>
                   <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ width: '100%', height: '100%', background: 'var(--pms-gradient)', borderRadius: '4px' }} />
+                    <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #2563eb, #3b82f6)', borderRadius: '4px' }} />
                   </div>
                 </div>
               </div>
