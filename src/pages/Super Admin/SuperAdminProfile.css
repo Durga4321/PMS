@@ -3157,3 +3157,12 @@
 
   flex: 0 0 20px;
 }
+/* Align the Super Admin profile cards with the management screens. */
+.profile-super-admin-shell .profile-content-wrap {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 20px 20px 32px;
+  gap: 16px;
+}
+.profile-super-admin-shell :is(.profile-hero, .profile-layout, .profile-panel) { border-radius: 13px; }

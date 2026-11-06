@@ -2,12 +2,12 @@ import { useEffect, useState, useMemo } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
-import { 
-  changeStockTransferStatus, 
-  createStockTransfer, 
-  dispatchStockTransfer, 
-  getStockTransfer, 
-  listStockTransfers, 
+import {
+  changeStockTransferStatus,
+  createStockTransfer,
+  dispatchStockTransfer,
+  getStockTransfer,
+  listStockTransfers,
   receiveStockTransfer,
   readLocalStockTransfers,
   writeLocalStockTransfers
@@ -40,12 +40,12 @@ export default function StockTransfers() {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
-  
+
   // Modal states
   const [viewingItem, setViewineItem] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
-  
+
   // Dashboard summaries - strictly derived from items, completely stable
   const summary = useMemo(() => {
     return {
@@ -240,7 +240,7 @@ export default function StockTransfers() {
       const fromLoc = String(item?.fromLocation || item?.source?.name || (typeof item?.source === 'string' ? item.source : '') || '').toLowerCase()
       const toLoc = String(item?.toLocation || item?.destination?.name || (typeof item?.destination === 'string' ? item.destination : '') || '').toLowerCase()
       const query = search.toLowerCase().trim()
-      
+
       if (!query) return true
       return medicine.includes(query) || transId.includes(query) || batch.includes(query) || fromLoc.includes(query) || toLoc.includes(query)
     })
@@ -455,31 +455,16 @@ export default function StockTransfers() {
   }
 
   return (
-    <AdminLayout activeLabel="Stock Transfers" title="Stock Transfers" subtitle="Manaee medicine stock transfers between pharmacy locations.">
-      <div className="stock-scroll-area">
-        <div className="transfer-layout-container">
-
-          {/* Workflow Buttons Toolbar */}
-          <div className="transfer-toolbar" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '8px' }}>
-            <div className="transfer-action-btns">
-              <button 
-                type="button" 
-                className="transfer-btn transfer-btn-primary"
-                onClick={() => setCreateOpen(true)}
-              >
-                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Create Transfer
-              </button>
-            </div>
-            <button 
-              type="button" 
-              className="transfer-btn transfer-btn-secondary"
+    <AdminLayout headerAction={<button
+              type="button"
+              className="page-heading-refresh"
               onClick={refresh}
             >
               <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh
-            </button>
-          </div>
+            </button>} activeLabel="Stock Transfers" title="Stock Transfers" subtitle="Manaee medicine stock transfers between pharmacy locations.">
+      <div className="stock-scroll-area">
+        <div className="transfer-layout-container">
 
           {/* Summary Cards (5 Equal Sized Cards) */}
           <div className="transfer-summary-grid">
@@ -552,22 +537,32 @@ export default function StockTransfers() {
             </div>
           </div>
 
+          {/* Table Results */}
+          <section className="dispense-table-panel">
+            <header className="transfer-record-header"><h2>Transfer Logs</h2>
+<button
+                type="button"
+                className="transfer-btn transfer-btn-primary"
+                onClick={() => setCreateOpen(true)}
+              >
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Create Transfer
+              </button>
+            </header>
           {/* Search Inputs */}
-          <div className="transfer-toolbar">
+          <div className="transfer-toolbar transfer-record-filters">
             <div className="transfer-search-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-              <input 
-                value={search} 
-                onChange={(e) => setSearch(e.target.value)} 
-                placeholder="Search transfer ID, medicine, batch, location..." 
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search transfer ID, medicine, batch, location..."
               />
             </div>
           </div>
 
-          {/* Table Results */}
-          <section className="dispense-table-panel">
-            <h2>Transfer Logs</h2>
-            
+
+
             {loading ? (
               <div className="dispense-skeleton-row">
                 <div className="dispense-skeleton-line" style={{ width: '80%' }}></div>
@@ -633,16 +628,16 @@ export default function StockTransfers() {
                   <div className="transfer-form-grid">
                     <div className="transfer-form-group">
                       <label>From Location / Pharmacy *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-fromLocation"
-                        value={createForm.fromLocation} 
+                        value={createForm.fromLocation}
                         onChange={(e) => {
                           setCreateForm({...createForm, fromLocation: e.target.value})
                           if (createErrors.fromLocation) setCreateErrors({...createErrors, fromLocation: ''})
-                        }} 
+                        }}
                         style={createErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.fromLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.fromLocation}</span>
@@ -650,16 +645,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>To Location / Pharmacy *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-toLocation"
-                        value={createForm.toLocation} 
+                        value={createForm.toLocation}
                         onChange={(e) => {
                           setCreateForm({...createForm, toLocation: e.target.value})
                           if (createErrors.toLocation) setCreateErrors({...createErrors, toLocation: ''})
-                        }} 
+                        }}
                         style={createErrors.toLocation ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.toLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.toLocation}</span>
@@ -667,16 +662,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Medicine Name *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-medicineName"
-                        value={createForm.medicineName} 
+                        value={createForm.medicineName}
                         onChange={(e) => {
                           setCreateForm({...createForm, medicineName: e.target.value})
                           if (createErrors.medicineName) setCreateErrors({...createErrors, medicineName: ''})
-                        }} 
+                        }}
                         style={createErrors.medicineName ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.medicineName && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.medicineName}</span>
@@ -684,16 +679,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Batch Number *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-batchNo"
-                        value={createForm.batchNo} 
+                        value={createForm.batchNo}
                         onChange={(e) => {
                           setCreateForm({...createForm, batchNo: e.target.value})
                           if (createErrors.batchNo) setCreateErrors({...createErrors, batchNo: ''})
-                        }} 
+                        }}
                         style={createErrors.batchNo ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.batchNo && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.batchNo}</span>
@@ -701,16 +696,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group full-width">
                       <label>Transfer Quantity *</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         id="create-quantity"
-                        value={createForm.quantity} 
+                        value={createForm.quantity}
                         onChange={(e) => {
                           setCreateForm({...createForm, quantity: e.target.value})
                           if (createErrors.quantity) setCreateErrors({...createErrors, quantity: ''})
-                        }} 
+                        }}
                         style={createErrors.quantity ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.quantity && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.quantity}</span>
@@ -718,16 +713,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Requested By *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-requestedBy"
-                        value={createForm.requestedBy} 
+                        value={createForm.requestedBy}
                         onChange={(e) => {
                           setCreateForm({...createForm, requestedBy: e.target.value})
                           if (createErrors.requestedBy) setCreateErrors({...createErrors, requestedBy: ''})
-                        }} 
+                        }}
                         style={createErrors.requestedBy ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.requestedBy && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.requestedBy}</span>
@@ -735,11 +730,11 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Approved By</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-approvedBy"
-                        value={createForm.approvedBy} 
-                        onChange={(e) => setCreateForm({...createForm, approvedBy: e.target.value})} 
+                        value={createForm.approvedBy}
+                        onChange={(e) => setCreateForm({...createForm, approvedBy: e.target.value})}
                       />
                     </div>
                   </div>
@@ -766,16 +761,16 @@ export default function StockTransfers() {
                   <div className="transfer-form-grid">
                     <div className="transfer-form-group">
                       <label>From Location / Pharmacy *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-fromLocation"
-                        value={editForm.fromLocation} 
+                        value={editForm.fromLocation}
                         onChange={(e) => {
                           setEditForm({...editForm, fromLocation: e.target.value})
                           if (editErrors.fromLocation) setEditErrors({...editErrors, fromLocation: ''})
-                        }} 
+                        }}
                         style={editErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.fromLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.fromLocation}</span>
@@ -783,16 +778,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>To Location / Pharmacy *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-toLocation"
-                        value={editForm.toLocation} 
+                        value={editForm.toLocation}
                         onChange={(e) => {
                           setEditForm({...editForm, toLocation: e.target.value})
                           if (editErrors.toLocation) setEditErrors({...editErrors, toLocation: ''})
-                        }} 
+                        }}
                         style={editErrors.toLocation ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.toLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.toLocation}</span>
@@ -800,16 +795,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Medicine Name *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-medicineName"
-                        value={editForm.medicineName} 
+                        value={editForm.medicineName}
                         onChange={(e) => {
                           setEditForm({...editForm, medicineName: e.target.value})
                           if (editErrors.medicineName) setEditErrors({...editErrors, medicineName: ''})
-                        }} 
+                        }}
                         style={editErrors.medicineName ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.medicineName && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.medicineName}</span>
@@ -817,16 +812,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Batch Number *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-batchNo"
-                        value={editForm.batchNo} 
+                        value={editForm.batchNo}
                         onChange={(e) => {
                           setEditForm({...editForm, batchNo: e.target.value})
                           if (editErrors.batchNo) setEditErrors({...editErrors, batchNo: ''})
-                        }} 
+                        }}
                         style={editErrors.batchNo ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.batchNo && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.batchNo}</span>
@@ -834,9 +829,9 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Status *</label>
-                      <select 
+                      <select
                         id="edit-status"
-                        value={editForm.status} 
+                        value={editForm.status}
                         onChange={(e) => {
                           setEditForm({...editForm, status: e.target.value})
                           if (editErrors.status) setEditErrors({...editErrors, status: ''})
@@ -855,16 +850,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Transfer Quantity *</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         id="edit-quantity"
-                        value={editForm.quantity} 
+                        value={editForm.quantity}
                         onChange={(e) => {
                           setEditForm({...editForm, quantity: e.target.value})
                           if (editErrors.quantity) setEditErrors({...editErrors, quantity: ''})
-                        }} 
+                        }}
                         style={editErrors.quantity ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.quantity && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.quantity}</span>
@@ -872,16 +867,16 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Requested By *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-requestedBy"
-                        value={editForm.requestedBy} 
+                        value={editForm.requestedBy}
                         onChange={(e) => {
                           setEditForm({...editForm, requestedBy: e.target.value})
                           if (editErrors.requestedBy) setEditErrors({...editErrors, requestedBy: ''})
-                        }} 
+                        }}
                         style={editErrors.requestedBy ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.requestedBy && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.requestedBy}</span>
@@ -889,11 +884,11 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Approved By</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-approvedBy"
-                        value={editForm.approvedBy} 
-                        onChange={(e) => setEditForm({...editForm, approvedBy: e.target.value})} 
+                        value={editForm.approvedBy}
+                        onChange={(e) => setEditForm({...editForm, approvedBy: e.target.value})}
                       />
                     </div>
                   </div>

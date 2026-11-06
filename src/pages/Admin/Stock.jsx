@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
-import { 
+import {
   addInventoryStock,
   adjustInventoryWithReason,
   disposeInventoryBatch,
@@ -315,13 +315,13 @@ export default function Stock({ initialView }) {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
-  
+
   // Modals state
   const [addStockOpen, setAddStockOpen] = useState(false)
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [levelsOpen, setLevelsOpen] = useState(false)
   const [viewingItem, setViewingItem] = useState(null)
-  
+
   // General Dashboard totals
   const [metrics, setMetrics] = useState({
     totalMedicines: 0,
@@ -686,12 +686,12 @@ export default function Stock({ initialView }) {
     const sourceItems = items.length > 0
       ? items
       : (medicinesList.length > 0 ? medicinesList.map((m, i) => formatStockRecord(m, i)) : readLocalMedicines().map((m, i) => formatStockRecord(m, i)))
-    
+
     const now = Date.now()
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
 
     const totalMedicines = Math.max(sourceItems.length, metrics.totalMedicines || 0)
-    
+
     // In-stock medicines count (active medicines with stock > 0, exactly matching Active Medicines in Medicines page)
     const inStockItems = sourceItems.filter((it) => {
       const qty = Number(it?.quantity ?? it?.stock ?? it?.stockQuantity ?? it?.initialStockCount ?? it?.qty ?? 0) || 0
@@ -757,14 +757,14 @@ export default function Stock({ initialView }) {
       const category = (item?.category || item?.categoryName || '').toLowerCase()
       const dosage = (item?.dosageForm || '').toLowerCase()
       const query = search.trim().toLowerCase()
-      
+
       const matchesSearch = !query ||
         name.includes(query) ||
         generic.includes(query) ||
         batch.includes(query) ||
         category.includes(query) ||
         dosage.includes(query)
-      
+
       const matchesCategory = categoryFilter === 'all' || category === categoryFilter.toLowerCase()
 
       const qty = Number(item?.quantity ?? item?.stock ?? 0)
@@ -778,7 +778,7 @@ export default function Stock({ initialView }) {
         else if (statusFilter === 'out of stock') matchesStatus = qty <= 0 || itemStatus.includes('out')
         else matchesStatus = itemStatus.includes(statusFilter.toLowerCase())
       }
-      
+
       const rawDays = item?.daysLeft
       let daysLeft = (rawDays !== undefined && rawDays !== null && !isNaN(Number(rawDays))) ? Number(rawDays) : 999
       if (daysLeft === 999 && item?.expiryDate && item?.expiryDate !== '-') {
@@ -806,7 +806,7 @@ export default function Stock({ initialView }) {
       } else if (expiryFilter === 'near') {
         matchesExpiry = isNear
       }
-      
+
       return matchesSearch && matchesCategory && matchesStatus && matchesExpiry
     })
   }, [items, search, categoryFilter, statusFilter, expiryFilter])
@@ -870,7 +870,7 @@ export default function Stock({ initialView }) {
 
   async function handleAdjustSubmit(e) {
     e.preventDefault()
-    
+
     if (adjustmentForm.type === 'decrease') {
       if (!window.confirm('Are you sure you want to decrease stock levels? This will impact availability.')) {
         return
@@ -1087,90 +1087,64 @@ export default function Stock({ initialView }) {
 
   // Tab mapping configs
   const tabs = [
-    { 
-      key: 'inventory', 
+    {
+      key: 'inventory',
       label: 'Inventory',
       icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
     },
-    { 
-      key: 'low', 
+    {
+      key: 'low',
       label: 'Low Stock',
       icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     },
-    { 
-      key: 'near', 
+    {
+      key: 'near',
       label: 'Near Expiry',
       icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     },
-    { 
-      key: 'out', 
+    {
+      key: 'out',
       label: 'Out of Stock',
       icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><line x1="12" y1="22" x2="12" y2="12"/><line x1="10" y1="8" x2="14" y2="12"/><line x1="14" y1="8" x2="10" y2="12"/></svg>
     },
-    { 
-      key: 'summary', 
+    {
+      key: 'summary',
       label: 'Stock Summary',
       icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     },
-    { 
-      key: 'transactions', 
+    {
+      key: 'transactions',
       label: 'Transactions',
       icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></svg>
     },
-    { 
-      key: 'valuation', 
+    {
+      key: 'valuation',
       label: 'Valuation',
       icon: <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12M6 8h12M6 13h8.5a4.5 4.5 0 0 1 0 9H6M14.5 13l-9 9"/></svg>
     }
   ]
 
   return (
-    <AdminLayout activeLabel="Stock" title="Inventory Management" subtitle="Monitor medicine stock, batches, expiry, stock levels, and inventory transactions.">
-      <div className="stock-scroll-area">
-        <div className="stock-layout-container">
-
-          {/* Workflow Toolbar */}
-          <div className="stock-toolbar" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '8px' }}>
-            <div className="stock-action-btns">
-              <button 
-                type="button" 
-                className="stock-btn stock-btn-primary"
-                onClick={() => setAddStockOpen(true)}
-              >
-                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Stock
-              </button>
-              <button 
-                type="button" 
-                className="stock-btn stock-btn-secondary"
-                onClick={() => setAdjustOpen(true)}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                Adjust Stock
-              </button>
-            </div>
-            <button 
-              type="button" 
-              className="stock-btn stock-btn-secondary"
+    <AdminLayout headerAction={<button
+              type="button"
+              className="page-heading-refresh"
               onClick={() => load(view)}
             >
               <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh
-            </button>
-          </div>
+            </button>} activeLabel="Stock" title="Inventory Management" subtitle="Monitor medicine stock, batches, expiry, stock levels, and inventory transactions.">
+      <div className="stock-scroll-area">
+        <div className="stock-layout-container">
 
           {/* Top Summary Cards (Equal Sized Grid) */}
           <div className="stock-summary-grid-redesign">
             {SUMMARY_CARDS.map((card) => {
               const value = displayMetrics[card.metricKey] ?? 0
               return (
-                <div 
+                <div
                   key={card.id}
                   className="summary-card-redesign"
-                  style={{ 
+                  style={{
                     '--card-accent': card.color,
                     '--card-bg': card.bgColor,
                     '--card-border': card.borderColor
@@ -1186,7 +1160,7 @@ export default function Stock({ initialView }) {
                   </div>
                   <div className="summary-card-info">
                     <label>{card.label}</label>
-                    <span 
+                    <span
                       className="summary-card-val"
                       title={card.metricKey === 'totalStock' && displayMetrics.totalUnits ? `${displayMetrics.totalUnits.toLocaleString()} units total in stock` : undefined}
                     >
@@ -1203,11 +1177,11 @@ export default function Stock({ initialView }) {
             {NAV_TABS.map((tab) => {
               const isActive = view === tab.key
               return (
-                <button 
+                <button
                   key={tab.key}
                   type="button"
                   className={`nav-tab-btn ${isActive ? 'active' : ''}`}
-                  style={{ 
+                  style={{
                     '--tab-color': tab.color,
                     '--tab-bg': tab.bgColor
                   }}
@@ -1220,20 +1194,51 @@ export default function Stock({ initialView }) {
             })}
           </div>
 
+          {/* Table Results View */}
+          <section className="dispense-table-panel">
+            <header className="stock-record-header">
+            <h2>Inventory Records</h2>
+          {/* Workflow Toolbar */}
+          <div className="stock-record-actions">
+            <div className="stock-action-btns">
+              <button
+                type="button"
+                className="stock-btn stock-btn-secondary"
+                onClick={() => setAdjustOpen(true)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Adjust Stock
+              </button>
+            </div>
+
+            <button
+                type="button"
+                className="stock-btn stock-btn-primary"
+                onClick={() => setAddStockOpen(true)}
+              >
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Stock
+              </button>
+          </div>
+
+            </header>
           {/* Search bar & Filter selections */}
           {view !== 'summary' && view !== 'valuation' && (
-            <div className="stock-toolbar">
+            <div className="stock-toolbar stock-record-filters">
               <div className="stock-search-wrap">
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-                <input 
-                  value={search} 
-                  onChange={(e) => setSearch(e.target.value)} 
-                  placeholder="Search medicine name, generic name, batch, category..." 
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search medicine name, generic name, batch, category..."
                 />
               </div>
               <div className="stock-filters">
-                <select 
-                  value={categoryFilter} 
+                <select
+                  value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
                 >
                   <option value="all">All Categories ({categories.length})</option>
@@ -1241,8 +1246,8 @@ export default function Stock({ initialView }) {
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
-                <select 
-                  value={statusFilter} 
+                <select
+                  value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
                   <option value="all">All Stock Status</option>
@@ -1250,8 +1255,8 @@ export default function Stock({ initialView }) {
                   <option value="low stock">Low Stock</option>
                   <option value="out of stock">Out of Stock</option>
                 </select>
-                <select 
-                  value={expiryFilter} 
+                <select
+                  value={expiryFilter}
                   onChange={(e) => setExpiryFilter(e.target.value)}
                 >
                   <option value="all">All Status</option>
@@ -1259,8 +1264,8 @@ export default function Stock({ initialView }) {
                   <option value="expired">Expired</option>
                   <option value="near">Near Expiry</option>
                 </select>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="stock-btn stock-btn-secondary"
                   onClick={() => {
                     setSearch('')
@@ -1276,10 +1281,8 @@ export default function Stock({ initialView }) {
             </div>
           )}
 
-          {/* Table Results View */}
-          <section className="dispense-table-panel">
-            <h2>Inventory Records</h2>
-            
+
+
             {loading ? (
               <div className="dispense-skeleton-row">
                 <div className="dispense-skeleton-line" style={{ width: '80%' }}></div>
@@ -1436,9 +1439,9 @@ export default function Stock({ initialView }) {
                           <div className="dispense-empty-state">
                             <h3>No inventory found.</h3>
                             <p>Add medicine stock to start managing your pharmacy inventory.</p>
-                            <button 
-                              type="button" 
-                              className="stock-btn stock-btn-primary" 
+                            <button
+                              type="button"
+                              className="stock-btn stock-btn-primary"
                               style={{ marginTop: '12px' }}
                               onClick={() => setAddStockOpen(true)}
                             >
@@ -1467,19 +1470,19 @@ export default function Stock({ initialView }) {
                     <div className="stock-form-group">
                       <label>Medicine *</label>
                       {availableMedicines.length > 0 ? (
-                        <select 
-                          value={stockForm.medicineId} 
+                        <select
+                          value={stockForm.medicineId}
                           onChange={(e) => {
                             const val = e.target.value
                             const found = availableMedicines.find(m => String(m?._id || m?.id) === val)
                             setStockForm(prev => ({
-                              ...prev, 
+                              ...prev,
                               medicineId: val,
                               sellingPrice: found?.sellingPrice ?? found?.price ?? prev.sellingPrice,
                               costPrice: found?.purchasePrice ?? found?.costPrice ?? prev.costPrice
                             }))
                           }}
-                          required 
+                          required
                         >
                           <option value="">-- Select Medicine ({availableMedicines.length} in catalogue) --</option>
                           {availableMedicines.map((m, i) => (
@@ -1489,86 +1492,86 @@ export default function Stock({ initialView }) {
                           ))}
                         </select>
                       ) : (
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           placeholder="Medicine ID"
-                          value={stockForm.medicineId} 
-                          onChange={(e) => setStockForm({...stockForm, medicineId: e.target.value})} 
-                          required 
+                          value={stockForm.medicineId}
+                          onChange={(e) => setStockForm({...stockForm, medicineId: e.target.value})}
+                          required
                         />
                       )}
                     </div>
                     <div className="stock-form-group">
                       <label>Batch Number *</label>
-                      <input 
-                        type="text" 
-                        value={stockForm.batchNo} 
-                        onChange={(e) => setStockForm({...stockForm, batchNo: e.target.value})} 
-                        required 
+                      <input
+                        type="text"
+                        value={stockForm.batchNo}
+                        onChange={(e) => setStockForm({...stockForm, batchNo: e.target.value})}
+                        required
                       />
                     </div>
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
                       <label>Stock Quantity *</label>
-                      <input 
-                        type="number" 
-                        value={stockForm.quantity} 
-                        onChange={(e) => setStockForm({...stockForm, quantity: e.target.value})} 
-                        required 
+                      <input
+                        type="number"
+                        value={stockForm.quantity}
+                        onChange={(e) => setStockForm({...stockForm, quantity: e.target.value})}
+                        required
                       />
                     </div>
                     <div className="stock-form-group">
                       <label>Expiry Date *</label>
-                      <input 
-                        type="date" 
-                        value={stockForm.expiryDate} 
-                        onChange={(e) => setStockForm({...stockForm, expiryDate: e.target.value})} 
-                        required 
+                      <input
+                        type="date"
+                        value={stockForm.expiryDate}
+                        onChange={(e) => setStockForm({...stockForm, expiryDate: e.target.value})}
+                        required
                       />
                     </div>
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
                       <label>Cost Price (₹)</label>
-                      <input 
-                        type="number" 
-                        value={stockForm.costPrice} 
-                        onChange={(e) => setStockForm({...stockForm, costPrice: e.target.value})} 
+                      <input
+                        type="number"
+                        value={stockForm.costPrice}
+                        onChange={(e) => setStockForm({...stockForm, costPrice: e.target.value})}
                       />
                     </div>
                     <div className="stock-form-group">
                       <label>Selling Price (₹)</label>
-                      <input 
-                        type="number" 
-                        value={stockForm.sellingPrice} 
-                        onChange={(e) => setStockForm({...stockForm, sellingPrice: e.target.value})} 
+                      <input
+                        type="number"
+                        value={stockForm.sellingPrice}
+                        onChange={(e) => setStockForm({...stockForm, sellingPrice: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
                       <label>Supplier</label>
-                      <input 
-                        type="text" 
-                        value={stockForm.supplier} 
-                        onChange={(e) => setStockForm({...stockForm, supplier: e.target.value})} 
+                      <input
+                        type="text"
+                        value={stockForm.supplier}
+                        onChange={(e) => setStockForm({...stockForm, supplier: e.target.value})}
                       />
                     </div>
                     <div className="stock-form-group">
                       <label>Purchase Date</label>
-                      <input 
-                        type="date" 
-                        value={stockForm.purchaseDate} 
-                        onChange={(e) => setStockForm({...stockForm, purchaseDate: e.target.value})} 
+                      <input
+                        type="date"
+                        value={stockForm.purchaseDate}
+                        onChange={(e) => setStockForm({...stockForm, purchaseDate: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="stock-form-group">
                     <label>Notes</label>
-                    <textarea 
-                      value={stockForm.notes} 
-                      onChange={(e) => setStockForm({...stockForm, notes: e.target.value})} 
+                    <textarea
+                      value={stockForm.notes}
+                      onChange={(e) => setStockForm({...stockForm, notes: e.target.value})}
                     />
                   </div>
                 </div>
@@ -1593,10 +1596,10 @@ export default function Stock({ initialView }) {
                     <div className="stock-form-group">
                       <label>Medicine *</label>
                       {availableMedicines.length > 0 ? (
-                        <select 
-                          value={adjustmentForm.medicineId} 
-                          onChange={(e) => setAdjustmentForm({...adjustmentForm, medicineId: e.target.value})} 
-                          required 
+                        <select
+                          value={adjustmentForm.medicineId}
+                          onChange={(e) => setAdjustmentForm({...adjustmentForm, medicineId: e.target.value})}
+                          required
                         >
                           <option value="">-- Select Medicine ({availableMedicines.length} in catalogue) --</option>
                           {availableMedicines.map((m, i) => (
@@ -1606,28 +1609,28 @@ export default function Stock({ initialView }) {
                           ))}
                         </select>
                       ) : (
-                        <input 
-                          type="text" 
-                          value={adjustmentForm.medicineId} 
-                          onChange={(e) => setAdjustmentForm({...adjustmentForm, medicineId: e.target.value})} 
-                          required 
+                        <input
+                          type="text"
+                          value={adjustmentForm.medicineId}
+                          onChange={(e) => setAdjustmentForm({...adjustmentForm, medicineId: e.target.value})}
+                          required
                         />
                       )}
                     </div>
                     <div className="stock-form-group">
                       <label>Batch Number</label>
-                      <input 
-                        type="text" 
-                        value={adjustmentForm.batchId} 
-                        onChange={(e) => setAdjustmentForm({...adjustmentForm, batchId: e.target.value})} 
+                      <input
+                        type="text"
+                        value={adjustmentForm.batchId}
+                        onChange={(e) => setAdjustmentForm({...adjustmentForm, batchId: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
                       <label>Adjustment Type</label>
-                      <select 
-                        value={adjustmentForm.type} 
+                      <select
+                        value={adjustmentForm.type}
                         onChange={(e) => setAdjustmentForm({...adjustmentForm, type: e.target.value})}
                       >
                         <option value="increase">Increase (+)</option>
@@ -1636,28 +1639,28 @@ export default function Stock({ initialView }) {
                     </div>
                     <div className="stock-form-group">
                       <label>Quantity *</label>
-                      <input 
-                        type="number" 
-                        value={adjustmentForm.quantity} 
-                        onChange={(e) => setAdjustmentForm({...adjustmentForm, quantity: e.target.value})} 
-                        required 
+                      <input
+                        type="number"
+                        value={adjustmentForm.quantity}
+                        onChange={(e) => setAdjustmentForm({...adjustmentForm, quantity: e.target.value})}
+                        required
                       />
                     </div>
                   </div>
                   <div className="stock-form-group">
                     <label>Reason *</label>
-                    <input 
-                      type="text" 
-                      value={adjustmentForm.reason} 
-                      onChange={(e) => setAdjustmentForm({...adjustmentForm, reason: e.target.value})} 
-                      required 
+                    <input
+                      type="text"
+                      value={adjustmentForm.reason}
+                      onChange={(e) => setAdjustmentForm({...adjustmentForm, reason: e.target.value})}
+                      required
                     />
                   </div>
                   <div className="stock-form-group">
                     <label>Notes</label>
-                    <textarea 
-                      value={adjustmentForm.notes} 
-                      onChange={(e) => setAdjustmentForm({...adjustmentForm, notes: e.target.value})} 
+                    <textarea
+                      value={adjustmentForm.notes}
+                      onChange={(e) => setAdjustmentForm({...adjustmentForm, notes: e.target.value})}
                     />
                   </div>
                 </div>
@@ -1680,43 +1683,43 @@ export default function Stock({ initialView }) {
                 <div className="stock-modal-body">
                   <div className="stock-form-group">
                     <label>Medicine *</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={(() => {
                         const m = availableMedicines.find(med => String(med?.id || med?._id || med?.medicineId) === String(levelsForm.medicineId))
                         return m ? `${m?.name || m?.medicineName || ''} (${levelsForm.medicineId})` : levelsForm.medicineId
-                      })()} 
-                      required 
-                      disabled 
+                      })()}
+                      required
+                      disabled
                     />
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
                       <label>Minimum Stock Level *</label>
-                      <input 
-                        type="number" 
-                        value={levelsForm.minimumStock} 
-                        onChange={(e) => setLevelsForm({...levelsForm, minimumStock: e.target.value})} 
-                        required 
+                      <input
+                        type="number"
+                        value={levelsForm.minimumStock}
+                        onChange={(e) => setLevelsForm({...levelsForm, minimumStock: e.target.value})}
+                        required
                       />
                     </div>
                     <div className="stock-form-group">
                       <label>Maximum Stock Level *</label>
-                      <input 
-                        type="number" 
-                        value={levelsForm.maximumStock} 
-                        onChange={(e) => setLevelsForm({...levelsForm, maximumStock: e.target.value})} 
-                        required 
+                      <input
+                        type="number"
+                        value={levelsForm.maximumStock}
+                        onChange={(e) => setLevelsForm({...levelsForm, maximumStock: e.target.value})}
+                        required
                       />
                     </div>
                   </div>
                   <div className="stock-form-group">
                     <label>Reorder Threshold Level *</label>
-                    <input 
-                      type="number" 
-                      value={levelsForm.reorderLevel} 
-                      onChange={(e) => setLevelsForm({...levelsForm, reorderLevel: e.target.value})} 
-                      required 
+                    <input
+                      type="number"
+                      value={levelsForm.reorderLevel}
+                      onChange={(e) => setLevelsForm({...levelsForm, reorderLevel: e.target.value})}
+                      required
                     />
                   </div>
                 </div>

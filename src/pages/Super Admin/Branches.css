@@ -2,6 +2,29 @@
   min-height: 360px;
 }
 
+/* Pharmacy Management follows the active application theme. */
+[data-pms-theme] .super-admin-module-panel:has(.branches-name-cell) .sa-btn-primary {
+  border-color: transparent;
+  background: var(--pms-gradient);
+  color: #fff;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--pms-accent) 24%, transparent);
+}
+
+[data-pms-theme] .branch-admin-page .super-admin-module-panel .sa-btn-primary {
+  border-color: transparent;
+  background: var(--pms-gradient);
+  color: #fff;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--pms-accent) 24%, transparent);
+}
+
+[data-pms-theme] .super-admin-module-panel:has(.branches-name-cell) th {
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .branch-admin-page .super-admin-module-panel th {
+  color: var(--pms-accent-strong);
+}
+
 /* Reference-style branch table */
 .super-admin-module-panel:has(.branches-name-cell) {
   padding: 0;
@@ -448,3 +471,6 @@
     padding-left: 16px;
   }
 }
+
+/* Keep pharmacy cards consistent with the Admin Management reference. */
+.super-admin-shell .super-admin-module-panel:has(.branches-name-cell) { border-radius: 13px; }

@@ -428,6 +428,18 @@
   width: 100%;
   font-weight: 600;
   text-align: left;
+  overflow: visible !important;
+}
+
+.admins-page-shell .admins-table td:nth-child(2) {
+  overflow: visible !important;
+}
+
+.admin-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-avatar {
@@ -894,9 +906,12 @@
 
 .admins-page-shell .admins-primary-button {
   height: 38px;
+  min-width: 228px;
+  flex: 0 0 228px;
   border-radius: 9px;
   padding: 0 14px;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .admins-page-shell .admins-toolbar {
@@ -1043,6 +1058,54 @@
   filter: brightness(1.03) saturate(1.1);
 }
 
+/* Keep Admin Management aligned with the selected theme and visible in one frame. */
+[data-pms-theme] .admins-page-shell .admins-primary-button {
+  border-color: transparent;
+  background: var(--pms-gradient);
+  color: #fff;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--pms-accent) 24%, transparent);
+}
+
+[data-pms-theme] .admins-page-shell .admins-table th {
+  color: var(--pms-accent-strong);
+}
+
+@media (min-width: 641px) {
+  .admins-page-shell .admins-table-card {
+    overflow-x: hidden;
+  }
+
+  .admins-page-shell .admins-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .admins-page-shell .admins-table th:nth-child(1),
+  .admins-page-shell .admins-table td:nth-child(1) { width: 6%; }
+  .admins-page-shell .admins-table th:nth-child(2),
+  .admins-page-shell .admins-table td:nth-child(2) { width: 20%; }
+  .admins-page-shell .admins-table th:nth-child(3),
+  .admins-page-shell .admins-table td:nth-child(3) { width: 17%; }
+  .admins-page-shell .admins-table th:nth-child(4),
+  .admins-page-shell .admins-table td:nth-child(4) { width: 22%; }
+  .admins-page-shell .admins-table th:nth-child(5),
+  .admins-page-shell .admins-table td:nth-child(5) { width: 14%; }
+  .admins-page-shell .admins-table th:nth-child(6),
+  .admins-page-shell .admins-table td:nth-child(6) { width: 10%; }
+  .admins-page-shell .admins-table th:nth-child(7),
+  .admins-page-shell .admins-table td:nth-child(7) { width: 11%; padding-right: 10px !important; }
+
+  .admins-page-shell .admins-table td:nth-child(2),
+  .admins-page-shell .admins-table td:nth-child(3),
+  .admins-page-shell .admins-table td:nth-child(4),
+  .admins-page-shell .admins-table td:nth-child(5) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 980px) {
   .admins-page-shell {
     padding-left: 72px;
@@ -1077,5 +1140,87 @@
 
   .admins-table {
     min-width: 760px;
+  }
+}
+
+/* Compact actions fit inside their column without widening the table. */
+.admins-page-shell .admins-table .row-actions {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+.admins-page-shell .admins-table .row-actions > .row-action-button {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  padding: 0;
+  border-radius: 7px;
+  box-shadow: none;
+}
+.admins-page-shell .admins-table .row-actions .row-action-button svg {
+  width: 14px;
+  height: 14px;
+}
+@media (min-width: 641px) {
+  .admins-page-shell .admins-table { width: 100%; min-width: 0; table-layout: fixed; }
+  .admins-page-shell .admins-table :is(th, td):nth-child(1) { width: 5%; }
+  .admins-page-shell .admins-table :is(th, td):nth-child(2) { width: 18%; }
+  .admins-page-shell .admins-table :is(th, td):nth-child(3) { width: 17%; }
+  .admins-page-shell .admins-table :is(th, td):nth-child(4) { width: 21%; }
+  .admins-page-shell .admins-table :is(th, td):nth-child(5) { width: 13%; }
+  .admins-page-shell .admins-table :is(th, td):nth-child(6) { width: 12%; }
+  .admins-page-shell .admins-table :is(th, td):nth-child(7) { width: 14%; padding: 8px 4px !important; }
+  .admins-page-shell .admins-table td { overflow-wrap: anywhere; }
+}
+
+.admins-delete-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 28px;
+  border: 1px solid var(--pms-border);
+  border-radius: 20px;
+  background: var(--pms-surface, #fff);
+  color: var(--pms-text, #122033);
+  box-shadow: 0 24px 80px #0f172a33;
+}
+.admins-delete-dialog::backdrop { background: #0f172a66; backdrop-filter: blur(4px); }
+.admins-delete-symbol { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: color-mix(in srgb, var(--pms-accent) 14%, var(--pms-surface)); color: var(--pms-accent-strong); }
+.admins-delete-symbol svg { width: 25px; height: 25px; }
+.admins-delete-dialog h2 { margin: 18px 0 8px; font-size: 22px; }
+.admins-delete-dialog p { margin: 0; color: var(--pms-muted); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.admins-delete-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.admins-delete-actions button { padding: 9px 16px; border: 1px solid var(--pms-border); border-radius: 9px; background: var(--pms-surface); color: var(--pms-text); font-weight: 600; }
+.admins-delete-actions .admins-delete-confirm { background: var(--pms-gradient); border-color: transparent; color: #fff; }
+.admins-delete-actions button:disabled { opacity: .6; cursor: wait; }
+.admins-delete-actions button:focus-visible { outline: 2px solid var(--pms-accent); outline-offset: 3px; }
+
+/* Compact the five-row list while keeping forms in normal page flow. */
+@media (min-width: 901px) {
+  .admins-page-shell .admins-content { padding: 14px 20px 16px !important; }
+  .admins-page-shell .admins-section-header { margin-bottom: 10px; }
+  .admins-page-shell .admins-section-header h1 { font-size: 22px; }
+  .admins-page-shell .admins-section-header p { margin-top: 4px; font-size: 11px; }
+  .admins-page-shell .admins-toolbar { margin-bottom: 12px; }
+  .admins-page-shell .admins-table th { padding: 10px 8px; font-size: 10px; }
+  .admins-page-shell .admins-table td { padding: 10px 8px; font-size: 12px; line-height: 1.4; }
+  .admins-page-shell .admin-avatar {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    flex: 0 0 30px;
+    font-size: 11px;
+  }
+  .admins-page-shell .admin-name-cell { gap: 8px; }
+  .admins-page-shell .admin-status { padding: 4px 8px; font-size: 10px; }
+  .admins-page-shell .admins-pagination-row { margin-top: 10px; font-size: 11px; }
+  .admins-page-shell .admins-pagination { gap: 6px; }
+  .admins-page-shell .admins-pagination button { min-width: 30px; height: 30px; padding: 0 8px; font-size: 11px; }
+  .admins-page-shell .admins-table .row-actions > .row-action-button {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
   }
 }

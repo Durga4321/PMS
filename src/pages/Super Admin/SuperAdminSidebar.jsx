@@ -81,6 +81,9 @@ function SuperAdminSidebar({ activeLabel = '' }) {
               className={`super-admin-nav-link nav-color-${color || 'blue'}${isActive ? ' is-active' : ''}`}
               onClick={() => navigate(path)}
               key={label}
+              title={label}
+              aria-label={label}
+              aria-current={isActive ? 'page' : undefined}
             >
               <span className={`nav-icon-badge badge-${color || 'blue'}`}>
                 {icon}

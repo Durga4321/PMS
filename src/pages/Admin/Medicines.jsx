@@ -4,7 +4,7 @@ import { useToast } from '../../components/ToastProvider'
 import MedicineSuccessAnimation from '../../components/MedicineSuccessAnimation'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
-import { 
+import {
   createMedicine,
   deleteMedicine,
   syncDeletedMedicinesWithBackend,
@@ -260,22 +260,29 @@ export default function Medicines() {
   const [categories, setCategories] = useState([])
   const [dosageForms, setDosageForms] = useState([])
   const [strengths, setStrengths] = useState([])
-  
+
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
   const [dosageForm, setDosageForm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => {
+    try {
+      const existing = readLocalMedicines()
+      return !(Array.isArray(existing) && existing.length > 0)
+    } catch {
+      return false
+    }
+  })
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(null)
-  
+
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
   const [viewingItem, setViewingItem] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importPercent, setImportPercent] = useState(0)
   const [showSuccessAnim, setShowSuccessAnim] = useState(false)
-  
+
   const [form, setForm] = useState(emptyForm)
 
   // Validation Error State
@@ -371,7 +378,7 @@ export default function Medicines() {
     }
     return Object.keys(errs).length === 0
   }
-  
+
   // Import state
   const [importFile, setImportFile] = useState(null)
   const [importBranchId, setImportBranchId] = useState('')
@@ -384,7 +391,7 @@ export default function Medicines() {
   const [importProgress, setImportProgress] = useState(null)
 
   // Metrics summary
-  
+
   useEffect(() => {
     async function loadBranchesForImport() {
       try {
@@ -536,11 +543,11 @@ export default function Medicines() {
       const mfgVal = String(medicine?.manufacturer || medicine?.Manufacturer || '').toLowerCase()
       const supVal = String(medicine?.supplierName || medicine?.SupplierName || '').toLowerCase()
       const searchVal = String(query || '').toLowerCase()
-      
-      const matchesSearch = !searchVal || 
-        nameVal.includes(searchVal) || 
-        genVal.includes(searchVal) || 
-        brandVal.includes(searchVal) || 
+
+      const matchesSearch = !searchVal ||
+        nameVal.includes(searchVal) ||
+        genVal.includes(searchVal) ||
+        brandVal.includes(searchVal) ||
         codeVal.includes(searchVal) ||
         batchVal.includes(searchVal) ||
         mfgVal.includes(searchVal) ||
@@ -548,7 +555,7 @@ export default function Medicines() {
 
       const matchesCategory = !category || getCategory(medicine) === category
       const matchesDosage = !dosageForm || getDosageForm(medicine) === dosageForm
-      
+
       const itemStatus = String(getStatus(medicine) || '').toLowerCase()
       const qty = getStock(medicine)
       const reorder = getReorderLevel(medicine)
@@ -561,7 +568,7 @@ export default function Medicines() {
         else if (filterVal === 'active') matchesStatus = !itemStatus.includes('inactive') && qty > 0
         else matchesStatus = itemStatus.includes(filterVal)
       }
-      
+
       return matchesSearch && matchesCategory && matchesDosage && matchesStatus
     })
   }, [category, dosageForm, medicines, query, statusFilter])
@@ -990,43 +997,16 @@ export default function Medicines() {
   }
 
   return (
-    <AdminLayout activeLabel="Medicines" title="Medicine Management" subtitle="Manage medicines, dosage forms, pricing, stock, and medicine catalogue information.">
-      <div className="stock-scroll-area">
-        <div className="med-layout-container">
-
-          {/* Workflow Buttons Toolbar */}
-          <div className="med-toolbar" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '8px' }}>
-            <div className="med-action-btns">
-              <button 
-                type="button" 
-                className="med-btn med-btn-primary"
-                onClick={openCreate}
-              >
-                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Medicine
-              </button>
-              <button 
-                type="button" 
-                className="med-btn med-btn-secondary"
-                onClick={() => setImportOpen(true)}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                Import
-              </button>
-            </div>
-            <button 
-              type="button" 
-              className="med-btn med-btn-secondary"
+    <AdminLayout headerAction={<button
+              type="button"
+              className="page-heading-refresh"
               onClick={() => { loadMedicines(); loadSummaryMetrics(); loadLookups(); }}
             >
               <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh
-            </button>
-          </div>
+            </button>} activeLabel="Medicines" title="Medicine Management" subtitle="Manage medicines, dosage forms, pricing, stock, and medicine catalogue information.">
+      <div className="stock-scroll-area">
+        <div className="med-layout-container">
 
           {/* Summary Cards */}
           <div className="med-summary-grid">
@@ -1077,33 +1057,64 @@ export default function Medicines() {
             </div>
           </div>
 
+          {/* Table Results: 22 Excel Columns */}
+          <section className="dispense-table-panel">
+            <header className="med-catalogue-header">
+            <h2>Medicine Catalogue Logs</h2>
+          {/* Workflow Buttons Toolbar */}
+          <div className="med-catalogue-actions">
+            <div className="med-action-btns">
+              <button
+                type="button"
+                className="med-btn med-btn-secondary"
+                onClick={() => setImportOpen(true)}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Import
+              </button>
+            </div>
+
+            <button
+                type="button"
+                className="med-btn med-btn-primary"
+                onClick={openCreate}
+              >
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Medicine
+              </button>
+          </div>
+            </header>
           {/* Search & Filter Toolbar */}
-          <div className="med-toolbar">
+          <div className="med-toolbar med-catalogue-filters">
             <div className="med-search-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-              <input 
-                value={query} 
-                onChange={(e) => setQuery(e.target.value)} 
-                placeholder="Search medicine by name, generic name, code, brand, batch..." 
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search medicine by name, generic name, code, brand, batch..."
               />
             </div>
             <div className="med-filters">
-              <select 
-                value={category} 
+              <select
+                value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
                 <option value="">All Categories</option>
                 {categories.map((item) => <option value={optionValue(item)} key={optionValue(item)}>{optionValue(item)}</option>)}
               </select>
-              <select 
-                value={dosageForm} 
+              <select
+                value={dosageForm}
                 onChange={(e) => setDosageForm(e.target.value)}
               >
                 <option value="">All Dosage Forms</option>
                 {dosageForms.map((item) => <option value={optionValue(item)} key={optionValue(item)}>{optionValue(item)}</option>)}
               </select>
-              <select 
-                value={statusFilter} 
+              <select
+                value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="all">All Status</option>
@@ -1112,8 +1123,8 @@ export default function Medicines() {
                 <option value="low stock">Low Stock</option>
                 <option value="out of stock">Out of Stock</option>
               </select>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="med-btn med-btn-secondary"
                 onClick={() => {
                   setQuery('')
@@ -1128,10 +1139,8 @@ export default function Medicines() {
             </div>
           </div>
 
-          {/* Table Results: 22 Excel Columns */}
-          <section className="dispense-table-panel">
-            <h2>Medicine Catalogue Logs</h2>
-            
+
+
             {loading ? (
               <div className="dispense-skeleton-row">
                 <div className="dispense-skeleton-line" style={{ width: '80%' }}></div>
@@ -1228,13 +1237,13 @@ export default function Medicines() {
                           <td><span className="med-location-pill">{location}</span></td>
                           <td>{getStatusBadge(medicine)}</td>
                           <td>
-                            <RowActions 
-                              itemName={getName(medicine)} 
-                              isActive={String(getStatus(medicine)).toLowerCase() === 'active'} 
-                              onView={() => setViewingItem(medicine)} 
-                              onEdit={() => openEdit(medicine)} 
-                              onStatus={() => handleStatusChange(medicine)} 
-                              onDelete={() => handleDelete(medicine)} 
+                            <RowActions
+                              itemName={getName(medicine)}
+                              isActive={String(getStatus(medicine)).toLowerCase() === 'active'}
+                              onView={() => setViewingItem(medicine)}
+                              onEdit={() => openEdit(medicine)}
+                              onStatus={() => handleStatusChange(medicine)}
+                              onDelete={() => handleDelete(medicine)}
                             />
                           </td>
                         </tr>
@@ -1245,9 +1254,9 @@ export default function Medicines() {
                           <div className="dispense-empty-state">
                             <h3>No medicines found.</h3>
                             <p>Add medicines to your pharmacy catalogue or import an Excel sheet to start managing stock and pricing.</p>
-                            <button 
-                              type="button" 
-                              className="med-btn med-btn-primary" 
+                            <button
+                              type="button"
+                              className="med-btn med-btn-primary"
                               style={{ marginTop: '12px' }}
                               onClick={openCreate}
                             >
@@ -1267,7 +1276,7 @@ export default function Medicines() {
           {formOpen && (
             <div className="med-modal-overlay">
               <form onSubmit={handleSave} className="med-modal-container med-modal-redesign" noValidate>
-                
+
                 {/* Sticky Header */}
                 <div className="med-modal-header-redesign">
                   <div className="med-modal-header-title">
@@ -1304,7 +1313,7 @@ export default function Medicines() {
 
                 {/* Scrollable Modal Body */}
                 <div className="med-modal-body-redesign">
-                  
+
                   {/* CARD 1: BASIC MEDICINE INFORMATION (6 fields) */}
                   <section className="med-section-card" id="sec-basic">
                     <div className="med-section-card-header">
@@ -1321,12 +1330,12 @@ export default function Medicines() {
                         <label htmlFor="med-medicineCode">Medicine Code</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8v8M11 8v8M15 8v4M17 8v8"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-medicineCode"
                             placeholder="e.g. MED0001"
-                            value={form.medicineCode} 
-                            onChange={(e) => setForm({...form, medicineCode: e.target.value})} 
+                            value={form.medicineCode}
+                            onChange={(e) => setForm({...form, medicineCode: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1335,17 +1344,17 @@ export default function Medicines() {
                         <label htmlFor="med-name">Medicine Name <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m10.5 11.5 5 5m-2.5-9L8 12.5a4.24 4.24 0 0 0 6 6l5-5a4.24 4.24 0 0 0-6-6Z"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-name"
                             placeholder="e.g. Paracetamol Sample 0001"
-                            value={form.name} 
+                            value={form.name}
                             onChange={(e) => {
                               setForm({...form, name: e.target.value})
                               if (formErrors.name) setFormErrors({...formErrors, name: ''})
-                            }} 
+                            }}
                             className={formErrors.name ? 'is-invalid' : ''}
-                            required 
+                            required
                           />
                         </div>
                         {formErrors.name && <span className="form-error-msg">{formErrors.name}</span>}
@@ -1355,15 +1364,15 @@ export default function Medicines() {
                         <label htmlFor="med-genericName">Generic Name <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 2v7.31L4.75 18.25A2 2 0 0 0 6.46 21h11.08a2 2 0 0 0 1.71-2.75L14 9.31V2"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-genericName"
                             placeholder="e.g. Paracetamol"
-                            value={form.genericName} 
+                            value={form.genericName}
                             onChange={(e) => {
                               setForm({...form, genericName: e.target.value})
                               if (formErrors.genericName) setFormErrors({...formErrors, genericName: ''})
-                            }} 
+                            }}
                             className={formErrors.genericName ? 'is-invalid' : ''}
                             required
                           />
@@ -1375,12 +1384,12 @@ export default function Medicines() {
                         <label htmlFor="med-brandName">Brand Name</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-brandName"
                             placeholder="e.g. Brand 1"
-                            value={form.brandName} 
-                            onChange={(e) => setForm({...form, brandName: e.target.value})} 
+                            value={form.brandName}
+                            onChange={(e) => setForm({...form, brandName: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1389,17 +1398,17 @@ export default function Medicines() {
                         <label htmlFor="med-category">Category <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                          <input 
-                            list="med-categories-list" 
+                          <input
+                            list="med-categories-list"
                             id="med-category"
                             placeholder="e.g. Analgesic, Antibiotic, Antacid"
-                            value={form.category} 
+                            value={form.category}
                             onChange={(e) => {
                               setForm({...form, category: e.target.value})
                               if (formErrors.category) setFormErrors({...formErrors, category: ''})
-                            }} 
+                            }}
                             className={formErrors.category ? 'is-invalid' : ''}
-                            required 
+                            required
                           />
                           <datalist id="med-categories-list">
                             {categories.map((item) => <option value={optionValue(item)} key={optionValue(item)} />)}
@@ -1412,12 +1421,12 @@ export default function Medicines() {
                         <label htmlFor="med-manufacturer">Manufacturer</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-manufacturer"
                             placeholder="e.g. Medico Labs"
-                            value={form.manufacturer} 
-                            onChange={(e) => setForm({...form, manufacturer: e.target.value})} 
+                            value={form.manufacturer}
+                            onChange={(e) => setForm({...form, manufacturer: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1440,17 +1449,17 @@ export default function Medicines() {
                         <label htmlFor="med-dosageForm">Dosage Form <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
-                          <input 
-                            list="med-dosage-list" 
+                          <input
+                            list="med-dosage-list"
                             id="med-dosageForm"
                             placeholder="e.g. Tablet, Capsule, Syrup, Injection"
-                            value={form.dosageForm} 
+                            value={form.dosageForm}
                             onChange={(e) => {
                               setForm({...form, dosageForm: e.target.value})
                               if (formErrors.dosageForm) setFormErrors({...formErrors, dosageForm: ''})
-                            }} 
+                            }}
                             className={formErrors.dosageForm ? 'is-invalid' : ''}
-                            required 
+                            required
                           />
                           <datalist id="med-dosage-list">
                             {dosageForms.map((item) => <option value={optionValue(item)} key={optionValue(item)} />)}
@@ -1463,12 +1472,12 @@ export default function Medicines() {
                         <label htmlFor="med-strength">Strength</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                          <input 
-                            list="med-strengths-list" 
+                          <input
+                            list="med-strengths-list"
                             id="med-strength"
                             placeholder="e.g. 100 mg, 500 mg"
-                            value={form.strength} 
-                            onChange={(e) => setForm({...form, strength: e.target.value})} 
+                            value={form.strength}
+                            onChange={(e) => setForm({...form, strength: e.target.value})}
                           />
                           <datalist id="med-strengths-list">
                             {strengths.map((item) => <option value={optionValue(item)} key={optionValue(item)} />)}
@@ -1480,12 +1489,12 @@ export default function Medicines() {
                         <label htmlFor="med-packSize">Pack Size</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-packSize"
                             placeholder="e.g. 10 Tablets, 100ml"
-                            value={form.packSize} 
-                            onChange={(e) => setForm({...form, packSize: e.target.value})} 
+                            value={form.packSize}
+                            onChange={(e) => setForm({...form, packSize: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1494,12 +1503,12 @@ export default function Medicines() {
                         <label htmlFor="med-storageLocation">Storage Location</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-storageLocation"
                             placeholder="e.g. Rack-1, Shelf-A"
-                            value={form.storageLocation} 
-                            onChange={(e) => setForm({...form, storageLocation: e.target.value})} 
+                            value={form.storageLocation}
+                            onChange={(e) => setForm({...form, storageLocation: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1522,12 +1531,12 @@ export default function Medicines() {
                         <label htmlFor="med-batchNumber">Batch Number</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-batchNumber"
                             placeholder="e.g. BAT0001"
-                            value={form.batchNumber} 
-                            onChange={(e) => setForm({...form, batchNumber: e.target.value})} 
+                            value={form.batchNumber}
+                            onChange={(e) => setForm({...form, batchNumber: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1536,12 +1545,12 @@ export default function Medicines() {
                         <label htmlFor="med-supplierCode">Supplier Code</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8v8M11 8v8M15 8v4M17 8v8"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-supplierCode"
                             placeholder="e.g. SUP001"
-                            value={form.supplierCode} 
-                            onChange={(e) => setForm({...form, supplierCode: e.target.value})} 
+                            value={form.supplierCode}
+                            onChange={(e) => setForm({...form, supplierCode: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1550,12 +1559,12 @@ export default function Medicines() {
                         <label htmlFor="med-supplierName">Supplier Name</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-supplierName"
                             placeholder="e.g. Apex Distributors"
-                            value={form.supplierName} 
-                            onChange={(e) => setForm({...form, supplierName: e.target.value})} 
+                            value={form.supplierName}
+                            onChange={(e) => setForm({...form, supplierName: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1564,12 +1573,12 @@ export default function Medicines() {
                         <label htmlFor="med-contactPerson">Contact Person</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             id="med-contactPerson"
                             placeholder="e.g. Ravi Kumar"
-                            value={form.contactPerson} 
-                            onChange={(e) => setForm({...form, contactPerson: e.target.value})} 
+                            value={form.contactPerson}
+                            onChange={(e) => setForm({...form, contactPerson: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1578,12 +1587,12 @@ export default function Medicines() {
                         <label htmlFor="med-phone">Phone</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                          <input 
-                            type="tel" 
+                          <input
+                            type="tel"
                             id="med-phone"
                             placeholder="e.g. 9810000713"
-                            value={form.phone} 
-                            onChange={(e) => setForm({...form, phone: e.target.value})} 
+                            value={form.phone}
+                            onChange={(e) => setForm({...form, phone: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1592,12 +1601,12 @@ export default function Medicines() {
                         <label htmlFor="med-email">Email</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                          <input 
-                            type="email" 
+                          <input
+                            type="email"
                             id="med-email"
                             placeholder="e.g. orders1@supplier-example.com"
-                            value={form.email} 
-                            onChange={(e) => setForm({...form, email: e.target.value})} 
+                            value={form.email}
+                            onChange={(e) => setForm({...form, email: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1606,11 +1615,11 @@ export default function Medicines() {
                         <label htmlFor="med-manufactureDate">Manufacture Date</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                          <input 
-                            type="date" 
+                          <input
+                            type="date"
                             id="med-manufactureDate"
-                            value={form.manufactureDate} 
-                            onChange={(e) => setForm({...form, manufactureDate: e.target.value})} 
+                            value={form.manufactureDate}
+                            onChange={(e) => setForm({...form, manufactureDate: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1619,11 +1628,11 @@ export default function Medicines() {
                         <label htmlFor="med-expiryDate">Expiry Date</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                          <input 
-                            type="date" 
+                          <input
+                            type="date"
                             id="med-expiryDate"
-                            value={form.expiryDate} 
-                            onChange={(e) => setForm({...form, expiryDate: e.target.value})} 
+                            value={form.expiryDate}
+                            onChange={(e) => setForm({...form, expiryDate: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1646,16 +1655,16 @@ export default function Medicines() {
                         <label htmlFor="med-quantity">Quantity (Stock)</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             id="med-quantity"
                             placeholder="0"
                             min="0"
-                            value={form.quantity} 
+                            value={form.quantity}
                             onChange={(e) => {
                               setForm({...form, quantity: e.target.value})
                               if (formErrors.quantity) setFormErrors({...formErrors, quantity: ''})
-                            }} 
+                            }}
                             className={formErrors.quantity ? 'is-invalid' : ''}
                           />
                         </div>
@@ -1666,17 +1675,17 @@ export default function Medicines() {
                         <label htmlFor="med-purchasePrice">Purchase Price (₹)</label>
                         <div className="input-icon-wrap">
                           <span className="currency-prefix">₹</span>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             id="med-purchasePrice"
                             placeholder="0.00"
                             step="0.01"
                             min="0"
-                            value={form.purchasePrice} 
+                            value={form.purchasePrice}
                             onChange={(e) => {
                               setForm({...form, purchasePrice: e.target.value})
                               if (formErrors.purchasePrice) setFormErrors({...formErrors, purchasePrice: ''})
-                            }} 
+                            }}
                             className={formErrors.purchasePrice ? 'is-invalid' : ''}
                           />
                         </div>
@@ -1687,19 +1696,19 @@ export default function Medicines() {
                         <label htmlFor="med-sellingPrice">Selling Price (₹) <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <span className="currency-prefix">₹</span>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             id="med-sellingPrice"
                             placeholder="0.00"
                             step="0.01"
                             min="0"
-                            value={form.sellingPrice} 
+                            value={form.sellingPrice}
                             onChange={(e) => {
                               setForm({...form, sellingPrice: e.target.value})
                               if (formErrors.sellingPrice) setFormErrors({...formErrors, sellingPrice: ''})
-                            }} 
+                            }}
                             className={formErrors.sellingPrice ? 'is-invalid' : ''}
-                            required 
+                            required
                           />
                         </div>
                         {formErrors.sellingPrice && <span className="form-error-msg">{formErrors.sellingPrice}</span>}
@@ -1709,18 +1718,18 @@ export default function Medicines() {
                         <label htmlFor="med-gst">GST (%)</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             id="med-gst"
                             placeholder="e.g. 5, 12, 18"
                             step="0.1"
                             min="0"
                             max="100"
-                            value={form.gst} 
+                            value={form.gst}
                             onChange={(e) => {
                               setForm({...form, gst: e.target.value})
                               if (formErrors.gst) setFormErrors({...formErrors, gst: ''})
-                            }} 
+                            }}
                             className={formErrors.gst ? 'is-invalid' : ''}
                           />
                         </div>
@@ -1732,7 +1741,7 @@ export default function Medicines() {
                         <div className="med-margin-preview-badge" style={{ gridColumn: '1 / -1' }}>
                           <span className="margin-label">Margin Preview:</span>
                           <span className="margin-value">
-                            +₹{(Number(form.sellingPrice) - Number(form.purchasePrice)).toFixed(2)} 
+                            +₹{(Number(form.sellingPrice) - Number(form.purchasePrice)).toFixed(2)}
                             ({(((Number(form.sellingPrice) - Number(form.purchasePrice)) / Number(form.sellingPrice)) * 100).toFixed(1)}% margin)
                           </span>
                         </div>
@@ -1742,16 +1751,16 @@ export default function Medicines() {
                         <label htmlFor="med-minimumStock">Minimum Stock</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             id="med-minimumStock"
                             placeholder="e.g. 10"
                             min="0"
-                            value={form.minimumStock} 
+                            value={form.minimumStock}
                             onChange={(e) => {
                               setForm({...form, minimumStock: e.target.value})
                               if (formErrors.minimumStock) setFormErrors({...formErrors, minimumStock: ''})
-                            }} 
+                            }}
                             className={formErrors.minimumStock ? 'is-invalid' : ''}
                           />
                         </div>
@@ -1762,16 +1771,16 @@ export default function Medicines() {
                         <label htmlFor="med-maximumStock">Maximum Stock</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             id="med-maximumStock"
                             placeholder="e.g. 100"
                             min="0"
-                            value={form.maximumStock} 
+                            value={form.maximumStock}
                             onChange={(e) => {
                               setForm({...form, maximumStock: e.target.value})
                               if (formErrors.maximumStock) setFormErrors({...formErrors, maximumStock: ''})
-                            }} 
+                            }}
                             className={formErrors.maximumStock ? 'is-invalid' : ''}
                           />
                         </div>
@@ -1782,16 +1791,16 @@ export default function Medicines() {
                         <label htmlFor="med-reorderLevel">Reorder Level</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             id="med-reorderLevel"
                             placeholder="e.g. 15"
                             min="0"
-                            value={form.reorderLevel} 
+                            value={form.reorderLevel}
                             onChange={(e) => {
                               setForm({...form, reorderLevel: e.target.value})
                               if (formErrors.reorderLevel) setFormErrors({...formErrors, reorderLevel: ''})
-                            }} 
+                            }}
                             className={formErrors.reorderLevel ? 'is-invalid' : ''}
                           />
                         </div>
@@ -1802,11 +1811,11 @@ export default function Medicines() {
                         <label htmlFor="med-lastPurchase">Last Purchase Date</label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                          <input 
-                            type="date" 
+                          <input
+                            type="date"
                             id="med-lastPurchase"
-                            value={form.lastPurchase} 
-                            onChange={(e) => setForm({...form, lastPurchase: e.target.value})} 
+                            value={form.lastPurchase}
+                            onChange={(e) => setForm({...form, lastPurchase: e.target.value})}
                           />
                         </div>
                       </div>
@@ -1817,17 +1826,17 @@ export default function Medicines() {
 
                 {/* Sticky Footer */}
                 <div className="med-modal-footer-redesign">
-                  <button 
-                    type="button" 
-                    className="med-btn-cancel" 
+                  <button
+                    type="button"
+                    className="med-btn-cancel"
                     onClick={() => setFormOpen(false)}
                     disabled={saving}
                   >
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
-                    className="med-btn-save" 
+                  <button
+                    type="submit"
+                    className="med-btn-save"
                     disabled={saving}
                   >
                     {saving ? (
@@ -1855,7 +1864,7 @@ export default function Medicines() {
                   <button type="button" className="med-modal-close" onClick={() => setViewingItem(null)}>&times;</button>
                 </div>
                 <div className="med-modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
-                  
+
                   {/* Group 1: Basic Information */}
                   <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                     <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>01 Basic Medicine Information</div>
@@ -2054,16 +2063,16 @@ export default function Medicines() {
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
                       Choose Excel File
                     </label>
-                    <input 
-                      type="file" 
-                      accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" 
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) {
                           setImportFile(file)
                           setImportMessage(`Selected: ${file.name}`)
                         }
-                      }} 
+                      }}
                       style={{ width: '100%', padding: '12px', border: '1.5px dashed #cbd5e1', borderRadius: '8px', background: '#f8fafc', fontSize: '14px' }}
                     />
                   </div>
@@ -2075,14 +2084,14 @@ export default function Medicines() {
                         <span style={{ color: '#2563eb', fontWeight: 700 }}>{importPercent}%</span>
                       </div>
                       <div style={{ height: '8px', width: '100%', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div 
-                          style={{ 
-                            height: '100%', 
-                            width: `${importPercent}%`, 
-                            background: 'linear-gradient(90deg, #2563eb, #38bdf8)', 
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${importPercent}%`,
+                            background: 'linear-gradient(90deg, #2563eb, #38bdf8)',
                             borderRadius: '4px',
-                            transition: 'width 0.3s ease-in-out' 
-                          }} 
+                            transition: 'width 0.3s ease-in-out'
+                          }}
                         />
                       </div>
                     </div>
@@ -2098,8 +2107,8 @@ export default function Medicines() {
                   <button type="button" className="med-btn med-btn-secondary" onClick={() => setImportOpen(false)}>
                     Cancel
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="med-btn med-btn-primary"
                     onClick={handleDirectUpload}
                     disabled={loading || !importFile}

@@ -19,6 +19,10 @@
   padding: 20px 0 16px;
 }
 
+.medicines-page .medicines-heading > p {
+  display: none;
+}
+
 .medicines-heading p {
   margin: 0 0 5px;
   color: #94a3b8;
@@ -461,3 +465,6 @@
     justify-content: space-between;
   }
 }
+
+.medicines-page .medicines-panel { border-radius: 13px; }
+.medicines-page .medicines-heading span { margin-top: 6px; font-size: 12px; }

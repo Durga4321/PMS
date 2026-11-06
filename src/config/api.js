@@ -31,7 +31,7 @@ export const replacePathParams = (path, params = {}) =>
     return value === undefined || value === null ? '' : encodeURIComponent(String(value))
   })
 
-const REQUEST_TIMEOUT_MS = 45000
+const REQUEST_TIMEOUT_MS = 12000
 
 const tokenKeysByRole = {
   superAdmin: 'superAdminToken',
@@ -380,7 +380,8 @@ async function request(path, options = {}) {
 
   const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timeoutMs = options.timeout || (isFormData ? 120000 : REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   if (signal) {
     if (signal.aborted) controller.abort()
@@ -523,7 +524,10 @@ async function downloadRequest(path, filename) {
 export function loginUnifiedAuth(credentials) {
   return request('auth/login', {
     method: 'POST',
-    body: JSON.stringify(apiPayload(credentials)),
+    body: JSON.stringify({
+      email: String(credentials.email ?? '').trim(),
+      password: String(credentials.password ?? ''),
+    }),
   })
 }
 

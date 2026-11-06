@@ -121,20 +121,15 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
     }
   }, [roleType])
 
-  async function logout() {
+  function logout() {
     const tokenKey = roleType === 'pharmacist' ? 'pharmacistToken' : roleType === 'pharmacy-admin' ? 'pharmacyAdminToken' : 'superAdminToken'
     const token = sessionStorage.getItem(tokenKey) || localStorage.getItem(tokenKey)
-
-    try {
-      if (roleType === 'pharmacist') await logoutPharmacist(token)
-      else if (roleType === 'pharmacy-admin') await logoutPharmacyAdmin(token)
-      else await logoutSuperAdmin(token)
-    } catch (error) {
-      showToast(error.message, 'error')
-    } finally {
-      clearRoleSession(roleType)
-      navigate('/login', { replace: true })
-    }
+    // Capture the current session in the request before removing local credentials.
+    const revoke = roleType === 'pharmacist' ? logoutPharmacist : roleType === 'pharmacy-admin' ? logoutPharmacyAdmin : logoutSuperAdmin
+    if (token) revoke(token).catch(() => {})
+    setOpen(false)
+    clearRoleSession(roleType)
+    navigate('/login', { replace: true })
   }
 
   function goTo(path) {

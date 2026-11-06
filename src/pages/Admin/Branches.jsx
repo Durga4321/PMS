@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import RowActions from '../../components/RowActions'
 import { useToast } from '../../components/ToastProvider'
 import {
@@ -262,9 +262,18 @@ function StatusBadge({ branch }) {
 
 export default function AdminBranches() {
   const { showToast } = useToast()
-  const [branches, setBranches] = useState([])
+  const [branches, setBranches] = useState(() => {
+    try {
+      const items = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+      return Array.isArray(items) ? items : []
+    } catch {
+      return []
+    }
+  })
   const [pharmacies, setPharmacies] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+  const branchRequestRef = useRef(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [modal, setModal] = useState(null)
@@ -331,6 +340,7 @@ export default function AdminBranches() {
   }
 
   async function loadBranches() {
+    const requestId = ++branchRequestRef.current
     setLoading(true)
     setError('')
     try {
@@ -344,6 +354,7 @@ export default function AdminBranches() {
         return
       }
       const response = await listPharmacyBranches()
+      if (requestId !== branchRequestRef.current) return
       const isDeletedRecord = (b) => Boolean(b?.isDeleted || b?.IsDeleted || b?.deletedAt || b?.DeletedAt || b?.deletedOn || b?.DeletedOn)
       const remoteList = listFrom(response).filter((b) => !isDeletedRecord(b))
       const localList = (typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []).filter((b) => !isDeletedRecord(b))
@@ -358,12 +369,13 @@ export default function AdminBranches() {
       })
       setBranches(Array.from(map.values()))
     } catch (requestError) {
+      if (requestId !== branchRequestRef.current) return
       const localList = (typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : [])
       setBranches(localList)
       console.log('Branch list API failed:', requestError.message)
       if (!mainBranch && !localList.length) setError(requestError.message || 'Unable to load sub branches.')
     } finally {
-      setLoading(false)
+      if (requestId === branchRequestRef.current) setLoading(false)
     }
   }
 
@@ -378,7 +390,7 @@ export default function AdminBranches() {
       loadBranches()
     }
     window.addEventListener('pms:tenant-updated', onTenantUpdated)
-    return () => window.removeEventListener('pms:tenant-updated', onTenantUpdated)
+    return () => { branchRequestRef.current += 1; window.removeEventListener('pms:tenant-updated', onTenantUpdated) }
   }, [])
 
   function openCreate() {
@@ -617,7 +629,12 @@ export default function AdminBranches() {
     showToast(`Switched active branch to ${selected.name}.`)
   }
 
-  const rows = useMemo(() => displayBranches.map((branch, index) => {
+  const filteredBranches = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return displayBranches.filter((branch) => !query || [nameOf(branch), locationOf(branch), branchField(branch, 'phone'), branchField(branch, 'email')].some((value) => String(value || '').toLowerCase().includes(query)))
+  }, [displayBranches, search])
+
+  const rows = useMemo(() => filteredBranches.map((branch, index) => {
     const id = idOf(branch) || index
     const actions = <RowActions key={`actions-${id}`} itemName={nameOf(branch)} isActive={isActive(branch)} onView={() => openView(branch)} onEdit={() => openEdit(branch)} onStatus={() => toggleStatus(branch)} onDelete={branch?.isMainBranch ? undefined : () => deleteBranch(branch)} />
     return [
@@ -628,18 +645,18 @@ export default function AdminBranches() {
       <StatusBadge key="status" branch={branch} />,
       actions,
     ]
-  }), [displayBranches, pharmacies, workingBranchId])
+  }), [filteredBranches, pharmacies, workingBranchId])
 
   return (
     <AdminLayout activeLabel="Branches" title="Branches" subtitle="Main pharmacy branch and sub branches.">
-      <section className="super-admin-module-panel">
+      <section className="super-admin-module-panel admin-branches-panel">
         <div className="super-admin-module-header">
-          <h2>Branches</h2>
+          <input className="admin-branches-search" type="search" aria-label="Search branches" placeholder="Search branches by name, contact or address..." value={search} onChange={(event) => setSearch(event.target.value)} />
           <button type="button" className="sa-btn-primary" onClick={openCreate}>+ Add Sub Branch</button>
         </div>
         {error ? <div className="super-admin-module-error">{error}</div> : null}
-        <div className="super-admin-module-table">
-          <table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{loading ? <tr><td colSpan={headers.length}>Loading branches...</td></tr> : rows.length ? rows.map((row, index) => <tr key={idOf(displayBranches[index]) || index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>) : <tr><td colSpan={headers.length}>No branch details available.</td></tr>}</tbody></table>
+        <div className="super-admin-module-table" aria-busy={loading}>
+          <table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{loading && !displayBranches.length ? <tr><td colSpan={headers.length}>Loading branches...</td></tr> : rows.length ? rows.map((row, index) => <tr key={idOf(filteredBranches[index]) || index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>) : <tr><td colSpan={headers.length}>No branch details available.</td></tr>}</tbody></table>
         </div>
       </section>
 

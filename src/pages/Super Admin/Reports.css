@@ -144,3 +144,74 @@
     align-items: flex-start;
   }
 }
+
+/* Match the Admin Management heading and card geometry. */
+.reports-page .reports-heading .super-admin-eyebrow { display: none; }
+.reports-page .reports-heading > div > p:last-child { margin-top: 6px; font-size: 12px; }
+.reports-page .reports-panel { border-radius: 13px; }
+
+/* Match Roles & Permissions heading position and outer card gaps. */
+.reports-page .reports-heading {
+  padding: 16px 0 12px;
+  margin: 0 16px;
+  align-items: center;
+}
+.reports-page .reports-heading h1 { font-size: 24px; letter-spacing: 0; }
+.reports-page > :is(.reports-panel, .reports-stat-grid, .reports-chart-grid) {
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+}
+.reports-page :is(.reports-stat-grid, .reports-chart-grid) { gap: 12px; }
+.reports-page .reports-chart-grid > .reports-panel { margin-bottom: 0; }
+
+/* Apply the selected theme to report actions and KPI icons. */
+[data-pms-theme] .reports-page :is(.reports-actions button, .reports-tab, .view-button) {
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .reports-page .reports-primary {
+  border-color: transparent !important;
+  background: var(--pms-gradient) !important;
+  color: #fff !important;
+  box-shadow: 0 7px 14px color-mix(in srgb, var(--pms-accent) 20%, transparent);
+}
+
+[data-pms-theme] .reports-page :is(.reports-actions button, .reports-tab, .view-button):hover {
+  border-color: var(--pms-accent);
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .reports-page .reports-tab.is-active {
+  border-color: var(--pms-accent);
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+  font-weight: 800;
+}
+
+[data-pms-theme] .reports-page .reports-tab:not(.is-active) { font-weight: 600; }
+
+[data-pms-theme] .reports-page .reports-stat {
+  border-color: var(--pms-border);
+  border-left-color: var(--pms-accent);
+}
+
+[data-pms-theme] .reports-page :is(.stat-mark, .admin-avatar) {
+  background: color-mix(in srgb, var(--pms-accent) 18%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .reports-page .reports-search > .reports-icon { color: var(--pms-accent-strong); }
+[data-pms-theme] .reports-page button:focus-visible {
+  outline: 2px solid var(--pms-accent);
+  outline-offset: 3px;
+}
+
+/* Branch Revenue Details uses the same themed table headings. */
+[data-pms-theme] .reports-page .reports-table-wrap thead th {
+  color: var(--pms-accent-strong);
+  background: color-mix(in srgb, var(--pms-accent) 8%, var(--pms-surface));
+  border-top-color: var(--pms-border);
+}

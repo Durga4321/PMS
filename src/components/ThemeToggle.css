@@ -2,7 +2,7 @@
 [data-pms-theme] body { background:var(--pms-page-gradient)!important; background-attachment:fixed!important; color:var(--pms-text); }
 [data-pms-theme] input,[data-pms-theme] select,[data-pms-theme] textarea { border-color:var(--pms-border); background:var(--pms-surface); color:var(--pms-text); }
 [data-pms-theme] button:not(.pms-theme-trigger):not(.pms-theme-option):not(.pms-theme-done) { --theme-button-color:var(--pms-accent); }
-[data-pms-theme] .pms-landing,.auth-container { --teal:var(--pms-accent); --deep:var(--pms-accent-strong); --navy:var(--pms-text); background:var(--pms-page-bg)!important; }
+[data-pms-theme] .pms-landing,[data-pms-theme] .auth-container { --teal:var(--pms-accent); --deep:var(--pms-accent-strong); --navy:var(--pms-text); background:var(--pms-page-gradient)!important; background-attachment:fixed!important; }
 [data-pms-theme] .pms-landing .pms-nav { border-color:var(--pms-border); }
 [data-pms-theme] .pms-landing .pms-primary,.auth-container .button-primary { background:var(--pms-gradient); }
 [data-pms-theme] .pms-landing .pms-secondary,.auth-container .link-small { border-color:var(--pms-accent); color:var(--pms-accent-strong)!important; }
@@ -17,6 +17,9 @@
 [data-pms-theme] .branch-summary-4grid .stat-card-redesign:hover { border-color:var(--pms-accent)!important; box-shadow:0 8px 22px color-mix(in srgb,var(--pms-accent) 18%,transparent)!important; }
 [data-pms-theme] .reference-stats-three .stat-arrow-btn { background:color-mix(in srgb,var(--pms-accent) 12%,var(--pms-surface))!important; color:var(--pms-accent-strong)!important; }
 [data-pms-theme] .pms-landing { background:var(--pms-page-gradient)!important; }
+[data-pms-theme] .pms-hero { background-image:linear-gradient(90deg,color-mix(in srgb,var(--pms-page-bg) 82%,var(--pms-accent) 18%),color-mix(in srgb,var(--pms-page-bg) 58%,transparent)),url('/pms-pharmacy-background.png')!important; }
+[data-pms-theme] .auth-bg { opacity:.9; }
+[data-pms-theme] .auth-veil { background:linear-gradient(90deg,color-mix(in srgb,var(--pms-page-bg) 76%,var(--pms-accent) 24%),color-mix(in srgb,var(--pms-page-bg) 42%,transparent) 55%,color-mix(in srgb,var(--pms-sidebar) 56%,transparent))!important; }
 [data-pms-theme] .pms-landing .pms-roles { background:linear-gradient(120deg,color-mix(in srgb,var(--pms-accent) 9%,white),var(--pms-page-bg)); }
 [data-pms-theme] .pms-landing .pms-footer { background:linear-gradient(135deg,var(--pms-accent-strong),color-mix(in srgb,var(--pms-accent-strong) 76%,#071c31)); }
 [data-pms-theme] .auth-card h2,[data-pms-theme] .auth-form label { color:var(--pms-text); }
@@ -80,11 +83,11 @@
 .branch-admin-top-search { min-width:0!important; width:auto!important; flex:1 1 0!important; }
 .header-right-actions { min-width:0; }
 .pms-theme-trigger svg { width:18px; height:18px; fill:none; stroke:var(--pms-accent-strong); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-.pms-theme-trigger .pms-time-logo { stroke:var(--pms-accent-strong); }
-.pms-theme-trigger .pms-time-logo circle { fill:color-mix(in srgb,var(--pms-accent) 70%,#ffd166); stroke:none; }
-.pms-theme-trigger .pms-time-logo-evening path:first-child { fill:color-mix(in srgb,var(--pms-accent) 28%,#f8fafc); stroke:none; }
-.pms-theme-trigger > svg:not(.pms-time-logo) path { fill:#000; stroke:none; }
-.pms-theme-trigger > svg:not(.pms-time-logo) circle { fill:#fff; stroke:none; }
+.pms-theme-trigger .pms-theme-icon { stroke:var(--pms-accent-strong); }
+.pms-theme-trigger .pms-theme-icon path { fill:none; stroke:currentColor; }
+.pms-theme-trigger .pms-theme-icon circle { fill:var(--pms-accent); stroke:none; }
+.auth-card .pms-theme-picker { position:static; }
+.auth-card .pms-theme-panel { top:52px; right:14px; width:min(430px,calc(100% - 28px)); }
 .pms-custom-theme { margin-top:12px; padding-top:12px; border-top:1px solid var(--pms-border); }
 .pms-custom-theme strong { display:block; margin-bottom:8px; color:var(--pms-text); font-size:11px; }
 .pms-custom-theme > div { display:flex; align-items:center; gap:7px; }
@@ -127,3 +130,94 @@
 [data-pms-theme] .super-admin-sidebar .is-active .nav-icon-badge,
 [data-pms-theme] .branch-admin-sidebar .is-active .nav-icon-badge,
 [data-pms-theme] .pharmacist-sidebar .is-active .nav-icon-badge { background:rgba(255,255,255,.18)!important; color:#fff!important; }
+
+/* Custom colour card alongside the preset palette. */
+.pms-theme-panel { max-height: calc(100dvh - 90px); overflow-y: auto; }
+.pms-theme-panel .pms-custom-option { width: calc((100% - 24px) / 4); margin-top: 8px; }
+.pms-custom-option > span { display: grid; place-items: center; color: #fff; }
+.pms-theme-panel .pms-custom-theme {
+  padding: 12px;
+  border: 1px solid var(--pms-border);
+  border-radius: 12px;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, .1);
+  background: var(--pms-surface);
+}
+.pms-custom-theme header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.pms-custom-theme header strong { margin: 0; }
+.pms-custom-theme .pms-custom-close { width: 24px; height: 24px; padding: 0; color: var(--pms-muted); background: transparent; font-size: 16px; }
+.pms-custom-theme .pms-hue-slider {
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(to right, red, #ff0, #0f0, #0ff, #00f, #f0f, red);
+  cursor: pointer;
+}
+.pms-hue-slider::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; border: 3px solid #fff; border-radius: 50%; background: transparent; box-shadow: 0 1px 5px #0006; }
+.pms-hue-slider::-moz-range-thumb { width: 15px; height: 15px; border: 3px solid #fff; border-radius: 50%; background: transparent; box-shadow: 0 1px 5px #0006; }
+.pms-custom-theme button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 700px) { .pms-theme-panel .pms-custom-option { width: calc((100% - 16px) / 3); } }
+
+/* Consistent themed avatars, decorative icons and pagination in Super Admin. */
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell) :is(
+  .admin-avatar, .clinic-avatar, .medicine-icon, .role-mark,
+  .audit-stat-icon, .audit-user b, .stat-mark, .stat-icon-wrap,
+  .charts-header-icon, .dashboard-hero-icon, .notification-type-icon,
+  .profile-panel-icon-badge, .profile-card-icon-wrap, .profile-action-icon,
+  .admins-modal-icon, .panel-icon, .card-header-icon, .module-icon
+) {
+  background: color-mix(in srgb, var(--pms-accent) 18%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+  border-color: var(--pms-border);
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell) :is(
+  .admins-table-search svg, .super-admin-filter-icon, .branches-location-icon,
+  .settings-icon, .field-label-icon
+) { color: var(--pms-accent-strong); stroke: currentColor; }
+
+[data-pms-theme] .admins-page-shell .admins-pagination button {
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  color: var(--pms-accent-strong);
+}
+[data-pms-theme] .admins-page-shell .admins-pagination button:hover:not(:disabled) {
+  border-color: var(--pms-accent);
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+}
+[data-pms-theme] .admins-page-shell .admins-pagination button.is-current {
+  border-color: var(--pms-accent);
+  background: var(--pms-gradient);
+  color: #fff;
+}
+[data-pms-theme] .admins-page-shell .admins-pagination button:disabled {
+  background: color-mix(in srgb, var(--pms-muted) 6%, var(--pms-surface));
+  color: var(--pms-muted);
+  opacity: .5;
+}
+[data-pms-theme] .admins-page-shell .admins-pagination-row { color: var(--pms-muted); }
+[data-pms-theme] .admins-page-shell .admins-pagination button:focus-visible {
+  outline: 2px solid var(--pms-accent);
+  outline-offset: 3px;
+}
+
+/* Keep Custom in the last palette cell beside Royal Purple. */
+.pms-theme-panel .pms-theme-options {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-height: none;
+  overflow: visible;
+  gap: 6px;
+}
+.pms-theme-panel .pms-theme-option { min-height: 58px; padding: 6px 3px; gap: 3px; }
+.pms-theme-panel .pms-theme-option > span { width: 26px; height: 26px; }
+.pms-theme-panel .pms-custom-option { width: auto; margin: 0; }
+.pms-theme-panel .pms-custom-theme { margin-top: 10px; padding: 10px; }
+@media (max-height: 650px) {
+  .pms-theme-panel { padding: 12px; }
+  .pms-theme-panel .pms-theme-option { min-height: 49px; padding: 4px 2px; }
+  .pms-theme-panel .pms-theme-option > span { width: 22px; height: 22px; }
+  .pms-theme-panel-head { margin-bottom: 8px; }
+}

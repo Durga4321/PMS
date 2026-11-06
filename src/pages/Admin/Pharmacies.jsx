@@ -348,9 +348,16 @@ function StatusBadge({ status }) {
 
 export default function AdminPharmacies() {
   const { showToast } = useToast()
-  const [pharmacies, setPharmacies] = useState([])
+  const [pharmacies, setPharmacies] = useState(() => {
+    try {
+      const items = readLocalPharmacies()
+      return Array.isArray(items) ? items : []
+    } catch {
+      return []
+    }
+  })
   const [viewingPharmacy, setViewingPharmacy] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
@@ -358,8 +365,8 @@ export default function AdminPharmacies() {
   const [editingPharmacy, setEditingPharmacy] = useState(null)
   const [form, setForm] = useState(emptyForm)
 
-  async function loadPharmacies() {
-    setLoading(true)
+  async function loadPharmacies(showSpinner = false) {
+    if (showSpinner || pharmacies.length === 0) setLoading(true)
     setError('')
     try {
       const deletedIds = readDeletedPharmacyIds()
@@ -905,10 +912,9 @@ export default function AdminPharmacies() {
       title="Pharmacy Management"
       subtitle="Create and manage pharmacy profiles, addresses, contact details, and operational status."
     >
-      <section className="super-admin-module-panel">
+      <section className="super-admin-module-panel admin-pharmacies-panel">
         <div className="super-admin-module-header">
-          <h2>Pharmacy Management</h2>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div className="admin-pharmacies-toolbar">
             <div className="sa-search-wrap" style={{ position: 'relative' }}>
               <input
                 type="text"
@@ -987,7 +993,6 @@ export default function AdminPharmacies() {
                           isActive={String(status).toLowerCase() === 'active'}
                           onView={() => setViewingPharmacy(pharmacy)}
                           onEdit={() => openEdit(pharmacy)}
-                          onStatus={() => toggleStatus(pharmacy)}
                           onDelete={() => handleDeletePharmacy(pharmacy)}
                         />
                       </td>

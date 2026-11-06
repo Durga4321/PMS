@@ -10,7 +10,7 @@
 .sup-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
   align-items: stretch;
   width: 100%;
 }
@@ -18,14 +18,14 @@
 .sup-summary-card {
   background: #ffffff;
   border: 1px solid var(--card-border, #e2e8f0);
-  border-radius: 16px;
-  padding: 18px 20px;
+  border-radius: 13px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  min-height: 88px;
+  min-height: 64px;
 }
 
 .sup-summary-card:hover {
@@ -34,8 +34,8 @@
 }
 
 .sup-summary-icon-wrap {
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: var(--card-bg, #eff6ff);
   color: var(--card-accent, #2563eb);
@@ -51,8 +51,9 @@
 }
 
 .sup-summary-icon-wrap svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
 }
 
 .sup-summary-info {
@@ -62,7 +63,7 @@
 }
 
 .sup-summary-card label {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
@@ -70,8 +71,8 @@
 }
 
 .sup-summary-card span {
-  font-size: 26px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 700;
   color: #0f172a;
   line-height: 1.1;
 }
@@ -366,4 +367,24 @@
   .sup-modal-footer button {
     width: 100%;
   }
+}
+
+/* Supplier actions and filters share the records card, matching Medicines. */
+.sup-layout-container .sup-record-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.sup-record-header h2 { margin: 0; }
+.sup-record-header > button { margin-left: auto; }
+.sup-layout-container .dispense-table-panel .sup-record-filters {
+  padding: 0 0 12px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }

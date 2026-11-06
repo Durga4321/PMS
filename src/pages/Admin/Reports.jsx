@@ -44,7 +44,7 @@ export default function Reports() {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [selectedReportTitle, setSelectedReportTitle] = useState('')
-  
+
   const [pharmacyInfo, setPharmacyInfo] = useState({
     name: 'Pharmacy Console',
     branch: 'Main Branch',
@@ -65,7 +65,7 @@ export default function Reports() {
       address: assignment?.address || assignment?.location || '-',
       status: assignment?.status || 'Active'
     })
-    
+
     loadInitialData()
   }, [])
 
@@ -209,18 +209,29 @@ export default function Reports() {
   }, [items])
 
   return (
-    <AdminLayout activeLabel="Reports" title="Pharmacy Reports Dashboard" subtitle="Admin / Reports">
+    <AdminLayout headerAction={<button
+              className="page-heading-refresh"
+              type="button"
+              onClick={() => {
+                const active = reportCards.find(r => r.title === selectedReportTitle)
+                if (active) {
+                  runReport(active.title, active.fn)
+                } else {
+                  loadInitialData()
+                }
+              }}
+            ><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2.34 5.66" /></svg>Refresh</button>} activeLabel="Reports" title="Pharmacy Reports Dashboard" subtitle="Admin / Reports">
       <div className="stock-scroll-area">
         <div className="reports-layout-container">
 
           {/* Report Cards Grid */}
           <div className="reports-cards-grid">
             {reportCards.map((report) => (
-              <div 
-                key={report.title} 
+              <div
+                key={report.title}
                 className={`report-card ${selectedReportTitle === report.title ? 'is-active' : ''}`}
               >
-                <div 
+                <div
                   className="report-card-icon"
                   style={{
                     background: report.bgTint,
@@ -233,8 +244,8 @@ export default function Reports() {
                   <h3>{report.title}</h3>
                   <p>{report.description}</p>
                 </div>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="report-card-action"
                   onClick={() => runReport(report.title, report.fn)}
                 >
@@ -248,26 +259,13 @@ export default function Reports() {
           <div className="report-search-toolbar">
             <div className="report-search-input-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-              <input 
-                value={searchId} 
-                onChange={(event) => setSearchId(event.target.value)} 
-                placeholder="Enter Record ID / Bill ID to filter..." 
+              <input
+                value={searchId}
+                onChange={(event) => setSearchId(event.target.value)}
+                placeholder="Enter Record ID / Bill ID to filter..."
               />
             </div>
-            <button 
-              className="report-refresh-btn" 
-              type="button" 
-              onClick={() => {
-                const active = reportCards.find(r => r.title === selectedReportTitle)
-                if (active) {
-                  runReport(active.title, active.fn)
-                } else {
-                  loadInitialData()
-                }
-              }}
-            >
-              Refresh
-            </button>
+
           </div>
 
           {/* Results Details Display */}
@@ -276,7 +274,7 @@ export default function Reports() {
               <h2>{selectedReportTitle || 'General Dashboard Data'}</h2>
               <p>Tabular results preview and JSON logs</p>
             </div>
-            
+
             {loading ? (
               <p>Runnine report query, please wait...</p>
             ) : (

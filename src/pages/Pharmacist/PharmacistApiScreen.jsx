@@ -269,7 +269,30 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
   const showRequestBody = !isDashboard && selectedAction && /create|dispense|generate|record|cancel|refund|approve|pay/i.test(selectedAction.label)
 
   return (
-    <PharmacistLayout activeLabel={activeLabel} title={title} subtitle={subtitle}>
+    <PharmacistLayout headerAction={<button
+                type="button"
+                className="page-heading-refresh"
+                onClick={refresh}
+                disabled={loading}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="15"
+                  height="15"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transform: loading ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.5s ease',
+                  }}
+                >
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                </svg>
+                <span>{loading ? 'Refreshing...' : 'Refresh Data'}</span>
+              </button>} activeLabel={activeLabel} title={title} subtitle={subtitle}>
       <div className="pharmacist-dashboard-container">
         {isDashboard ? (
           <section className="branch-dashboard-header-redesign reference-heading-card">
@@ -307,32 +330,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
               <h2>{panelMeta[activeLabel]?.title || title}</h2>
               <p>{panelMeta[activeLabel]?.desc || 'Use module actions to fetch or update records.'}</p>
             </div>
-            <div className="branch-panel-heading-actions">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={refresh}
-                disabled={loading}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="15"
-                  height="15"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    transform: loading ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 0.5s ease',
-                  }}
-                >
-                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-                </svg>
-                <span>{loading ? 'Refreshing...' : 'Refresh Data'}</span>
-              </button>
-            </div>
+
           </div>
 
           <div className="pharmacist-toolbar-row">

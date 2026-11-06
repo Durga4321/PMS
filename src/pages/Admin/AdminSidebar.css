@@ -271,3 +271,14 @@
     transform: translateX(0);
   }
 }
+
+/* Match the stable Super Admin sidebar geometry. */
+.branch-admin-sidebar { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.4; }
+.branch-admin-sidebar .branch-admin-brand { flex: 0 0 48px; min-height: 48px; padding: 0 8px 8px; border-bottom-color: var(--pms-border); }
+.branch-admin-sidebar .branch-admin-brand-copy small { line-height: 1.4; }
+.branch-admin-sidebar .branch-admin-nav { min-height: 0; }
+.branch-admin-sidebar .branch-admin-nav-link { height: 44px; flex: 0 0 44px; transition: background-color .16s ease, color .16s ease, box-shadow .16s ease; }
+.branch-admin-sidebar .branch-admin-nav-link:hover .nav-icon-badge { transform: none; }
+[data-pms-theme] .branch-admin-sidebar .branch-admin-nav-link .nav-icon-badge { background: transparent !important; color: var(--pms-accent-strong) !important; }
+[data-pms-theme] .branch-admin-sidebar .branch-admin-nav-link.is-active .nav-icon-badge { background: #ffffff2e !important; color: #fff !important; }
+[data-pms-theme] .branch-admin-sidebar .branch-admin-nav-link.is-active .nav-icon-badge svg { color: #fff !important; stroke: currentColor !important; }

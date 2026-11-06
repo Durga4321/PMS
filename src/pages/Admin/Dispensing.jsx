@@ -2,13 +2,13 @@ import { useEffect, useState, useMemo } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
-import { 
-  dispensePrescription, 
-  generateBill, 
-  getInvoice, 
+import {
+  dispensePrescription,
+  generateBill,
+  getInvoice,
   getPendingPharmacyPrescriptions,
-  getPharmacyDispensingOverview, 
-  getPharmacyPrescription, 
+  getPharmacyDispensingOverview,
+  getPharmacyPrescription,
   recordPayment,
   getPharmacyAdminDashboard,
   listBills,
@@ -56,7 +56,7 @@ export default function Dispensing() {
     paymentStatus: 'Paid',
     notes: ''
   })
-  
+
   // Dashboard summary metrics
   const [summary, setSummary] = useState({
     pendingPrescriptions: '0',
@@ -147,7 +147,7 @@ export default function Dispensing() {
       const rxId = String(item?.prescriptionId || item?.rxNo || item?._id || '').toLowerCase()
       const billId = String(item?.billNo || item?.invoiceNumber || '').toLowerCase()
       const query = search.toLowerCase()
-      
+
       return pName.includes(query) || rxId.includes(query) || billId.includes(query)
     })
   }, [items, search])
@@ -171,7 +171,7 @@ export default function Dispensing() {
       const meds = Array.isArray(item?.medicines) && item.medicines.length > 0
         ? item.medicines
         : (item?.medicineName ? [{ medicineName: item.medicineName, quantity: item.quantity || 1 }] : [])
-      
+
       // Auto-deduct stock for each medicine dispensed
       meds.forEach(m => {
         deductMedicineStock(m, Number(m?.quantity || m?.qty || 1), 'dispense')
@@ -358,14 +358,21 @@ export default function Dispensing() {
   }
 
   return (
-    <AdminLayout activeLabel="Dispensing" title="Dispensing & Billing" subtitle="Manage prescriptions, medicine dispensing, invoices, and payments.">
+    <AdminLayout headerAction={<button
+                type="button"
+                className="page-heading-refresh"
+                onClick={() => {
+                  loadSummary()
+                  loadActiveTab(activeWorkflow)
+                }}
+              ><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2.34 5.66" /></svg>Refresh</button>} activeLabel="Dispensing" title="Dispensing & Billing" subtitle="Manage prescriptions, medicine dispensing, invoices, and payments.">
       <div className="stock-scroll-area">
         <div className="dispense-layout-container">
 
           {/* Workflow Tabs (Spaced Card Buttons) */}
           <div className="dispense-workflow-cards-grid">
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`dispense-workflow-card ${activeWorkflow === 'prescriptions' ? 'active' : ''}`}
               style={{ '--card-accent': '#2563eb', '--card-bg': '#eff6ff', '--card-border': 'rgba(37, 99, 235, 0.25)' }}
               onClick={() => loadActiveTab('prescriptions')}
@@ -384,8 +391,8 @@ export default function Dispensing() {
               </div>
             </button>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`dispense-workflow-card ${activeWorkflow === 'dispense' ? 'active' : ''}`}
               style={{ '--card-accent': '#0ea5e9', '--card-bg': '#e0f2fe', '--card-border': 'rgba(14, 165, 233, 0.25)' }}
               onClick={() => loadActiveTab('dispense')}
@@ -402,8 +409,8 @@ export default function Dispensing() {
               </div>
             </button>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`dispense-workflow-card ${activeWorkflow === 'bill' ? 'active' : ''}`}
               style={{ '--card-accent': '#f59e0b', '--card-bg': '#fef3c7', '--card-border': 'rgba(245, 158, 11, 0.25)' }}
               onClick={() => loadActiveTab('bill')}
@@ -422,8 +429,8 @@ export default function Dispensing() {
               </div>
             </button>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`dispense-workflow-card ${activeWorkflow === 'invoices' ? 'active' : ''}`}
               style={{ '--card-accent': '#8b5cf6', '--card-bg': '#f3e8ff', '--card-border': 'rgba(139, 92, 246, 0.25)' }}
               onClick={() => loadActiveTab('invoices')}
@@ -440,8 +447,8 @@ export default function Dispensing() {
               </div>
             </button>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`dispense-workflow-card ${activeWorkflow === 'payments' ? 'active' : ''}`}
               style={{ '--card-accent': '#10b981', '--card-bg': '#ecfdf5', '--card-border': 'rgba(16, 185, 129, 0.25)' }}
               onClick={() => loadActiveTab('payments')}
@@ -531,15 +538,15 @@ export default function Dispensing() {
           <div className="dispense-search-row">
             <div className="dispense-search-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-              <input 
-                value={search} 
-                onChange={(e) => setSearch(e.target.value)} 
-                placeholder="Search prescription, patient, invoice..." 
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search prescription, patient, invoice..."
               />
             </div>
             <div className="dispense-btn-group">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="dispense-btn-primary"
                 onClick={() => setGiveModalOpen(true)}
               >
@@ -549,23 +556,14 @@ export default function Dispensing() {
                 </svg>
                 Dispense Medicine
               </button>
-              <button 
-                type="button" 
-                className="dispense-btn-secondary"
-                onClick={() => {
-                  loadSummary()
-                  loadActiveTab(activeWorkflow)
-                }}
-              >
-                Refresh
-              </button>
+
             </div>
           </div>
 
           {/* Results Table Panel */}
           <section className="dispense-table-panel">
             <h2>Workflow Records</h2>
-            
+
             {loading ? (
               <div className="dispense-skeleton-row">
                 <div className="dispense-skeleton-line" style={{ width: '80%' }}></div>
@@ -631,9 +629,9 @@ export default function Dispensing() {
                 <h2>Dispense Medicine</h2>
                 <p>Dispense medicine directly to patient. Stock will decrease in real time.</p>
               </div>
-              <button 
-                type="button" 
-                className="med-modal-close" 
+              <button
+                type="button"
+                className="med-modal-close"
                 onClick={() => setGiveModalOpen(false)}
                 style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}
               >
@@ -645,8 +643,8 @@ export default function Dispensing() {
               <div className="dispense-modal-body">
                 <div className="dispense-form-group">
                   <label htmlFor="disp-patient">Patient Name *</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     id="disp-patient"
                     placeholder="e.g. Ramesh Kumar"
                     value={giveForm.patientName}
@@ -657,7 +655,7 @@ export default function Dispensing() {
 
                 <div className="dispense-form-group">
                   <label htmlFor="disp-medicine">Select Medicine *</label>
-                  <select 
+                  <select
                     id="disp-medicine"
                     value={giveForm.medicineId}
                     onChange={e => setGiveForm({ ...giveForm, medicineId: e.target.value })}
@@ -681,8 +679,8 @@ export default function Dispensing() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="dispense-form-group">
                     <label htmlFor="disp-qty">Quantity to Give *</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       id="disp-qty"
                       min="1"
                       value={giveForm.quantity}
@@ -693,7 +691,7 @@ export default function Dispensing() {
 
                   <div className="dispense-form-group">
                     <label htmlFor="disp-payment">Payment Status</label>
-                    <select 
+                    <select
                       id="disp-payment"
                       value={giveForm.paymentStatus}
                       onChange={e => setGiveForm({ ...giveForm, paymentStatus: e.target.value })}
@@ -706,8 +704,8 @@ export default function Dispensing() {
 
                 <div className="dispense-form-group">
                   <label htmlFor="disp-doctor">Prescribed By / Doctor</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     id="disp-doctor"
                     placeholder="e.g. Dr. Sharma"
                     value={giveForm.prescribedBy}
@@ -717,8 +715,8 @@ export default function Dispensing() {
 
                 <div className="dispense-form-group">
                   <label htmlFor="disp-notes">Notes / Instructions</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     id="disp-notes"
                     placeholder="e.g. After meals, twice daily"
                     value={giveForm.notes}
@@ -728,15 +726,15 @@ export default function Dispensing() {
               </div>
 
               <div className="dispense-modal-footer">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="dispense-btn-secondary"
                   onClick={() => setGiveModalOpen(false)}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="dispense-btn-primary"
                   disabled={loading}
                 >

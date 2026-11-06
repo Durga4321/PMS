@@ -10,7 +10,7 @@
 .med-summary-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
   align-items: stretch;
   width: 100%;
 }
@@ -18,14 +18,14 @@
 .med-summary-card {
   background: #ffffff;
   border: 1px solid var(--card-border, #e2e8f0);
-  border-radius: 16px;
-  padding: 18px 20px;
+  border-radius: 13px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  min-height: 88px;
+  min-height: 64px;
 }
 
 .med-summary-card:hover {
@@ -34,8 +34,8 @@
 }
 
 .med-summary-icon-container {
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -49,8 +49,8 @@
 }
 
 .med-summary-icon-container svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   stroke-width: 2.2;
 }
 
@@ -61,7 +61,7 @@
 }
 
 .med-summary-card label {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
@@ -76,7 +76,7 @@
 }
 
 .med-summary-card span {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   color: #0f172a;
 }
@@ -790,4 +790,39 @@
 .branch-table td {
   white-space: nowrap;
   padding: 10px 14px;
+}
+
+/* Catalogue actions share the table card instead of a separate toolbar card. */
+.med-layout-container .med-catalogue-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+.med-catalogue-actions .med-action-btns { display: flex; flex-wrap: wrap; gap: 12px; }
+
+.med-layout-container .med-catalogue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.med-catalogue-header h2 { margin: 0; }
+.med-layout-container .med-catalogue-header .med-catalogue-actions {
+  margin: 0 0 0 auto;
+  justify-content: flex-end;
+}
+
+/* Catalogue filters sit directly above the column headings inside the table card. */
+.med-layout-container .dispense-table-panel .med-catalogue-filters {
+  padding: 0 0 12px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }

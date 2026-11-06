@@ -121,10 +121,10 @@ function Reports() {
           {['Revenue Report', 'Sales & Orders', 'Branch Performance'].map((tab) => (
             <button
               key={tab}
-              className="reports-tab"
+              className={`reports-tab${activeTab === tab ? ' is-active' : ''}`}
+              aria-pressed={activeTab === tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              style={activeTab === tab ? { color: '#0f7777', borderColor: '#86caca', background: '#effafa', fontWeight: 800 } : { color: '#64748b', borderColor: '#dbe5ec', background: '#fff', fontWeight: 600 }}
             >
               {tab}
             </button>
