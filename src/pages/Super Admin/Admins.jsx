@@ -170,7 +170,7 @@ function Admins() {
       if (!assignmentPharmacyId && options[0]) setAssignmentPharmacyId(String(getId(options[0]) || ''))
     } catch (error) {
       setPharmacyOptions([])
-      showToast(error.message || 'Unable to load pharmacies for assignment.', 'error')
+      console.warn('Background load pharmacies notice:', error)
     }
   }
 

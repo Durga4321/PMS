@@ -31,7 +31,7 @@ export const replacePathParams = (path, params = {}) =>
     return value === undefined || value === null ? '' : encodeURIComponent(String(value))
   })
 
-const REQUEST_TIMEOUT_MS = 12000
+const REQUEST_TIMEOUT_MS = 60000
 
 const tokenKeysByRole = {
   superAdmin: 'superAdminToken',
@@ -3149,7 +3149,7 @@ export const registerPharmacyAdminPharmacy = async (payload, options = {}) => {
   return response
 }
 
-export const getSuperAdminPharmacies = (params = {}) => request('pharmacy-super-admin/pharmacies' + queryString(params))
+export const getSuperAdminPharmacies = (params = {}, options = {}) => request('pharmacy-super-admin/pharmacies' + queryString(params), { timeout: 60000, ...options })
 export const createSuperAdminPharmacy = (payload) => request('pharmacy-super-admin/pharmacies', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const getSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }))
 export const updateSuperAdminPharmacy = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload({ ...cleanPharmacyPayload(payload), isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true), IsActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true) })) })

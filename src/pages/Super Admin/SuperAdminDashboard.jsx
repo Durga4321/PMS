@@ -90,11 +90,11 @@ function SuperAdminDashboard() {
     const requestId = ++dashboardRequest.current
     setLoading(true)
     setError('')
-    const [dashboard, analytics, admins, pharmacies] = await Promise.allSettled([
+
+    // 1. Fetch primary dashboard metrics and admin total fast (~500ms)
+    const [dashboard, admins] = await Promise.allSettled([
       getPharmacySuperAdminDashboard(),
-      getPharmacySuperAdminDashboardAnalytics(),
       listPharmacyAdmins(),
-      getSuperAdminPharmacies({ page: 1, pageSize: 100 }),
     ])
     if (requestId !== dashboardRequest.current) return
     if (dashboard.status !== 'fulfilled') {
@@ -103,15 +103,27 @@ function SuperAdminDashboard() {
       return
     }
     const snapshot = { ...unwrap(dashboard.value) }
-    if (analytics.status === 'fulfilled') snapshot.analytics = unwrap(analytics.value)
-    if (pharmacies.status === 'fulfilled') {
-      const response = pharmacies.value
-      const raw = response?.data?.pharmacies || response?.pharmacies || response?.data?.admins || response?.data || response || []
-      if (Array.isArray(raw)) snapshot.pharmacies = raw.map((item) => item?.admin || item?.data?.admin || item?.data || item || {})
-    }
     setAdminTotal(admins.status === 'fulfilled' ? adminCount(admins.value) : null)
     setData(snapshot)
     setLoading(false)
+
+    // 2. Asynchronously load analytics and pharmacies in background without blocking UI render
+    Promise.allSettled([
+      getPharmacySuperAdminDashboardAnalytics(),
+      getSuperAdminPharmacies({ page: 1, pageSize: 100 }),
+    ]).then(([analytics, pharmacies]) => {
+      if (requestId !== dashboardRequest.current) return
+      setData((current) => {
+        const updated = { ...(current || snapshot) }
+        if (analytics.status === 'fulfilled') updated.analytics = unwrap(analytics.value)
+        if (pharmacies.status === 'fulfilled') {
+          const response = pharmacies.value
+          const raw = response?.data?.pharmacies || response?.pharmacies || response?.data?.admins || response?.data || response || []
+          if (Array.isArray(raw)) updated.pharmacies = raw.map((item) => item?.admin || item?.data?.admin || item?.data || item || {})
+        }
+        return updated
+      })
+    })
   }
 
   useEffect(() => {
