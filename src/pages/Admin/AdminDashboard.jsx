@@ -166,6 +166,28 @@ function AdminDashboard() {
     const dashMedicines = list(dashboard, ['topMedicines', 'topSelling', 'medicines'])
     const dashStock = list(dashboard, ['stock', 'inventory', 'lowStockItems'])
 
+    // Pool all available medicines across backend and local storage
+    const localMeds = typeof readLocalMedicines === 'function' ? readLocalMedicines() : []
+    const allItemsMap = new Map()
+    medicinesList.forEach((m) => {
+      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
+      if (k) allItemsMap.set(k, m)
+    })
+    localMeds.forEach((m) => {
+      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
+      if (k) {
+        const existing = allItemsMap.get(k) || {}
+        allItemsMap.set(k, { ...existing, ...m })
+      }
+    })
+    inventoryList.forEach((inv) => {
+      const k = String(inv?.id || inv?._id || inv?.batchNo || inv?.batchNumber || inv?.medicineName || '').trim().toLowerCase()
+      if (k && !allItemsMap.has(k)) allItemsMap.set(k, inv)
+    })
+    const pooledStock = Array.from(allItemsMap.values())
+
+    const effectiveMedicines = pooledStock.length ? pooledStock : (dashMedicines.length ? dashMedicines : medicinesList)
+    const effectiveStock = pooledStock.length ? pooledStock : (dashStock.length ? dashStock : medicinesList)
 
     const computedLowStock = effectiveMedicines.filter((m) => {
       const qty = getItemStock(m)
@@ -189,6 +211,27 @@ function AdminDashboard() {
       const daysDiff = Math.round((expDate.getTime() - today.getTime()) / 86400000)
       return daysDiff <= 90
     }).length
+
+    // Calculate total sales from pharmacist billing, dispensing, and daily reports
+    const dashSalesNum = Number(pick(source, ['todaySales', 'salesToday', 'dailySales', 'totalSales', 'totalRevenue', 'todayRevenue', 'revenue', 'sales'], 0)) || 0
+    const billsTotal = billsList.reduce((acc, b) => {
+      const amt = Number(b?.totalAmount || b?.total || b?.amount || b?.grandTotal || b?.paidAmount || 0)
+      return acc + (!isNaN(amt) && amt > 0 ? amt : 0)
+    }, 0)
+    const paymentsTotal = paymentsList.reduce((acc, p) => {
+      const amt = Number(p?.paidAmount || p?.amount || p?.total || 0)
+      return acc + (!isNaN(amt) && amt > 0 ? amt : 0)
+    }, 0)
+    const dailyTotal = Number(dailySalesData?.totalSales || dailySalesData?.totalRevenue || dailySalesData?.total || dailySalesData?.sales || 0) || 0
+    let localSales = 0
+    try {
+      const storedBills = JSON.parse(localStorage.getItem('pms_bills') || sessionStorage.getItem('pms_bills') || '[]')
+      if (Array.isArray(storedBills)) {
+        localSales = storedBills.reduce((acc, b) => acc + (Number(b?.totalAmount || b?.amount || 0) || 0), 0)
+      }
+    } catch {}
+
+    const totalSalesValue = Math.max(dashSalesNum, billsTotal, paymentsTotal, dailyTotal, localSales)
 
     const rawLowStock = Number(pick(source, ['lowStock', 'lowStockCount', 'lowStockMedicines'], 0)) || 0
     const rawExpiryAlerts = Number(pick(source, ['expiryAlerts', 'expiryAlertsCount', 'nearExpiryCount'], 0)) || 0
