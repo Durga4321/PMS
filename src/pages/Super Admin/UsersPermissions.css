@@ -512,8 +512,8 @@
 }
 
 .permissions-admin-summary tbody tr.is-selected {
-	background: #f8fffd !important;
-	box-shadow: inset 4px 0 0 #0f9d9d;
+	background: color-mix(in srgb, var(--pms-accent, #0f9d9d) 6%, var(--pms-surface, #fff)) !important;
+	box-shadow: inset 4px 0 0 var(--pms-accent, #0f9d9d);
 }
 
 .permissions-admin-summary td {
@@ -746,4 +746,330 @@
 @keyframes permissionsSpin {
 	from { transform: rotate(0deg); }
 	to { transform: rotate(360deg); }
+}
+
+/* Match Admin Management: theme gradient, heading scale, and theme-aware controls. */
+[data-pms-theme] .super-admin-main.permissions-page {
+	background: var(--pms-page-gradient) !important;
+	background-attachment: fixed !important;
+	color: var(--pms-text);
+}
+
+[data-pms-theme] .permissions-page .permissions-heading h1 {
+	color: var(--pms-text);
+	font-size: 24px;
+}
+
+[data-pms-theme] .permissions-page .permissions-heading > div > p:last-child {
+	color: var(--pms-muted);
+	font-size: 12px;
+}
+
+[data-pms-theme] .permissions-page .permissions-primary,
+[data-pms-theme] .permissions-page .permissions-save-row .permissions-primary {
+	border-color: transparent;
+	background: var(--pms-gradient);
+	color: #fff;
+	box-shadow: 0 10px 22px color-mix(in srgb, var(--pms-accent) 24%, transparent);
+}
+
+[data-pms-theme] .permissions-page .permissions-panel,
+[data-pms-theme] .permissions-page .permissions-role-table,
+[data-pms-theme] .permissions-page .permissions-grid-wrap,
+[data-pms-theme] .permissions-page .permissions-modal {
+	border-color: var(--pms-border);
+	background: color-mix(in srgb, var(--pms-surface) 92%, var(--pms-page-bg));
+}
+
+[data-pms-theme] .permissions-page .permissions-panel-header h2,
+[data-pms-theme] .permissions-page .permissions-role-table td strong,
+[data-pms-theme] .permissions-page .permissions-grid td:first-child,
+[data-pms-theme] .permissions-page .permissions-modal h2 {
+	color: var(--pms-text);
+}
+
+[data-pms-theme] .permissions-page .permissions-panel-header p,
+[data-pms-theme] .permissions-page .permissions-admin-select span,
+[data-pms-theme] .permissions-page .permissions-role-table td small,
+[data-pms-theme] .permissions-page .permissions-modal p,
+[data-pms-theme] .permissions-page .permissions-modal label {
+	color: var(--pms-muted);
+}
+
+[data-pms-theme] .permissions-page .permissions-role-table th,
+[data-pms-theme] .permissions-page .permissions-grid th,
+[data-pms-theme] .permissions-page .permissions-admin-summary thead th {
+	border-bottom-color: var(--pms-border);
+	background: color-mix(in srgb, var(--pms-accent) 8%, var(--pms-surface));
+	color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .permissions-page .permissions-role-table td,
+[data-pms-theme] .permissions-page .permissions-grid td {
+	border-bottom-color: var(--pms-border);
+	color: var(--pms-muted);
+}
+
+[data-pms-theme] .permissions-page .permissions-admin-select select,
+[data-pms-theme] .permissions-page .permissions-modal input {
+	border-color: var(--pms-border);
+	background: var(--pms-surface);
+	color: var(--pms-text);
+}
+
+[data-pms-theme] .permissions-page .permissions-admin-select select:focus,
+[data-pms-theme] .permissions-page .permissions-modal input:focus {
+	border-color: var(--pms-accent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--pms-accent) 16%, transparent);
+}
+
+[data-pms-theme] .permissions-page .permission-tags span,
+[data-pms-theme] .permissions-page .role-badge,
+[data-pms-theme] .permissions-page .permission-pill {
+	border: 1px solid var(--pms-border);
+	background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+	color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .permissions-page .permissions-icon-button {
+	border-color: var(--pms-border);
+	background: var(--pms-surface);
+	color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .permissions-page .permissions-icon-button:hover {
+	background: color-mix(in srgb, var(--pms-accent) 10%, var(--pms-surface));
+}
+
+/* Align the heading with the dashboard card edges. */
+.permissions-page .permissions-heading {
+	align-items: center;
+	padding: 16px 0 12px;
+	margin: 0 16px;
+}
+
+.permissions-page .permissions-heading h1 {
+	font-size: 24px;
+	letter-spacing: 0;
+}
+
+.permissions-page .permissions-heading > div > p:last-child {
+	margin-top: 6px;
+	font-size: 12px;
+}
+
+.permissions-page .permissions-panel,
+.permissions-page .permissions-summary-panel {
+	border-radius: 13px;
+}
+
+.permissions-page .permissions-summary-panel {
+	width: 100%;
+	max-width: 100%;
+}
+
+.permissions-page .permissions-admin-summary {
+	overflow-x: hidden;
+}
+
+.permissions-page .permissions-admin-summary table {
+	width: 100%;
+	min-width: 0;
+	table-layout: fixed;
+}
+
+.permissions-page .permissions-admin-summary th,
+.permissions-page .permissions-admin-summary td {
+	box-sizing: border-box;
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+.permissions-page .permissions-admin-summary th:nth-child(1),
+.permissions-page .permissions-admin-summary td:nth-child(1) { width: 8%; }
+.permissions-page .permissions-admin-summary th:nth-child(2),
+.permissions-page .permissions-admin-summary td:nth-child(2) { width: 24%; }
+.permissions-page .permissions-admin-summary th:nth-child(3),
+.permissions-page .permissions-admin-summary td:nth-child(3) { width: 24%; }
+.permissions-page .permissions-admin-summary th:nth-child(4),
+.permissions-page .permissions-admin-summary td:nth-child(4) { width: 44%; }
+
+.permissions-page .permissions-admin-summary td {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Theme the Assign Permissions table and its supporting icons. */
+[data-pms-theme] .permissions-page .permissions-grid-wrap {
+	border-color: var(--pms-border);
+	background: color-mix(in srgb, var(--pms-surface) 94%, var(--pms-page-bg));
+}
+
+[data-pms-theme] .permissions-page .permissions-grid {
+	min-width: 0;
+	background: var(--pms-surface);
+}
+
+[data-pms-theme] .permissions-page .permissions-grid thead th {
+	border-bottom-color: var(--pms-border);
+	background: color-mix(in srgb, var(--pms-accent) 9%, var(--pms-surface));
+	color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .permissions-page .permissions-grid tbody tr:nth-child(odd),
+[data-pms-theme] .permissions-page .permissions-grid tbody tr:nth-child(even) {
+	background: color-mix(in srgb, var(--pms-accent) 4%, var(--pms-surface));
+}
+
+[data-pms-theme] .permissions-page .permissions-grid tbody tr:hover {
+	background: color-mix(in srgb, var(--pms-accent) 10%, var(--pms-surface));
+}
+
+[data-pms-theme] .permissions-page .permissions-grid td {
+	border-bottom-color: var(--pms-border);
+	color: var(--pms-muted);
+}
+
+[data-pms-theme] .permissions-page .permissions-grid td:first-child,
+[data-pms-theme] .permissions-page .permissions-column-toggle {
+	color: var(--pms-text);
+}
+
+[data-pms-theme] .permissions-page .permissions-select-all {
+	border-color: transparent;
+	background: var(--pms-gradient);
+	box-shadow: 0 6px 14px color-mix(in srgb, var(--pms-accent) 22%, transparent);
+}
+
+[data-pms-theme] .permissions-page .permission-check {
+	color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .permissions-page .permission-check span,
+[data-pms-theme] .permissions-page .permissions-grid .permission-check span {
+	border-color: var(--pms-border);
+	background: var(--pms-surface);
+}
+
+[data-pms-theme] .permissions-page .permission-check input:checked + span,
+[data-pms-theme] .permissions-page .permissions-grid .permission-check input:checked + span {
+	border-color: var(--pms-accent);
+	background: var(--pms-gradient);
+	color: #fff;
+}
+
+[data-pms-theme] .permissions-page .role-mark {
+	border: 1px solid var(--pms-border);
+	background: color-mix(in srgb, var(--pms-accent) 14%, var(--pms-surface));
+	color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .permissions-page .module-icon {
+	display: inline-grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	flex: 0 0 24px;
+	border: 1px solid var(--pms-border);
+	border-radius: 7px;
+	background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+	color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .permissions-page .module-icon svg {
+	width: 14px;
+	height: 14px;
+	color: currentColor;
+	stroke: currentColor;
+}
+
+/* Keep controls stable when moving between dashboard screens or resizing the viewport. */
+.permissions-page .permissions-heading h1 {
+	white-space: normal;
+}
+
+.permissions-page .permissions-primary {
+	width: 220px;
+	min-width: 220px;
+	height: 38px;
+	min-height: 38px;
+	flex: 0 0 220px;
+	white-space: nowrap;
+}
+
+.permissions-page .permissions-select-all {
+	width: 118px;
+	height: 34px;
+	min-height: 34px;
+	justify-content: center;
+	padding: 0 10px;
+	white-space: nowrap;
+}
+
+.permissions-page .permissions-admin-select select,
+.permissions-page .permissions-modal input {
+	height: 34px;
+	min-height: 34px;
+}
+
+.permissions-page .permissions-role-table,
+.permissions-page .permissions-grid-wrap {
+	width: 100%;
+	max-width: 100%;
+}
+
+/* Match the dashboard's 16px side insets and 12px gaps between cards. */
+.permissions-page > .permissions-panel {
+	width: calc(100% - 32px);
+	margin: 0 16px 12px;
+}
+
+.permissions-page > .permissions-error,
+.permissions-page > .permissions-success {
+	margin-left: 16px;
+	margin-right: 16px;
+}
+
+/* Compact the Roles & Permissions cards to match Admin Management sizing. */
+.permissions-page .permissions-admin-summary > table > tbody > tr:not(.permissions-detail-row) > td {
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+
+.permissions-page .permissions-admin-summary .role-name-cell {
+	gap: 10px;
+}
+
+.permissions-page .permissions-admin-summary .role-mark {
+	width: 40px;
+	height: 40px;
+}
+
+.permissions-page .permissions-admin-summary .role-mark .permissions-icon {
+	width: 21px;
+	height: 21px;
+}
+
+.permissions-page .permissions-admin-summary .role-badge {
+	margin-top: 4px !important;
+	padding: 4px 8px;
+}
+
+.permissions-page .permissions-admin-summary .permissions-detail-row > td {
+	padding: 9px 14px 11px;
+}
+
+.permissions-page .permissions-admin-summary .permissions-detail {
+	gap: 6px;
+}
+
+.permissions-page .permissions-admin-summary .permission-tags {
+	gap: 6px;
+}
+
+.permissions-page .permissions-admin-summary .permission-tags span {
+	min-height: 24px;
+	padding: 4px 9px;
+	border-radius: 7px;
+	font-size: 0.62rem;
 }

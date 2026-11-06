@@ -10,12 +10,11 @@ function MedicalCross({ className = '' }) {
   )
 }
 
-function AuthLayout({ title, subtitle, children, footer }) {
+function AuthLayout({ title, subtitle, children, footer, hideThemePicker = false }) {
   const isLogin = title === 'PMS Login'
 
   return (
     <div className={`auth-container${isLogin ? ' auth-container--login' : ''}`}>
-      <div className="auth-theme-control"><ThemeToggle /></div>
       <div className="auth-bg" aria-hidden="true" />
       <div className="auth-veil" aria-hidden="true" />
 
@@ -47,6 +46,7 @@ function AuthLayout({ title, subtitle, children, footer }) {
       ) : null}
 
       <div className="auth-card auth-card--login-compact">
+        <div className="auth-theme-control" hidden={hideThemePicker}><ThemeToggle /></div>
         <div className="auth-logo">
           <MedicalCross />
         </div>

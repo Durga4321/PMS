@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPharmacySuperAdminDashboard, getPharmacySuperAdminDashboardAnalytics, getPharmacySuperAdminDashboardExpiryAlerts, getPharmacySuperAdminDashboardLowStock, getSuperAdminPharmacies, listPharmacyAdmins } from '../../config/api'
+import { getSuperAdminAuditLogs, getPharmacySuperAdminDashboard, getPharmacySuperAdminDashboardAnalytics, getSuperAdminPharmacies, listPharmacyAdmins } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import DashboardGreeting from '../../components/DashboardGreeting'
@@ -33,9 +33,13 @@ function pharmacyRows(response) {
 }
 
 function series(source) {
-  const values = items(source, ['salesOverview', 'monthlySales', 'revenueByMonth', 'salesByMonth', 'revenue'])
-  if (Array.isArray(values)) return values
-  if (values && typeof values === 'object') return Object.entries(values).map(([label, value]) => ({ label, value }))
+  for (const container of [source?.analytics, source]) {
+    for (const key of ['salesOverview', 'monthlySales', 'revenueByMonth', 'salesByMonth', 'revenue']) {
+      const values = container?.[key]
+      if (Array.isArray(values) && values.length) return values
+      if (values && typeof values === 'object' && !Array.isArray(values)) return Object.entries(values).map(([label, value]) => ({ label, value }))
+    }
+  }
   return []
 }
 
@@ -49,94 +53,70 @@ function SuperAdminDashboard() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [data, setData] = useState(null)
+  const dashboardRequest = useRef(0)
   const [adminTotal, setAdminTotal] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [auditActivities, setAuditActivities] = useState([])
+  const [activitiesError, setActivitiesError] = useState('')
+  const [activitiesLoading, setActivitiesLoading] = useState(true)
 
   useEffect(() => {
     document.body.classList.add('dashboard-scroll-page')
     return () => document.body.classList.remove('dashboard-scroll-page')
   }, [])
 
-  function loadDashboard() {
+  useEffect(() => {
+    let active = true
+    const loadActivities = async () => {
+      setActivitiesLoading(true)
+      setActivitiesError('')
+      try {
+        const response = await getSuperAdminAuditLogs()
+        const rows = [response, response?.data, ...['items', 'results', 'records', 'logs', 'audits'].flatMap((key) => [response?.[key], response?.data?.[key]])].find(Array.isArray) || []
+        if (active) setAuditActivities(rows)
+      } catch {
+        if (active) setActivitiesError('Unable to load recent activities.')
+      } finally {
+        if (active) setActivitiesLoading(false)
+      }
+    }
+    loadActivities()
+    window.addEventListener('focus', loadActivities)
+    return () => { active = false; window.removeEventListener('focus', loadActivities) }
+  }, [])
+
+  async function loadDashboard() {
+    const requestId = ++dashboardRequest.current
     setLoading(true)
     setError('')
-    let hasData = false
-    const show = () => { if (!hasData) { hasData = true; setLoading(false) } }
-
-    // Fire each call independently — first one to complete unblocks the UI
-    getPharmacySuperAdminDashboard()
-      .then((res) => {
-        const dashboard = unwrap(res)
-        setData((prev) => ({ ...(prev || {}), ...dashboard }))
-        show()
-      })
-      .catch(() => {})
-
-    listPharmacyAdmins()
-      .then((res) => {
-        setAdminTotal(adminCount(res))
-        const rows = pharmacyRows(res)
-        setData((prev) => {
-          const merged = { ...(prev || {})}
-          if (!merged.pharmacies?.length) merged.pharmacies = rows
-          return merged
-        })
-        show()
-      })
-      .catch(() => {})
-
-    getPharmacySuperAdminDashboardAnalytics()
-      .then((res) => {
-        setData((prev) => ({ ...(prev || {}), analytics: unwrap(res) }))
-        show()
-      })
-      .catch(() => {})
-
-    getPharmacySuperAdminDashboardExpiryAlerts()
-      .then((res) => {
-        const expiry = unwrap(res)
-        setData((prev) => ({
-          ...(prev || {}),
-          expiryAlerts: items(expiry, ['expiryAlerts', 'nearExpiryMedicines', 'nearExpiryInventory', 'items', 'results', 'data']),
-        }))
-        show()
-      })
-      .catch(() => {})
-
-    getPharmacySuperAdminDashboardLowStock()
-      .then((res) => {
-        const lowStock = unwrap(res)
-        setData((prev) => ({
-          ...(prev || {}),
-          medicineInventory: items(lowStock, ['lowStock', 'lowStockMedicines', 'items', 'results', 'data']),
-        }))
-        show()
-      })
-      .catch(() => {})
-
-    getSuperAdminPharmacies({ page: 1, pageSize: 100 })
-      .then((res) => {
-        const raw = res?.data?.pharmacies || res?.pharmacies || res?.data?.admins || res?.data || res || []
-        const parsed = (Array.isArray(raw) ? raw : []).map((item) => item?.admin || item?.data?.admin || item?.data || item || {})
-        if (parsed.length) {
-          setData((prev) => ({ ...(prev || {}), pharmacies: parsed }))
-        }
-        show()
-      })
-      .catch(() => {})
-
-    // Safety: if ALL calls fail, stop loading after timeout
-    setTimeout(() => {
-      if (!hasData) {
-        setLoading(false)
-        setError('Unable to load dashboard. Please check your connection and try again.')
-      }
-    }, 45000)
+    const [dashboard, analytics, admins, pharmacies] = await Promise.allSettled([
+      getPharmacySuperAdminDashboard(),
+      getPharmacySuperAdminDashboardAnalytics(),
+      listPharmacyAdmins(),
+      getSuperAdminPharmacies({ page: 1, pageSize: 100 }),
+    ])
+    if (requestId !== dashboardRequest.current) return
+    if (dashboard.status !== 'fulfilled') {
+      setError('Unable to load current dashboard data. Please try again.')
+      setLoading(false)
+      return
+    }
+    const snapshot = { ...unwrap(dashboard.value) }
+    if (analytics.status === 'fulfilled') snapshot.analytics = unwrap(analytics.value)
+    if (pharmacies.status === 'fulfilled') {
+      const response = pharmacies.value
+      const raw = response?.data?.pharmacies || response?.pharmacies || response?.data?.admins || response?.data || response || []
+      if (Array.isArray(raw)) snapshot.pharmacies = raw.map((item) => item?.admin || item?.data?.admin || item?.data || item || {})
+    }
+    setAdminTotal(admins.status === 'fulfilled' ? adminCount(admins.value) : null)
+    setData(snapshot)
+    setLoading(false)
   }
 
   useEffect(() => {
     loadDashboard()
+    return () => { dashboardRequest.current += 1 }
   }, [])
 
   const view = useMemo(() => {
@@ -144,7 +124,7 @@ function SuperAdminDashboard() {
     const pharmacyRowsData = items(data, ['pharmacies', 'pharmacyRows', 'pharmacyList'])
     const medicineRows = items(data, ['medicines', 'medicineInventory', 'inventory', 'medicineList'])
     const expiryRows = items(data, ['expiryAlerts', 'nearExpiryMedicines', 'nearExpiryInventory', 'expiringMedicines'])
-    const actualPharmacyCount = pharmacyRowsData.length || pick(summary, ['totalPharmacies', 'pharmaciesCount', 'pharmacies'], 0)
+    const actualPharmacyCount = pick(summary, ['totalPharmacies', 'pharmaciesCount'], pharmacyRowsData.length)
     return {
       pharmacyCount: actualPharmacyCount,
       activePharmacies: pharmacyRowsData.length ? pharmacyRowsData.filter((item) => rowStatus(item).toLowerCase() === 'active').length : pick(summary, ['activePharmacies', 'activePharmacyCount'], 0),
@@ -185,13 +165,29 @@ function SuperAdminDashboard() {
     return `${['#2563eb', '#4fb49a', '#8b6dcc', '#f0a33b', '#94a3b8'][index % 5]} ${start}deg ${branchOffset}deg`
   }).join(', ')
 
-  const clinicNames = view.pharmacyRows.slice(0, 3).map((b) => pick(b, ['pharmacyName', 'name', 'title'], 'Pharmacy'))
-  const recentActivities = view.activities.slice(0, 3).map((a) => ({
-    title: pick(a, ['title', 'action', 'event', 'type'], 'Activity'),
-    description: pick(a, ['message', 'text', 'description'], 'Platform activity'),
-    time: pick(a, ['timeAgo', 'time', 'createdAt'], '-'),
-    isLogin: String(pick(a, ['title', 'action', 'type'], '')).toLowerCase().includes('login')
-  }))
+  const chartPoints = salesPoints.length ? salesPoints : view.pharmacyRows.filter((branch) => ['sales', 'amount', 'totalSales', 'revenue'].some((key) => branch[key] != null)).map((branch) => ({ label: pick(branch, ['pharmacyName', 'name', 'title'], 'Pharmacy'), value: numeric(pick(branch, ['sales', 'amount', 'totalSales', 'revenue'], 0)) }))
+  const chartMaximum = Math.max(0, ...chartPoints.map((point) => point.value)) || 1
+  const plottedPoints = chartPoints.map((point, index) => ({ ...point, x: chartPoints.length === 1 ? 255 : 40 + index * 430 / (chartPoints.length - 1), y: 115 - point.value / chartMaximum * 100 }))
+  const chartLine = plottedPoints.map((point, index) => (index ? 'L' : 'M') + ' ' + point.x + ' ' + point.y).join(' ')
+  const recentActivities = [...auditActivities]
+    .sort((a, b) => (Date.parse(b.timestamp || b.createdAt || b.created_at) || 0) - (Date.parse(a.timestamp || a.createdAt || a.created_at) || 0))
+    .slice(0, 3).map((a) => {
+      const timestamp = pick(a, ['timestamp', 'createdAt', 'created_at', 'date', 'loggedAt', 'updatedAt'], '')
+      const rawTime = String(timestamp).trim()
+      const date = new Date(/^\d+$/.test(rawTime) ? Number(rawTime) * (Number(rawTime) < 1e11 ? 1000 : 1) : rawTime && !/(Z|[+-]\d{2}:?\d{2})$/i.test(rawTime) ? rawTime.replace(' ', 'T') + 'Z' : rawTime)
+      const actor = a.user || a.actor || a.performedBy || a.admin || {}
+      const userName = pick(a, ['userName', 'username', 'name', 'actorName'], pick(actor, ['name', 'fullName', 'username', 'email'], 'Unknown User'))
+      const email = pick(a, ['email', 'userEmail', 'actorEmail'], pick(actor, ['email'], ''))
+      let timeZone = 'Asia/Kolkata'
+      try { timeZone = JSON.parse(localStorage.getItem('pms_system_settings') || sessionStorage.getItem('pms_system_settings') || '{}').timezone || timeZone } catch {}
+      try { new Intl.DateTimeFormat('en-IN', { timeZone }) } catch { timeZone = 'Asia/Kolkata' }
+      const description = pick(a, ['message', 'text', 'description', 'details', 'userName', 'email'], 'Platform activity')
+      return {
+        title: String(pick(a, ['title', 'action', 'activity', 'event', 'operation', 'type'], 'Activity')).replace(/[_-]+/g, ' '),
+        description: [userName, email, typeof description === 'object' ? JSON.stringify(description) : description === 'Platform activity' ? '' : String(description)].filter(Boolean).join(' ? '),
+        time: timestamp ? (Number.isNaN(date.getTime()) ? String(timestamp) : date.toLocaleString('en-IN', { timeZone, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '',
+      }
+    })
 
   return (
     <div className={`super-admin-shell reference-dashboard${open ? ' sidebar-open' : ''}`}>
@@ -227,7 +223,7 @@ function SuperAdminDashboard() {
           </div>
         </section>
 
-        {loading ? <div className="reference-message dashboard-loading-state"><DashboardGreeting role="Super Admin" subtitle="Loading your platform dashboard..." /><span>Loading dashboard...</span></div> : error ? <div className="reference-message error" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>{error} <button onClick={loadDashboard} style={{ padding: '6px 18px', borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>Retry</button></div> : (
+        {loading ? <p className="reference-message">Loading dashboard...</p> : error ? <div className="reference-message error" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>{error} <button onClick={loadDashboard} style={{ padding: '6px 18px', borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>Retry</button></div> : (
           <>
             <section className="reference-stats-three">
               <article className="stat-card stat-card-mint">
@@ -299,35 +295,23 @@ function SuperAdminDashboard() {
                 </div>
 
                 <div className="chart-svg-container">
-                  <svg viewBox="0 0 500 130" preserveAspectRatio="none" className="chart-svg-graphic">
-                    <defs>
-                      <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
-                    <line x1="30" y1="15" x2="480" y2="15" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
-                    <line x1="30" y1="45" x2="480" y2="45" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
-                    <line x1="30" y1="75" x2="480" y2="75" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
-                    <line x1="30" y1="105" x2="480" y2="105" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
+                  {chartPoints.length ? <>
+                    <svg viewBox="0 0 500 130" preserveAspectRatio="none" className="chart-svg-graphic" role="img" aria-label="Revenue by period or pharmacy">
+                      <defs><linearGradient id="dashboardRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--pms-accent, #2563eb)" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="var(--pms-accent, #2563eb)" stopOpacity="0" />
+                      </linearGradient></defs>
+                      {[15, 40, 65, 90, 115].map((y) => <line key={y} x1="30" y1={y} x2="480" y2={y} stroke="var(--pms-border, #e2e8f0)" strokeDasharray="4 4" />)}
+                      <path d={chartLine + ' L ' + plottedPoints.at(-1).x + ' 115 L ' + plottedPoints[0].x + ' 115 Z'} fill="url(#dashboardRevenueGradient)" />
+                      <path d={chartLine} fill="none" stroke="var(--pms-accent, #2563eb)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                      {plottedPoints.map((point, index) => <svg key={index} x={point.x - 4} y={point.y - 4} width="8" height="8" viewBox="0 0 8 8" preserveAspectRatio="xMidYMid meet" overflow="visible">
+                        <circle cx="4" cy="4" r="3" fill="var(--pms-surface, #fff)" stroke="var(--pms-accent, #2563eb)" strokeWidth="1.5"><title>{point.label}: {money(point.value)}</title></circle>
+                      </svg>)}
+                    </svg>
+                    <div className="chart-yaxis-values">{[1, .75, .5, .25, 0].map((ratio) => <span key={ratio}>{money(chartMaximum * ratio)}</span>)}</div>
+                    <div className="chart-xaxis-labels">{chartPoints.map((point, index) => <span key={index}>{point.label}</span>)}</div>
+                  </> : <p className="dashboard-card-state">No revenue data available.</p>}
 
-                    <path d="M 80 85 C 160 65, 200 50, 255 50 C 330 50, 390 90, 430 95 L 430 115 L 80 115 Z" fill="url(#chartGradient)" />
-                    <path d="M 80 85 C 160 65, 200 50, 255 50 C 330 50, 390 90, 430 95" fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" />
-
-                    <circle cx="80" cy="85" r="4.5" fill="#ffffff" stroke="#2563eb" strokeWidth="2.5" />
-                    <circle cx="255" cy="50" r="4.5" fill="#ffffff" stroke="#2563eb" strokeWidth="2.5" />
-                    <circle cx="430" cy="95" r="4.5" fill="#ffffff" stroke="#2563eb" strokeWidth="2.5" />
-                  </svg>
-                  <div className="chart-yaxis-values">
-                    <span>4</span><span>3</span><span>2</span><span>1</span><span>0</span>
-                  </div>
-                  <div className="chart-xaxis-labels">
-                    {clinicNames.length ? clinicNames.map((name, i) => (
-                      <span key={`${name}-${i}`}>{name}</span>
-                    )) : (
-                      <><span>Sekhar</span><span>Apollo</span><span>Venkata Goutham Kommineni</span></>
-                    )}
-                  </div>
                 </div>
               </article>
 
@@ -350,6 +334,7 @@ function SuperAdminDashboard() {
                   </button>
                 </div>
                 <div className="activities-list">
+                  {!recentActivities.length ? <p className="dashboard-card-state">{activitiesLoading ? 'Loading recent activities...' : activitiesError || 'No recent activities available.'}</p> : null}
                   {recentActivities.map((act, idx) => (
                     <div className="activity-item-card" key={idx}>
                       <div className="activity-left">

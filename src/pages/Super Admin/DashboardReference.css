@@ -700,3 +700,128 @@ body.dashboard-scroll-page #root {
     align-items: center;
   }
 }
+
+/* Use the same outer card edges as Admin Management. */
+.reference-dashboard :is(.dashboard-hero-card, .reference-message, .reference-stats-three, .reference-main-grid, .reference-directory, .reference-bottom-stats) {
+  margin-left: 0;
+  margin-right: 0;
+}
+.reference-dashboard .dashboard-hero-card { margin-top: 20px; margin-bottom: 16px; border-radius: 13px; }
+
+/* Fit the desktop dashboard into the viewport by sizing its card rows. */
+@media (min-width: 901px) and (min-height: 480px) {
+  body.dashboard-scroll-page,
+  body.dashboard-scroll-page #root,
+  .reference-dashboard.super-admin-shell {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .reference-dashboard .super-admin-main {
+    height: 100dvh !important;
+    min-height: 0;
+    display: grid !important;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 0 20px 20px !important;
+    overflow: hidden !important;
+  }
+
+  .reference-dashboard .dashboard-hero-card {
+    margin: 4px 16px 0;
+    min-height: 0;
+    padding: 4px 12px;
+  }
+
+  .reference-dashboard .hero-clinic-illustration > svg {
+    width: 96px;
+    height: 48px;
+  }
+
+  .reference-dashboard .reference-stats-three {
+    margin: 0 16px;
+    gap: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .reference-dashboard .stat-card {
+    min-height: 0;
+    padding: 8px 12px;
+  }
+
+  .reference-dashboard .reference-main-grid {
+    min-height: 0;
+    margin: 0 16px;
+    gap: 12px;
+    grid-template-columns: 1.4fr 1fr;
+  }
+
+  .reference-dashboard :is(.reference-card-charts, .reference-card-activities) {
+    min-width: 0;
+    min-height: 0;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .reference-dashboard .reference-message {
+    margin: 0 16px;
+  }
+
+  .reference-dashboard .charts-header {
+    flex: 0 0 auto;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .reference-dashboard .chart-svg-container {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .reference-dashboard .chart-svg-graphic {
+    flex: 1;
+    min-height: 0;
+    height: 0;
+  }
+
+  .reference-dashboard .chart-yaxis-values {
+    height: calc(100% - 30px);
+  }
+
+  .reference-dashboard .chart-xaxis-labels {
+    flex: 0 0 auto;
+  }
+
+  .reference-dashboard .activities-list { gap: 8px; }
+  .reference-dashboard .activity-item-card { padding: 8px 10px; }
+
+  .reference-dashboard .dashboard-greeting-logo {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+  }
+
+  .reference-dashboard .stat-icon-wrap {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .reference-dashboard .stat-content strong { font-size: 20px; }
+  .reference-dashboard .stat-content span { font-size: 12px; }
+}
+
+/* Revenue scale and activity states follow the selected dashboard theme. */
+.reference-dashboard .chart-svg-container { padding-left: 64px; }
+.reference-dashboard .chart-yaxis-values { width: 60px; font-size: 10px; color: var(--pms-muted, #64748b); }
+.reference-dashboard .chart-xaxis-labels { padding-left: 0; gap: 8px; }
+.reference-dashboard .chart-xaxis-labels span { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--pms-muted, #64748b); }
+.reference-dashboard .dashboard-card-state { margin: auto; padding: 16px; text-align: center; color: var(--pms-muted, #64748b); font-size: 12px; }
+.reference-dashboard :is(.charts-header-icon.blue, .activity-badge) { color: var(--pms-accent, #2563eb); background: color-mix(in srgb, var(--pms-accent, #2563eb) 12%, var(--pms-surface, #fff)); }
+.reference-dashboard .activities-list { min-height: 0; overflow-y: auto; }

@@ -293,3 +293,70 @@
   color: #ffffff;
   font-size: 16px;
 }
+
+/* Keep shared navbar controls stable when switching Super Admin routes. */
+.super-admin-topbar {
+  flex-shrink: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.4;
+}
+
+.super-admin-topbar .super-admin-topbar-right {
+  flex: 0 0 auto;
+  gap: 10px;
+  margin-left: 0;
+}
+
+.super-admin-topbar .user-profile-wrap { flex: 0 0 auto; }
+
+.super-admin-topbar .user-profile-chip {
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  flex: 0 0 280px;
+  gap: 8px;
+}
+
+.super-admin-topbar .user-profile-avatar-shell {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+}
+
+.super-admin-topbar .user-profile-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.super-admin-topbar .user-profile-copy :is(strong, em) {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.super-admin-topbar .super-admin-topbar-search {
+  min-width: 0;
+  max-width: none;
+}
+
+.super-admin-topbar .super-admin-topbar-search input { min-width: 0; width: 100%; }
+
+@media (max-width: 700px) {
+  .super-admin-topbar .user-profile-chip {
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
+    flex-basis: 64px;
+    gap: 4px;
+  }
+}
+
+.super-admin-topbar .super-admin-topbar-menu {
+  display: inline-flex;
+  color: var(--pms-accent-strong, #334155);
+}
+.super-admin-topbar .super-admin-topbar-menu:focus-visible {
+  outline: 2px solid var(--pms-accent, #2563eb);
+  outline-offset: 2px;
+}

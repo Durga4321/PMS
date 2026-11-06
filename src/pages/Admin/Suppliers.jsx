@@ -2,13 +2,13 @@ import { useEffect, useState, useMemo } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
-import { 
-  changeSupplierStatus, 
-  createSupplier, 
-  deleteSupplier, 
-  getSupplier, 
-  getSupplierPurchaseHistory, 
-  listSuppliers, 
+import {
+  changeSupplierStatus,
+  createSupplier,
+  deleteSupplier,
+  getSupplier,
+  getSupplierPurchaseHistory,
+  listSuppliers,
   updateSupplier,
   getPharmacyAdminDashboard,
   getAddressByPincode,
@@ -40,7 +40,7 @@ export default function Suppliers() {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  
+
   // Modal states
   const [viewingItem, setViewineItem] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
@@ -48,7 +48,7 @@ export default function Suppliers() {
   const [historyItem, setHistoryItem] = useState(null)
   const [historyList, setHistoryList] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
-  
+
   // Dashboard summaries
   const [summary, setSummary] = useState({
     total: 0,
@@ -326,10 +326,10 @@ export default function Suppliers() {
       const sPhone = String(item?.phone || '').toLowerCase()
       const sEmail = String(item?.email || '').toLowerCase()
       const query = search.toLowerCase()
-      
+
       const matchesSearch = sName.includes(query) || sPhone.includes(query) || sEmail.includes(query)
       const matchesStatus = statusFilter === 'all' || String(item?.status || 'active').toLowerCase() === statusFilter.toLowerCase()
-      
+
       return matchesSearch && matchesStatus
     })
   }, [items, search, statusFilter])
@@ -565,31 +565,16 @@ export default function Suppliers() {
   }
 
   return (
-    <AdminLayout activeLabel="Suppliers" title="Suppliers" subtitle="Manaee medicine suppliers, contacts, purchases, and supplier status.">
-      <div className="stock-scroll-area">
-        <div className="sup-layout-container">
-
-          {/* Workflow Buttons Toolbar */}
-          <div className="sup-toolbar" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '8px' }}>
-            <div className="sup-action-btns">
-              <button 
-                type="button" 
-                className="sup-btn sup-btn-primary"
-                onClick={() => setCreateOpen(true)}
-              >
-                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Supplier
-              </button>
-            </div>
-            <button 
-              type="button" 
-              className="sup-btn sup-btn-secondary"
+    <AdminLayout headerAction={<button
+              type="button"
+              className="page-heading-refresh"
               onClick={refresh}
             >
               <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh
-            </button>
-          </div>
+            </button>} activeLabel="Suppliers" title="Suppliers" subtitle="Manaee medicine suppliers, contacts, purchases, and supplier status.">
+      <div className="stock-scroll-area">
+        <div className="sup-layout-container">
 
           {/* Summary Cards (4 Equal Sized Cards) */}
           <div className="sup-summary-grid">
@@ -648,19 +633,31 @@ export default function Suppliers() {
             </div>
           </div>
 
+          {/* Table Results */}
+          <section className="dispense-table-panel">
+            <header className="sup-record-header"><h2>Supplier Records</h2>
+<button
+                type="button"
+                className="sup-btn sup-btn-primary"
+                onClick={() => setCreateOpen(true)}
+              >
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Supplier
+              </button>
+            </header>
           {/* Search Inputs */}
-          <div className="sup-toolbar">
+          <div className="sup-toolbar sup-record-filters">
             <div className="sup-search-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-              <input 
-                value={search} 
-                onChange={(e) => setSearch(e.target.value)} 
-                placeholder="Search suppliers by name, phone, email..." 
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search suppliers by name, phone, email..."
               />
             </div>
             <div className="sup-filters">
-              <select 
-                value={statusFilter} 
+              <select
+                value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="all">All Status</option>
@@ -668,8 +665,8 @@ export default function Suppliers() {
                 <option value="inactive">Inactive</option>
                 <option value="pending">Pending</option>
               </select>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="sup-btn sup-btn-secondary"
                 onClick={() => {
                   setSearch('')
@@ -681,10 +678,8 @@ export default function Suppliers() {
             </div>
           </div>
 
-          {/* Table Results */}
-          <section className="dispense-table-panel">
-            <h2>Supplier Records</h2>
-            
+
+
             {loading ? (
               <div className="dispense-skeleton-row">
                 <div className="dispense-skeleton-line" style={{ width: '80%' }}></div>
@@ -750,16 +745,16 @@ export default function Suppliers() {
                   <div className="sup-form-grid">
                     <div className="sup-form-group">
                       <label>Supplier Name *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-name"
-                        value={createForm.name} 
+                        value={createForm.name}
                         onChange={(e) => {
                           setCreateForm({...createForm, name: e.target.value})
                           if (createErrors.name) setCreateErrors({...createErrors, name: ''})
-                        }} 
+                        }}
                         style={createErrors.name ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.name && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.name}</span>
@@ -767,14 +762,14 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>Contact Person *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-contactPerson"
-                        value={createForm.contactPerson} 
+                        value={createForm.contactPerson}
                         onChange={(e) => {
                           setCreateForm({...createForm, contactPerson: e.target.value})
                           if (createErrors.contactPerson) setCreateErrors({...createErrors, contactPerson: ''})
-                        }} 
+                        }}
                         style={createErrors.contactPerson ? { borderColor: '#ef4444' } : {}}
                         required
                       />
@@ -784,16 +779,16 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>Phone Number *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         inputMode="numeric" maxLength={10} pattern="[0-9]{10}" id="create-phone"
-                        value={createForm.phone} 
+                        value={createForm.phone}
                         onChange={(e) => {
                           setCreateForm({...createForm, phone: digitsOnly(e.target.value)})
                           if (createErrors.phone) setCreateErrors({...createErrors, phone: ''})
-                        }} 
+                        }}
                         style={createErrors.phone ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {createErrors.phone && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.phone}</span>
@@ -801,14 +796,14 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>Email Address</label>
-                      <input 
-                        type="email" 
+                      <input
+                        type="email"
                         id="create-email"
-                        value={createForm.email} 
+                        value={createForm.email}
                         onChange={(e) => {
                           setCreateForm({...createForm, email: e.target.value})
                           if (createErrors.email) setCreateErrors({...createErrors, email: ''})
-                        }} 
+                        }}
                         style={createErrors.email ? { borderColor: '#ef4444' } : {}}
                       />
                       {createErrors.email && (
@@ -817,18 +812,18 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>GST / Tax ID</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-estNumber"
-                        value={createForm.estNumber} 
-                        onChange={(e) => setCreateForm({...createForm, estNumber: e.target.value})} 
+                        value={createForm.estNumber}
+                        onChange={(e) => setCreateForm({...createForm, estNumber: e.target.value})}
                       />
                     </div>
                     <div className="sup-form-group">
                       <label>Status *</label>
-                      <select 
+                      <select
                         id="create-status"
-                        value={createForm.status} 
+                        value={createForm.status}
                         onChange={(e) => {
                           setCreateForm({...createForm, status: e.target.value})
                           if (createErrors.status) setCreateErrors({...createErrors, status: ''})
@@ -856,20 +851,20 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>City</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-city"
-                        value={createForm.city} 
-                        onChange={(e) => setCreateForm({...createForm, city: e.target.value})} 
+                        value={createForm.city}
+                        onChange={(e) => setCreateForm({...createForm, city: e.target.value})}
                       />
                     </div>
                     <div className="sup-form-group">
                       <label>State</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="create-state"
-                        value={createForm.state} 
-                        onChange={(e) => setCreateForm({...createForm, state: e.target.value})} 
+                        value={createForm.state}
+                        onChange={(e) => setCreateForm({...createForm, state: e.target.value})}
                       />
                     </div>                    <div className="sup-form-group">
                       <label>Country</label>
@@ -877,18 +872,18 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group full-width">
                       <label>Address</label>
-                      <textarea 
+                      <textarea
                         id="create-address"
-                        value={createForm.address} 
-                        onChange={(e) => setCreateForm({...createForm, address: e.target.value})} 
+                        value={createForm.address}
+                        onChange={(e) => setCreateForm({...createForm, address: e.target.value})}
                       />
                     </div>
                     <div className="sup-form-group full-width">
                       <label>Notes</label>
-                      <textarea 
+                      <textarea
                         id="create-notes"
-                        value={createForm.notes} 
-                        onChange={(e) => setCreateForm({...createForm, notes: e.target.value})} 
+                        value={createForm.notes}
+                        onChange={(e) => setCreateForm({...createForm, notes: e.target.value})}
                       />
                     </div>
                   </div>
@@ -915,16 +910,16 @@ export default function Suppliers() {
                   <div className="sup-form-grid">
                     <div className="sup-form-group">
                       <label>Supplier Name *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-name"
-                        value={editForm.name} 
+                        value={editForm.name}
                         onChange={(e) => {
                           setEditForm({...editForm, name: e.target.value})
                           if (editErrors.name) setEditErrors({...editErrors, name: ''})
-                        }} 
+                        }}
                         style={editErrors.name ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.name && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.name}</span>
@@ -932,14 +927,14 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>Contact Person *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-contactPerson"
-                        value={editForm.contactPerson} 
+                        value={editForm.contactPerson}
                         onChange={(e) => {
                           setEditForm({...editForm, contactPerson: e.target.value})
                           if (editErrors.contactPerson) setEditErrors({...editErrors, contactPerson: ''})
-                        }} 
+                        }}
                         style={editErrors.contactPerson ? { borderColor: '#ef4444' } : {}}
                         required
                       />
@@ -949,16 +944,16 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>Phone Number *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         inputMode="numeric" maxLength={10} pattern="[0-9]{10}" id="edit-phone"
-                        value={editForm.phone} 
+                        value={editForm.phone}
                         onChange={(e) => {
                           setEditForm({...editForm, phone: digitsOnly(e.target.value)})
                           if (editErrors.phone) setEditErrors({...editErrors, phone: ''})
-                        }} 
+                        }}
                         style={editErrors.phone ? { borderColor: '#ef4444' } : {}}
-                        required 
+                        required
                       />
                       {editErrors.phone && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.phone}</span>
@@ -966,14 +961,14 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>Email Address</label>
-                      <input 
-                        type="email" 
+                      <input
+                        type="email"
                         id="edit-email"
-                        value={editForm.email} 
+                        value={editForm.email}
                         onChange={(e) => {
                           setEditForm({...editForm, email: e.target.value})
                           if (editErrors.email) setEditErrors({...editErrors, email: ''})
-                        }} 
+                        }}
                         style={editErrors.email ? { borderColor: '#ef4444' } : {}}
                       />
                       {editErrors.email && (
@@ -982,18 +977,18 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>GST / Tax ID</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-estNumber"
-                        value={editForm.estNumber} 
-                        onChange={(e) => setEditForm({...editForm, estNumber: e.target.value})} 
+                        value={editForm.estNumber}
+                        onChange={(e) => setEditForm({...editForm, estNumber: e.target.value})}
                       />
                     </div>
                     <div className="sup-form-group">
                       <label>Status *</label>
-                      <select 
+                      <select
                         id="edit-status"
-                        value={editForm.status} 
+                        value={editForm.status}
                         onChange={(e) => {
                           setEditForm({...editForm, status: e.target.value})
                           if (editErrors.status) setEditErrors({...editErrors, status: ''})
@@ -1021,20 +1016,20 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group">
                       <label>City</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-city"
-                        value={editForm.city} 
-                        onChange={(e) => setEditForm({...editForm, city: e.target.value})} 
+                        value={editForm.city}
+                        onChange={(e) => setEditForm({...editForm, city: e.target.value})}
                       />
                     </div>
                     <div className="sup-form-group">
                       <label>State</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         id="edit-state"
-                        value={editForm.state} 
-                        onChange={(e) => setEditForm({...editForm, state: e.target.value})} 
+                        value={editForm.state}
+                        onChange={(e) => setEditForm({...editForm, state: e.target.value})}
                       />
                     </div>                    <div className="sup-form-group">
                       <label>Country</label>
@@ -1042,18 +1037,18 @@ export default function Suppliers() {
                     </div>
                     <div className="sup-form-group full-width">
                       <label>Address</label>
-                      <textarea 
+                      <textarea
                         id="edit-address"
-                        value={editForm.address} 
-                        onChange={(e) => setEditForm({...editForm, address: e.target.value})} 
+                        value={editForm.address}
+                        onChange={(e) => setEditForm({...editForm, address: e.target.value})}
                       />
                     </div>
                     <div className="sup-form-group full-width">
                       <label>Notes</label>
-                      <textarea 
+                      <textarea
                         id="edit-notes"
-                        value={editForm.notes} 
-                        onChange={(e) => setEditForm({...editForm, notes: e.target.value})} 
+                        value={editForm.notes}
+                        onChange={(e) => setEditForm({...editForm, notes: e.target.value})}
                       />
                     </div>
                   </div>

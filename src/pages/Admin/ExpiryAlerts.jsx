@@ -164,7 +164,29 @@ export default function ExpiryAlerts() {
   }
 
   return (
-    <AdminLayout activeLabel="Expiry Alerts" title="Expiry Inventory" subtitle="Track medicines that are near expiry or already expired.">
+    <AdminLayout headerAction={<button className="page-heading-refresh"
+            type="button"
+            onClick={loadAlerts}
+            style={{
+              height: '38px',
+              padding: '0 16px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#fff',
+              color: '#475569',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+            </svg>
+            Refresh
+          </button>} activeLabel="Expiry Alerts" title="Expiry Inventory" subtitle="Track medicines that are near expiry or already expired.">
       <section className="branch-panel">
         <div className="branch-panel-heading" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
           <div className="expiry-tabs-card-grid">
@@ -230,29 +252,7 @@ export default function ExpiryAlerts() {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={loadAlerts}
-            style={{
-              height: '38px',
-              padding: '0 16px',
-              borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              background: '#fff',
-              color: '#475569',
-              fontWeight: 600,
-              fontSize: '13px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-            </svg>
-            Refresh
-          </button>
+
         </div>
 
         <div className="medicine-filters" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>

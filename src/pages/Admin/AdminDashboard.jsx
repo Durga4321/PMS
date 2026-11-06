@@ -367,7 +367,7 @@ function AdminDashboard() {
                     <strong>{billsList.length || 1} completed</strong>
                   </div>
                   <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #2563eb, #3b82f6)', borderRadius: '4px' }} />
+                    <div style={{ width: '100%', height: '100%', background: 'var(--pms-gradient)', borderRadius: '4px' }} />
                   </div>
                 </div>
               </div>

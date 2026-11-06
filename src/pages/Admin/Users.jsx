@@ -232,6 +232,7 @@ function Users({ initialAdd = false }) {
   const isAddRoute = initialAdd || location.pathname.endsWith('/add')
   const [pharmacists, setPharmacists] = useState([])
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [branches, setBranches] = useState([])
@@ -294,14 +295,14 @@ function Users({ initialAdd = false }) {
 
   const filtered = useMemo(() => {
     const value = query.trim().toLowerCase()
-    if (!value) return pharmacists
     return pharmacists.filter((item) => {
+      if (statusFilter !== 'all' && isPharmacistActive(item) !== (statusFilter === 'active')) return false
       const name = String(getName(item) || '').toLowerCase()
       const email = String(item.email || '').toLowerCase()
       const phone = String(getPhone(item) || '').toLowerCase()
       return name.includes(value) || email.includes(value) || phone.includes(value) || JSON.stringify(item).toLowerCase().includes(value)
     })
-  }, [pharmacists, query])
+  }, [pharmacists, query, statusFilter])
 
   async function loadPharmacists() {
     setLoading(true)
@@ -815,32 +816,29 @@ function Users({ initialAdd = false }) {
   // MAIN TABLE SCREEN: Pharmacists Directory
   // =========================================================================
   return (
-    <AdminLayout activeLabel="Pharmacists" title="Manage Pharmacists" subtitle="Admin / Pharmacists">
+    <AdminLayout headerAction={<button className="page-heading-refresh" type="button" onClick={loadPharmacists} disabled={loading}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2.34 5.66" /></svg>Refresh</button>} activeLabel="Pharmacists" title="Manage Pharmacists" subtitle="Admin / Pharmacists">
       <section className="branch-panel pharmacist-panel">
         <div className="branch-panel-heading">
-          <div>
-            <h2>Pharmacists</h2>
-            <p>{loadError || 'Manage pharmacist access under this admin pharmacy.'}</p>
-          </div>
+<label className="pharmacist-filter-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
+          <input aria-label="Search pharmacists" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && loadPharmacists()} placeholder="Search by name, email or phone" />
+        </label>
+          <div className="pharmacist-header-actions">
+          <select aria-label="Filter pharmacists by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <button className="btn-secondary" type="button" onClick={() => { setQuery(''); setStatusFilter('all') }}>Clear Filters</button>
+
           <button type="button" className="btn-primary" onClick={openCreate}>
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: '6px' }}>
               <path d="M12 5v14M5 12h14" />
             </svg>
             Add Pharmacist
           </button>
+          </div>
         </div>
 
-        <label className="pharmacist-search">
-          <span>Search</span>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => event.key === 'Enter' && loadPharmacists()}
-            placeholder="Search by name, email or phone"
-          />
-          <button type="button" onClick={loadPharmacists}>Search</button>
-        </label>
 
+
+        {loadError ? <p className="pharmacist-load-error" role="alert">{loadError}</p> : null}
         <div className="branch-table-wrap">
           <table className="branch-table">
             <thead>

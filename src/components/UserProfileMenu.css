@@ -638,3 +638,34 @@
   background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
 }
+/* Match the profile dropdown card to the selected application theme. */
+[data-pms-theme] .hc-pms-profile-dropdown {
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  color: var(--pms-text);
+}
+[data-pms-theme] .hc-pms-profile-dropdown .hc-profile-header {
+  border-color: var(--pms-border);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pms-accent) 14%, var(--pms-surface)), var(--pms-page-bg));
+}
+[data-pms-theme] .hc-pms-profile-dropdown .hc-profile-header:hover {
+  border-color: var(--pms-accent);
+  background: color-mix(in srgb, var(--pms-accent) 18%, var(--pms-surface));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--pms-accent) 16%, transparent);
+}
+[data-pms-theme] .hc-pms-profile-dropdown .hc-profile-avatar-circle {
+  background: var(--pms-gradient);
+  color: #fff;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--pms-accent) 22%, transparent);
+}
+[data-pms-theme] .hc-pms-profile-dropdown .hc-profile-name { color: var(--pms-text); }
+[data-pms-theme] .hc-pms-profile-dropdown .hc-profile-email { color: var(--pms-muted); }
+[data-pms-theme] .hc-pms-profile-dropdown .hc-profile-badge {
+  color: var(--pms-accent-strong);
+  border-color: var(--pms-border);
+  background: color-mix(in srgb, var(--pms-accent) 10%, var(--pms-surface));
+}
+[data-pms-theme] .hc-pms-profile-dropdown .hc-profile-header:focus-visible {
+  outline: 2px solid var(--pms-accent);
+  outline-offset: 2px;
+}

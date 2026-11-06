@@ -521,3 +521,58 @@
   }
 }
 
+
+/* Inventory actions share the table header instead of a separate card. */
+.stock-layout-container .stock-record-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stock-record-header h2 { margin: 0; }
+.stock-record-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-left: auto; }
+.stock-record-actions .stock-action-btns { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* Match Medicines: filters belong inside the records card above the table headings. */
+.stock-layout-container .dispense-table-panel .stock-record-filters {
+  padding: 0 0 12px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Match Medicine Management KPI card geometry and typography. */
+.stock-layout-container .stock-summary-grid-redesign { gap: 12px; }
+.stock-layout-container .summary-card-redesign { min-height: 64px; padding: 10px 12px; gap: 10px; border-radius: 13px; border-color: #e2e8f0; }
+.stock-layout-container .summary-card-icon-wrap { width: 34px; height: 34px; }
+.stock-layout-container .summary-card-icon-wrap svg { width: 18px; height: 18px; stroke-width: 2.2; }
+.stock-layout-container .summary-card-info label { font-size: 10px; }
+.stock-layout-container .summary-card-val { font-size: 20px; font-weight: 700; }
+
+/* Fill the available row with four equal-width Inventory tabs. */
+.stock-layout-container .inventory-nav-tabs-redesign {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  overflow: visible;
+  padding-bottom: 0;
+}
+.stock-layout-container .inventory-nav-tabs-redesign .nav-tab-btn {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+}
+@media (max-width: 640px) {
+  .stock-layout-container .inventory-nav-tabs-redesign { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Keep selected tab icons readable on the light themed background. */
+[data-pms-theme] .branch-admin-page .inventory-nav-tabs-redesign .nav-tab-btn.active .nav-tab-icon,
+[data-pms-theme] .branch-admin-page .inventory-nav-tabs-redesign .nav-tab-btn.active .nav-tab-icon svg {
+  color: var(--pms-accent-strong);
+  stroke: currentColor;
+}

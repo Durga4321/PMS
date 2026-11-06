@@ -137,6 +137,16 @@ function Admins() {
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
 
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const deleteDialogRef = useRef(null)
+
+  useEffect(() => {
+    const dialog = deleteDialogRef.current
+    if (deleteTarget && !dialog.open) dialog.showModal()
+    else if (!deleteTarget && dialog.open) dialog.close()
+  }, [deleteTarget])
+
   const [editingAdmin, setEditingAdmin] = useState(null)
   const [viewingAdmin, setViewingAdmin] = useState(null)
   const [resettingAdmin, setResettingAdmin] = useState(null)
@@ -326,14 +336,18 @@ function Admins() {
       showToast('Unable to delete admin: missing admin ID.', 'error')
       return
     }
-    if (!window.confirm(`Are you sure you want to delete ${getName(admin)}?`)) return
+    if (deleting) return
+    setDeleting(true)
 
     try {
       const response = await deleteSuperAdminRole(adminId)
+      setDeleteTarget(null)
       showToast(response?.message || 'Admin deleted successfully.')
       await loadAdmins()
     } catch (error) {
       showToast(error.message || 'Unable to delete admin.', 'error')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -355,6 +369,15 @@ function Admins() {
 
   return (
     <div className={`admins-page-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
+      <dialog ref={deleteDialogRef} className="admins-delete-dialog" aria-labelledby="admin-delete-title" aria-describedby="admin-delete-description" onCancel={(event) => { if (deleting) event.preventDefault(); else setDeleteTarget(null) }}>
+        <div className="admins-delete-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18M8 6V4h8v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg></div>
+        <h2 id="admin-delete-title">Delete admin?</h2>
+        <p id="admin-delete-description">Are you sure you want to delete <strong>{deleteTarget ? getName(deleteTarget) : ''}</strong>? This action cannot be undone.</p>
+        <div className="admins-delete-actions">
+          <button type="button" autoFocus disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button>
+          <button type="button" className="admins-delete-confirm" disabled={deleting} onClick={() => handleDelete(deleteTarget)}>{deleting ? 'Deleting...' : 'Delete admin'}</button>
+        </div>
+      </dialog>
       <SuperAdminSidebar activeLabel="Admins" />
 
       <main className="admins-main">
@@ -453,15 +476,23 @@ function Admins() {
                 ) : visibleAdmins.length ? visibleAdmins.map((admin, index) => (
                   <tr key={getId(admin)}>
                     <td>{(page - 1) * pageSize + index + 1}</td>
-                    <td className="admin-name-cell">
+                    <td><div className="admin-name-cell">
                       <span className="admin-avatar">{getName(admin).split(' ').slice(0,2).map((part) => part.charAt(0)).join('').slice(0,2).toUpperCase() || 'A'}</span>
-                      {getName(admin)}
-                    </td>
+                      <span className="admin-name-text">{getName(admin)}</span>
+                    </div></td>
                     <td>{getAssignedPharmacyName(admin)}</td>
                     <td>{admin?.email || '-'}</td>
                     <td>{getMobileNumber(admin)}</td>
                     <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
                     <td>
+                      <RowActions
+                        itemName={getName(admin)}
+                        isActive={String(getStatus(admin)).toLowerCase() === 'active'}
+                        onView={() => openView(admin)}
+                        onEdit={() => openEdit(admin)}
+                        onStatus={() => handleStatus(admin)}
+                        onDelete={() => setDeleteTarget(admin)}
+                      />
                     </td>
                   </tr>
                 )) : (

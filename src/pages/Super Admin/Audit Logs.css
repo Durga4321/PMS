@@ -14,3 +14,100 @@
 .audit-table-wrap { overflow-x: auto; border: 1px solid #e5edf2; border-radius: 8px; }.audit-table-wrap table { width: 100%; min-width: 980px; border-collapse: collapse; }.audit-table-wrap th { height: 31px; padding: 0 9px; border-bottom: 1px solid #dfe8ef; background: #f8fbfd; color: #4c647c; font-size: 9px; font-weight: 800; text-align: left; white-space: nowrap; }.audit-table-wrap td { height: 37px; padding: 0 9px; border-bottom: 1px solid #edf2f5; color: #526a82; font-size: 9px; white-space: nowrap; }.audit-table-wrap tbody tr:nth-child(even) { background: #fbfdfe; }.audit-table-wrap tbody tr:hover { background: #f0fbfa; }.audit-table-state { height: 180px !important; color: #9aaaba !important; text-align: center; }.audit-user { display: inline-flex; align-items: center; gap: 7px; color: #233b59; font-weight: 700; }.audit-user b { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid #b8e9e2; border-radius: 50%; background: #e4f8f4; color: #0f9995; font-size: 8px; }.audit-action { color: #0b8581; font-weight: 800; }.audit-login, .audit-role { display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 8px; font-weight: 800; }.audit-login { min-width: 34px; padding: 4px 7px; }.audit-login.is-yes { color: #15915f; background: #e5f6ed; }.audit-login.is-no { color: #9a6c23; background: #fff4da; }.audit-role { padding: 4px 8px; }.role-super-admin { color: #0f8581; background: #e1f7f4; }.role-pharmacy-admin { color: #4d76b7; background: #e8f1ff; }.role-pharmacist { color: #815bc9; background: #eee5ff; }.audit-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 2px 0; color: #71859a; font-size: 9px; }.audit-footer > div { display: flex; align-items: center; gap: 5px; }.audit-footer button { min-width: 38px; height: 26px; padding: 0 7px; border: 1px solid #dbe5ec; border-radius: 5px; background: #fff; color: #526a82; font-size: 9px; cursor: pointer; }.audit-footer button:disabled { color: #b3c0cb; background: #f7fafc; cursor: not-allowed; }.audit-footer strong { padding: 0 6px; color: #526a82; font-size: 9px; font-weight: 700; }
 @media (max-width: 900px) { .audit-stats { grid-template-columns: 1fr; }.audit-filters { grid-template-columns: 1fr 1fr; }.audit-footer { flex-wrap: wrap; } }
 @media (max-width: 560px) { .audit-heading { align-items: flex-start; flex-direction: column; }.audit-search-row { flex-direction: column; }.audit-search-row > select { width: 100%; }.audit-filters { grid-template-columns: 1fr; }.audit-footer { align-items: flex-start; flex-direction: column; } }
+
+/* Match the Admin Management heading and card geometry. */
+.audit-page .audit-heading { padding: 20px 0 16px; }
+.audit-page .audit-heading .super-admin-eyebrow { display: none; }
+.audit-page .audit-heading > div > p:last-child { margin-top: 6px; }
+.audit-page .audit-panel { border-radius: 13px; }
+
+/* Match Roles & Permissions heading position and outer card gaps. */
+.audit-page .audit-heading {
+  padding: 16px 0 12px;
+  margin: 0 16px;
+  align-items: center;
+}
+.audit-page .audit-heading h1 { font-size: 24px; letter-spacing: 0; }
+.audit-page .audit-heading > div > p:last-child { margin-top: 6px; font-size: 12px; }
+.audit-page > .audit-panel {
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+  border-radius: 13px;
+}
+.audit-page > .audit-error { margin-left: 16px; margin-right: 16px; }
+
+/* Compact KPI cards and align their outer edges with the audit panel. */
+.audit-page > .audit-stats {
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+  gap: 12px;
+}
+
+.audit-page .audit-stats article {
+  min-height: 58px;
+  padding: 7px 10px;
+  gap: 9px;
+}
+
+.audit-page .audit-stat-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+}
+
+.audit-page .audit-stats strong { font-size: 18px; }
+.audit-page .audit-stats em { margin-top: 2px; }
+
+/* Match the theme-aware Reports buttons and dashboard KPI icons. */
+[data-pms-theme] .audit-page :is(.audit-refresh, .audit-tabs button, .audit-footer button) {
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .audit-page :is(.audit-refresh, .audit-tabs button, .audit-footer button):hover:not(:disabled),
+[data-pms-theme] .audit-page .audit-tabs button.is-active {
+  border-color: var(--pms-accent);
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .audit-page .audit-footer button:disabled {
+  border-color: var(--pms-border);
+  background: color-mix(in srgb, var(--pms-muted) 6%, var(--pms-surface));
+  color: var(--pms-muted);
+  opacity: .55;
+}
+
+[data-pms-theme] .audit-page :is(.audit-stat-icon, .audit-user b) {
+  border-color: var(--pms-border);
+  background: color-mix(in srgb, var(--pms-accent) 18%, var(--pms-surface));
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .audit-page .audit-search > .audit-icon { color: var(--pms-accent-strong); }
+[data-pms-theme] .audit-page .audit-action { color: var(--pms-accent-strong); }
+[data-pms-theme] .audit-page .audit-search:focus-within {
+  border-color: var(--pms-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pms-accent) 16%, transparent);
+}
+
+[data-pms-theme] .audit-page button:focus-visible {
+  outline: 2px solid var(--pms-accent);
+  outline-offset: 3px;
+}
+
+.audit-page .audit-refresh {
+  min-width: 104px;
+  justify-content: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.audit-page .audit-refresh:disabled { opacity: .6; cursor: wait; }
+
+/* Table headings follow the selected theme, matching management tables. */
+[data-pms-theme] .audit-page .audit-table-wrap thead th {
+  color: var(--pms-accent-strong);
+  background: color-mix(in srgb, var(--pms-accent) 8%, var(--pms-surface));
+  border-bottom-color: var(--pms-border);
+}

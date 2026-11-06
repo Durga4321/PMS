@@ -127,7 +127,7 @@ img {
   display: block !important;
   overflow: visible !important;
   min-height: 0 !important;
-  margin-top: 20px !important;
+  margin-top: 0 !important;
 }
 .super-admin-module-header {
   flex: none !important;

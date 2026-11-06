@@ -22,12 +22,6 @@ const PMS_THEMES = [
 const STORAGE_KEY = 'pms-selected-theme'
 const CUSTOM_COLOR_KEY = 'pms-custom-theme-color'
 
-function timeOfDayForHour(hour) {
-  if (hour < 12) return 'morning'
-  if (hour < 17) return 'afternoon'
-  return 'evening'
-}
-
 function getStoredTheme() {
   return localStorage.getItem(STORAGE_KEY) || 'teal'
 }
@@ -71,21 +65,26 @@ function applyCustomPmsTheme(color) {
   }).forEach(([key, value]) => root.style.setProperty(key, value))
 }
 
+function hueToHex(hue) {
+  const channel = (offset) => {
+    const value = (offset + hue / 60) % 6
+    return Math.round(255 * (1 - Math.max(0, Math.min(value, 4 - value, 1)))).toString(16).padStart(2, '0')
+  }
+  return ('#' + channel(5) + channel(3) + channel(1)).toUpperCase()
+}
+
 function ThemeToggle() {
   const [open, setOpen] = useState(false)
+  const [showCustomPicker, setShowCustomPicker] = useState(true)
+  const [hue, setHue] = useState(185)
+  const [appliedColor, setAppliedColor] = useState(() => localStorage.getItem(CUSTOM_COLOR_KEY) || '#0BB5AA')
   const [selected, setSelected] = useState(getStoredTheme)
   const [customColor, setCustomColor] = useState(() => localStorage.getItem(CUSTOM_COLOR_KEY) || '#0BB5AA')
-  const [timeOfDay, setTimeOfDay] = useState(() => timeOfDayForHour(new Date().getHours()))
 
   useEffect(() => {
-    if (selected === 'custom') applyCustomPmsTheme(customColor)
+    if (selected === 'custom') applyCustomPmsTheme(appliedColor)
     else applyPmsTheme(selected)
-  }, [customColor, selected])
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setTimeOfDay(timeOfDayForHour(new Date().getHours())), 60000)
-    return () => window.clearInterval(timer)
-  }, [])
+  }, [appliedColor, selected])
 
   function chooseTheme(themeId) {
     setSelected(themeId)
@@ -94,7 +93,9 @@ function ThemeToggle() {
   }
 
   function applyCustomTheme() {
-    const normalized = /^#[0-9a-f]{6}$/i.test(customColor) ? customColor.toUpperCase() : '#0BB5AA'
+    if (!/^#[0-9a-f]{6}$/i.test(customColor)) return
+    const normalized = customColor.toUpperCase()
+    setAppliedColor(normalized)
     setCustomColor(normalized)
     setSelected('custom')
     localStorage.setItem(CUSTOM_COLOR_KEY, normalized)
@@ -104,14 +105,23 @@ function ThemeToggle() {
 
   return <div className="pms-theme-picker">
     <button className="pms-theme-trigger" type="button" aria-label="Choose theme colour" title="Choose theme colour" onClick={() => setOpen((value) => !value)}>
-      <svg className={`pms-time-logo pms-time-logo-${timeOfDay}`} viewBox="0 0 24 24" aria-hidden="true">
-        {timeOfDay === 'morning' ? <><circle cx="12" cy="11" r="4.2" /><path d="M12 2.5v2M12 17.5v2M3.5 11h2M18.5 11h2M5.9 4.9l1.4 1.4M16.7 15.7l1.4 1.4M18.1 4.9l-1.4 1.4M7.3 15.7l-1.4 1.4M4 20c2.2-1.7 4.9-2.5 8-2.5s5.8.8 8 2.5" /></> : timeOfDay === 'afternoon' ? <><circle cx="12" cy="10" r="4.8" /><path d="M12 2v2M12 16v2M4 10h2M18 10h2M6.3 4.3l1.4 1.4M16.3 14.3l1.4 1.4M17.7 4.3l-1.4 1.4M7.7 14.3l-1.4 1.4" /><path d="M4 20c2.2-1.7 4.9-2.5 8-2.5s5.8.8 8 2.5" /></> : <><path d="M16.8 4.7A7.2 7.2 0 1 0 19 18.4 7.9 7.9 0 1 1 16.8 4.7Z" /><path d="M4 20c2.2-1.7 4.9-2.5 8-2.5s5.8.8 8 2.5M18 5.5h.01M20 9h.01" /></>}
+      <svg className="pms-theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="9.5" r="3.2" />
+        <path d="M12 2v2M12 15v2M4.5 9.5h2M17.5 9.5h2M6.7 4.2l1.4 1.4M15.9 13.4l1.4 1.4M17.3 4.2l-1.4 1.4M8.1 13.4l-1.4 1.4M4 20c2.2-1.7 4.9-2.5 8-2.5s5.8.8 8 2.5" />
       </svg>
     </button>
     {open ? <div className="pms-theme-panel" role="dialog" aria-label="Choose a theme colour">
       <div className="pms-theme-panel-head"><div><strong>Pick a theme colour</strong><small>Choose a colourful palette for your application.</small></div><button type="button" aria-label="Close theme picker" onClick={() => setOpen(false)}>×</button></div>
-      <div className="pms-theme-options">{PMS_THEMES.map((theme) => <button key={theme.id} type="button" className={`pms-theme-option${theme.id === selected ? ' is-selected' : ''}`} onClick={() => chooseTheme(theme.id)}><span style={{ background: `linear-gradient(135deg, ${theme.accent} 0 50%, ${theme.strong} 50%)` }} />{theme.name}{theme.id === selected ? <b>✓</b> : null}</button>)}</div>
-      <div className="pms-custom-theme"><strong>Colour picker</strong><div><input aria-label="Choose custom theme colour" type="color" value={customColor} onChange={(event) => setCustomColor(event.target.value.toUpperCase())} /><input aria-label="Custom theme hex value" value={customColor} onChange={(event) => setCustomColor(event.target.value)} maxLength={7} /><button type="button" onClick={applyCustomTheme}>Apply</button></div></div>
+      <div className="pms-theme-options">{PMS_THEMES.map((theme) => <button key={theme.id} type="button" className={`pms-theme-option${theme.id === selected ? ' is-selected' : ''}`} onClick={() => chooseTheme(theme.id)}><span style={{ background: `linear-gradient(135deg, ${theme.accent} 0 50%, ${theme.strong} 50%)` }} />{theme.name}{theme.id === selected ? <b>✓</b> : null}</button>)}
+      <button className={`pms-theme-option pms-custom-option${selected === 'custom' ? ' is-selected' : ''}`} type="button" onClick={() => setShowCustomPicker(true)} aria-expanded={showCustomPicker}>
+        <span style={{ background: /^#[0-9a-f]{6}$/i.test(customColor) ? customColor : '#0BB5AA' }}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m14 5 5 5M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z" /></svg></span>Custom
+      </button>
+      </div>
+      {showCustomPicker ? <section className="pms-custom-theme" aria-label="Custom colour picker">
+        <header><strong>Colour picker</strong><button className="pms-custom-close" type="button" aria-label="Close colour picker" onClick={() => setShowCustomPicker(false)}>?</button></header>
+        <input className="pms-hue-slider" aria-label="Colour hue" type="range" min="0" max="359" value={hue} onChange={(event) => { const next = Number(event.target.value); setHue(next); setCustomColor(hueToHex(next)) }} />
+        <div><input aria-label="Choose custom theme colour" type="color" value={/^#[0-9a-f]{6}$/i.test(customColor) ? customColor : '#0BB5AA'} onChange={(event) => setCustomColor(event.target.value.toUpperCase())} /><input type="text" aria-label="Custom theme hex value" value={customColor} onChange={(event) => setCustomColor(event.target.value)} maxLength={7} aria-invalid={!/^#[0-9a-f]{6}$/i.test(customColor)} /><button type="button" onClick={applyCustomTheme} disabled={!/^#[0-9a-f]{6}$/i.test(customColor)}>Apply</button></div>
+      </section> : null}
       <button className="pms-theme-done" type="button" onClick={() => setOpen(false)}>Done</button>
     </div> : null}
   </div>

@@ -367,3 +367,15 @@
     width: 100%;
   }
 }
+
+/* Match Medicines KPI sizing and keep controls inside the table card. */
+.transfer-layout-container .transfer-summary-grid { gap: 12px; }
+.transfer-layout-container .transfer-summary-card { min-height: 64px; padding: 10px 12px; gap: 10px; border-radius: 13px; }
+.transfer-layout-container .transfer-summary-icon-wrap { width: 34px; height: 34px; }
+.transfer-layout-container .transfer-summary-icon-wrap svg { width: 18px; height: 18px; stroke-width: 2.2; }
+.transfer-layout-container .transfer-summary-card label { font-size: 10px; }
+.transfer-layout-container .transfer-summary-card span { font-size: 20px; font-weight: 700; }
+.transfer-record-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.transfer-record-header h2 { margin: 0; }
+.transfer-record-header > button { margin-left: auto; }
+.transfer-layout-container .dispense-table-panel .transfer-record-filters { padding: 0 0 12px; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

@@ -524,7 +524,10 @@ async function downloadRequest(path, filename) {
 export function loginUnifiedAuth(credentials) {
   return request('auth/login', {
     method: 'POST',
-    body: JSON.stringify(apiPayload(credentials)),
+    body: JSON.stringify({
+      email: String(credentials.email ?? '').trim(),
+      password: String(credentials.password ?? ''),
+    }),
   })
 }
 
