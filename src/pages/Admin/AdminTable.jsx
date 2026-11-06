@@ -19,9 +19,9 @@ function Status({ value }) {
   return <span className={`table-status-badge ${statusClass}`}>{displayVal}</span>
 }
 
-function AdminTable({ title, action, headers, rows, onActionClick }) {
+function AdminTable({ title, action, headers, rows, onActionClick, scrollable = true, maxHeight = '360px' }) {
   return (
-    <section className="branch-panel">
+    <section className="branch-panel" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="branch-panel-heading">
         <h2>{title}</h2>
         {action ? (
@@ -30,12 +30,17 @@ function AdminTable({ title, action, headers, rows, onActionClick }) {
           </button>
         ) : null}
       </div>
-      <div className="branch-table-wrap">
+      <div 
+        className="branch-table-wrap dashboard-table-scroll-box"
+        style={scrollable ? { maxHeight: maxHeight, overflowY: 'auto', overflowX: 'auto', scrollbarWidth: 'thin' } : {}}
+      >
         <table className="branch-table">
-          <thead>
+          <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 3 }}>
             <tr>
               {headers.map((header) => (
-                <th key={header}>{header}</th>
+                <th key={header} style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 3 }}>
+                  {header}
+                </th>
               ))}
             </tr>
           </thead>

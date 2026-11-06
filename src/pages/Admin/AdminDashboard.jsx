@@ -103,13 +103,52 @@ const text = (source, keys, fallback = '-') => {
   return String(val)
 }
 
+function extractAnyStock(m) {
+  if (!m || typeof m !== 'object') return 0
+  const candidates = [
+    m.StockQuantity, m.stockQuantity,
+    m.Quantity, m.quantity,
+    m.Stock, m.stock,
+    m.availableQty, m.availableStock, m.AvailableStock,
+    m.currentStock, m.CurrentStock,
+    m.initialStockCount, m.InitialStockCount,
+    m.qty, m.Qty
+  ]
+  for (const c of candidates) {
+    const num = Number(c)
+    if (c !== undefined && c !== null && c !== '' && !isNaN(num) && num > 0) {
+      return num
+    }
+  }
+  return 0
+}
+
 function getItemStock(item) {
   if (!item || typeof item !== 'object') return 0
-  const val = pick(item, ['stock', 'stockQuantity', 'initialStockCount', 'currentStock', 'totalStock', 'availableStock', 'quantity', 'qty'], null)
-  if (val !== null && !isNaN(Number(val)) && Number(val) > 0) return Number(val)
+  const candidates = [
+    item.StockQuantity, item.stockQuantity,
+    item.Quantity, item.quantity,
+    item.Stock, item.stock,
+    item.availableQty, item.availableStock, item.AvailableStock,
+    item.currentStock, item.CurrentStock,
+    item.initialStockCount, item.InitialStockCount,
+    item.qty, item.Qty
+  ]
+  for (const c of candidates) {
+    const num = Number(c)
+    if (c !== undefined && c !== null && c !== '' && !isNaN(num) && num > 0) {
+      return num
+    }
+  }
   const unitMatch = String(item?.unit || '').trim().match(/^(\d+)\s*(units?|tablets?|capsules?|strips?|bottles?|vials?|packs?)?$/i)
   if (unitMatch && Number(unitMatch[1]) > 0) return Number(unitMatch[1])
-  return Number(val) || 0
+  for (const c of candidates) {
+    const num = Number(c)
+    if (c !== undefined && c !== null && c !== '' && !isNaN(num)) {
+      return num
+    }
+  }
+  return 0
 }
 
 function AdminDashboard() {
@@ -164,29 +203,126 @@ function AdminDashboard() {
 
   const view = useMemo(() => {
     const source = dashboard?.summary || dashboard?.stats || dashboard || {}
-    const dashMedicines = list(dashboard, ['topMedicines', 'topSelling', 'medicines'])
-    const dashStock = list(dashboard, ['stock', 'inventory', 'lowStockItems'])
 
-    // Pool all available medicines across backend and local storage
+    // Master medicine pooling: ensure all local catalogue details (stock, quantity, batchNumber, expiryDate)
+    // are merged with any backend records
     const localMeds = typeof readLocalMedicines === 'function' ? readLocalMedicines() : []
-    const allItemsMap = new Map()
-    medicinesList.forEach((m) => {
-      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
-      if (k) allItemsMap.set(k, m)
-    })
+    const medMap = new Map()
+
+    // 1. First populate with local medicines (which contain full imported/catalog fields)
     localMeds.forEach((m) => {
-      const k = String(m?.id || m?._id || m?.code || m?.name || '').trim().toLowerCase()
-      if (k && !allItemsMap.has(k)) allItemsMap.set(k, m)
+      const k = String(m?.id || m?._id || m?.medicineCode || m?.code || m?.name || '').trim().toLowerCase()
+      const nameKey = String(m?.name || m?.medicineName || '').trim().toLowerCase()
+      const qty = extractAnyStock(m)
+      const rawBatch = m?.batchNumber || m?.BatchNumber || m?.batchNo || m?.BatchNo || m?.medicineCode || m?.code || 'BAT-01'
+      const rawExpiry = m?.expiryDate || m?.ExpiryDate || m?.expiresAt || m?.expiry || '-'
+      const rawStatus = m?.status || m?.catalogueStatus || (qty > 0 ? 'Active' : 'Out of Stock')
+
+      const normalized = {
+        ...m,
+        medicineName: m?.name || m?.medicineName || m?.genericName || '-',
+        name: m?.name || m?.medicineName || m?.genericName || '-',
+        genericName: m?.genericName || m?.name || '-',
+        category: m?.category || m?.categoryName || 'General',
+        dosageForm: m?.dosageForm || m?.form || 'Tablet',
+        strength: m?.strength || '-',
+        unit: m?.unit || m?.dosageForm || 'Tablet',
+        batchNo: rawBatch,
+        batchNumber: rawBatch,
+        quantity: qty,
+        stock: qty,
+        availableQty: qty,
+        StockQuantity: qty,
+        expiryDate: rawExpiry,
+        reorderLevel: Number(m?.reorderLevel ?? m?.reorderStockLevel ?? m?.minStock ?? 5) || 5,
+        status: rawStatus,
+        isActive: String(rawStatus).toLowerCase() === 'active'
+      }
+      if (k) medMap.set(k, normalized)
+      if (nameKey) medMap.set(`name:${nameKey}`, normalized)
     })
-    const pooledMedicines = Array.from(allItemsMap.values())
 
-    const effectiveMedicines = Array.isArray(dashMedicines) && dashMedicines.length
-      ? dashMedicines
-      : (pooledMedicines.length ? pooledMedicines : (Array.isArray(medicinesList) ? medicinesList : []))
+    // 2. Merge backend medicinesList
+    const backendMeds = Array.isArray(medicinesList) ? medicinesList : []
+    backendMeds.forEach((m) => {
+      const k = String(m?.id || m?._id || m?.medicineCode || m?.code || m?.name || '').trim().toLowerCase()
+      const nameKey = String(m?.name || m?.medicineName || '').trim().toLowerCase()
+      const existing = (k && medMap.get(k)) || (nameKey && medMap.get(`name:${nameKey}`)) || {}
+      
+      const backendQty = extractAnyStock(m)
+      const existingQty = extractAnyStock(existing)
+      const finalQty = backendQty > 0 ? backendQty : (existingQty > 0 ? existingQty : 0)
 
-    const effectiveStock = Array.isArray(dashStock) && dashStock.length
-      ? dashStock
-      : (Array.isArray(inventoryList) && inventoryList.length ? inventoryList : effectiveMedicines)
+      const rawBatch = m?.batchNo || m?.batchNumber || m?.BatchNumber || existing.batchNumber || existing.batchNo || m?.code || existing.code || 'BAT-01'
+      const rawExpiry = m?.expiryDate || m?.ExpiryDate || m?.expiresAt || existing.expiryDate || existing.expiresAt || '-'
+      const rawStatus = m?.status || m?.catalogueStatus || existing.status || (finalQty > 0 ? 'Active' : 'Out of Stock')
+
+      const merged = {
+        ...existing,
+        ...m,
+        medicineName: m?.name || m?.medicineName || existing.medicineName || '-',
+        name: m?.name || m?.medicineName || existing.name || '-',
+        genericName: m?.genericName || existing.genericName || m?.name || '-',
+        category: m?.category || m?.categoryName || existing.category || 'General',
+        dosageForm: m?.dosageForm || m?.form || existing.dosageForm || 'Tablet',
+        strength: m?.strength || existing.strength || '-',
+        unit: m?.unit || existing.unit || 'Tablet',
+        batchNo: rawBatch,
+        batchNumber: rawBatch,
+        quantity: finalQty,
+        stock: finalQty,
+        availableQty: finalQty,
+        StockQuantity: finalQty,
+        expiryDate: rawExpiry,
+        reorderLevel: Number(m?.reorderLevel ?? existing.reorderLevel ?? 5) || 5,
+        status: rawStatus,
+        isActive: String(rawStatus).toLowerCase() === 'active'
+      }
+      if (k) medMap.set(k, merged)
+      if (nameKey) medMap.set(`name:${nameKey}`, merged)
+    })
+
+    // Extract unique master medicines in reliable sequence
+    const seenKeys = new Set()
+    const masterMedicines = []
+    medMap.forEach((m) => {
+      const idKey = String(m?.id || m?._id || m?.medicineCode || m?.code || m?.name).trim().toLowerCase()
+      if (idKey && !seenKeys.has(idKey)) {
+        seenKeys.add(idKey)
+        masterMedicines.push(m)
+      }
+    })
+
+    const effectiveMedicines = masterMedicines.length > 0 
+      ? masterMedicines 
+      : (localMeds.length > 0 ? localMeds : backendMeds)
+
+    // "stocks should come from medicines" - derive stock directly from the medicine records!
+    const effectiveStock = effectiveMedicines.map((m, idx) => {
+      const qty = getItemStock(m)
+      const rawBatch = m?.batchNumber || m?.batchNo || m?.batchId || m?.medicineCode || m?.code || `BAT-${String(idx + 1).padStart(4, '0')}`
+      const rawExpiry = m?.expiryDate || m?.ExpiryDate || m?.expiresAt || m?.expiry || '-'
+      const reorder = Number(m?.reorderLevel ?? m?.reorderStockLevel ?? m?.minStock ?? 5) || 5
+      const isInactive = String(m?.status || '').toLowerCase().includes('inactive')
+
+      let status = 'In Stock'
+      if (isInactive) status = 'Inactive'
+      else if (qty <= 0) status = 'Out of Stock'
+      else if (qty <= reorder) status = 'Low Stock'
+
+      return {
+        ...m,
+        medicineName: m?.name || m?.medicineName || m?.genericName || '-',
+        name: m?.name || m?.medicineName || m?.genericName || '-',
+        batchNo: rawBatch,
+        batchNumber: rawBatch,
+        quantity: qty,
+        stock: qty,
+        availableQty: qty,
+        expiryDate: rawExpiry,
+        status,
+      }
+    })
 
     // Compute sales value from billsList, paymentsList, or dashboard summary
     const rawSales = pick(source, ['totalSales', 'todaySales', 'salesToday', 'dailySales', 'revenue'], 0)
@@ -198,7 +334,7 @@ function AdminDashboard() {
     const computedLowStock = effectiveMedicines.filter((m) => {
       const qty = getItemStock(m)
       const reorder = Number(pick(m, ['reorderLevel', 'reorderStockLevel', 'minStock', 'minimumStock'], 5))
-      return qty <= reorder
+      return qty > 0 && qty <= reorder
     }).length
 
     const now = Date.now()
@@ -432,11 +568,11 @@ function AdminDashboard() {
           {...dashboardTables.medicines}
           rows={view.topMedicines.map((item) => {
             const qty = getItemStock(item)
-            const statusText = String(text(item, ['status'], 'Active')).toLowerCase().includes('inactive')
+            const st = String(text(item, ['status'], 'Active')).toLowerCase()
+            const isInactive = st.includes('inactive') || item?.isActive === false
+            const statusText = isInactive
               ? 'Inactive'
-              : qty > 0
-                ? 'Active'
-                : 'Out of Stock'
+              : (qty > 0 || st.includes('active') ? 'Active' : 'Out of Stock')
             return [
               text(item, ['name', 'medicineName', 'genericName']),
               text(item, ['category', 'categoryName']),

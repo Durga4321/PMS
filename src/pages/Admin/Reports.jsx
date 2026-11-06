@@ -17,7 +17,8 @@ import {
 import './Reports.css'
 
 function readStoredValue(key) {
-  const value = sessionStorage.getItem(key) || localStorage.getItem(key)
+  const value = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null) || 
+                (typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null)
   if (!value) return null
   try {
     return JSON.parse(value)
@@ -28,20 +29,95 @@ function readStoredValue(key) {
 
 const normalizeList = (response) => {
   if (Array.isArray(response)) return response
-  if (Array.isArray(response?.data)) return response.data
+  const data = response?.data ?? response
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.items)) return data.items
+  if (Array.isArray(data?.results)) return data.results
+  if (Array.isArray(data?.records)) return data.records
+  if (Array.isArray(data?.logs)) return data.logs
+  if (Array.isArray(data?.bills)) return data.bills
+  if (Array.isArray(data?.payments)) return data.payments
+  if (Array.isArray(data?.medicines)) return data.medicines
+  if (Array.isArray(data?.suppliers)) return data.suppliers
+  if (Array.isArray(data?.orders)) return data.orders
+  if (Array.isArray(data?.transfers)) return data.transfers
+  if (Array.isArray(data?.sales)) return data.sales
   if (Array.isArray(response?.items)) return response.items
   if (Array.isArray(response?.results)) return response.results
-  if (Array.isArray(response?.suppliers)) return response.suppliers
-  if (Array.isArray(response?.orders)) return response.orders
-  if (Array.isArray(response?.transfers)) return response.transfers
   return []
+}
+
+const IGNORED_KEYS = new Set([
+  'clinicId', 'clinic', 'branch', '__v', 'password', 'hash', 'salt',
+  'deletedAt', 'updatedAt', 'systemAction', 'isLoginActivity'
+])
+
+function formatHeaderName(key) {
+  const MAP = {
+    id: 'ID',
+    userId: 'User ID',
+    userName: 'User Name',
+    role: 'Role',
+    action: 'Action',
+    ipAddress: 'IP Address',
+    createdAt: 'Date & Time',
+    timestamp: 'Date & Time',
+    date: 'Date',
+    orderDate: 'Order Date',
+    medicineName: 'Medicine Name',
+    medicineCode: 'Medicine Code',
+    genericName: 'Generic Name',
+    batchNo: 'Batch No.',
+    batchNumber: 'Batch No.',
+    quantity: 'Quantity',
+    qty: 'Quantity',
+    stock: 'Stock Qty',
+    totalAmount: 'Total Amount',
+    amount: 'Amount',
+    total: 'Total',
+    paymentMethod: 'Payment Mode',
+    paymentMode: 'Payment Mode',
+    status: 'Status',
+    notes: 'Notes',
+    expiryDate: 'Expiry Date',
+    supplierName: 'Supplier Name',
+    contactPerson: 'Contact Person',
+    phone: 'Phone',
+    email: 'Email'
+  }
+  if (MAP[key]) return MAP[key]
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()).trim()
+}
+
+function formatCellValue(val, key) {
+  if (val === null || val === undefined || val === '') return '-'
+  if (typeof val === 'boolean') {
+    return val ? 'Yes' : 'No'
+  }
+  if (typeof val === 'object') {
+    if (val instanceof Date) return val.toLocaleString()
+    return val.name || val.userName || val.label || '-'
+  }
+  const sKey = String(key || '').toLowerCase()
+  if (sKey.includes('date') || sKey.includes('time')) {
+    const str = String(val)
+    if (str.includes('T') || !isNaN(Date.parse(str))) {
+      const d = new Date(str)
+      if (!isNaN(d.getTime())) return d.toLocaleString()
+    }
+  }
+  if (sKey.includes('amount') || sKey.includes('price') || sKey === 'total' || sKey === 'grandtotal' || sKey === 'sales') {
+    if (!isNaN(Number(val)) && Number(val) > 0 && !sKey.includes('id') && !sKey.includes('code') && !sKey.includes('qty') && !sKey.includes('quantity')) {
+      return `₹${Number(val).toLocaleString('en-IN')}`
+    }
+  }
+  return String(val)
 }
 
 export default function Reports() {
   const { showToast } = useToast()
   const [items, setItems] = useState([])
   const [searchId, setSearchId] = useState('')
-  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [selectedReportTitle, setSelectedReportTitle] = useState('')
 
@@ -65,23 +141,9 @@ export default function Reports() {
       address: assignment?.address || assignment?.location || '-',
       status: assignment?.status || 'Active'
     })
-
-    loadInitialData()
+    // Automatically load Sales Report on initial render
+    runReport('Sales Report', getPharmacySalesReport)
   }, [])
-
-  async function loadInitialData() {
-    setLoading(true)
-    try {
-      const response = await getPharmacyAdminDashboard()
-      const data = normalizeList(response)
-      setItems(data)
-      setMessage(JSON.stringify(response?.data && !Array.isArray(response.data) ? response.data : '', null, 2))
-    } catch (error) {
-      showToast(error.message, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function runReport(reportName, reportFn) {
     setLoading(true)
@@ -90,12 +152,10 @@ export default function Reports() {
       const response = await reportFn(searchId)
       const list = normalizeList(response)
       setItems(list)
-      setMessage(JSON.stringify(response?.data || response, null, 2))
-      showToast(`${reportName} loaded successfully.`)
+      showToast(`${reportName} loaded (${list.length} records).`)
     } catch (error) {
       showToast(error.message, 'error')
       setItems([])
-      setMessage('')
     } finally {
       setLoading(false)
     }
@@ -205,7 +265,8 @@ export default function Reports() {
   ]
 
   const keys = useMemo(() => {
-    return [...new Set(items.flatMap((item) => Object.keys(item || {})))].slice(0, 7)
+    const rawKeys = [...new Set(items.flatMap((item) => Object.keys(item || {})))]
+    return rawKeys.filter((k) => !IGNORED_KEYS.has(k)).slice(0, 8)
   }, [items])
 
   return (
@@ -217,7 +278,7 @@ export default function Reports() {
                 if (active) {
                   runReport(active.title, active.fn)
                 } else {
-                  loadInitialData()
+                  runReport('Sales Report', getPharmacySalesReport)
                 }
               }}
             ><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2.34 5.66" /></svg>Refresh</button>} activeLabel="Reports" title="Pharmacy Reports Dashboard" subtitle="Admin / Reports">
@@ -265,45 +326,96 @@ export default function Reports() {
                 placeholder="Enter Record ID / Bill ID to filter..."
               />
             </div>
-
+            <button 
+              className="report-refresh-btn" 
+              type="button" 
+              onClick={() => {
+                const active = reportCards.find(r => r.title === selectedReportTitle)
+                if (active) {
+                  runReport(active.title, active.fn)
+                } else {
+                  runReport('Sales Report', getPharmacySalesReport)
+                }
+              }}
+            >
+              Refresh
+            </button>
           </div>
 
           {/* Results Details Display */}
           <section className="report-results-panel">
-            <div className="report-results-header">
-              <h2>{selectedReportTitle || 'General Dashboard Data'}</h2>
-              <p>Tabular results preview and JSON logs</p>
+            <div className="report-results-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2>{selectedReportTitle || 'Operational Records'}</h2>
+                <p>Showing {items.length} records</p>
+              </div>
             </div>
 
             {loading ? (
-              <p>Runnine report query, please wait...</p>
+              <p style={{ padding: '24px 0', color: '#64748b' }}>Running report query, please wait...</p>
             ) : (
-              <>
-                <div className="branch-table-wrap">
-                  <table className="branch-table">
-                    <thead>
-                      <tr>
-                        {keys.length ? keys.map((key) => <th key={key}>{key}</th>) : <th>Result</th>}
+              <div 
+                className="branch-table-wrap dashboard-table-scroll-box"
+                style={{ maxHeight: '440px', overflowY: 'auto', overflowX: 'auto', scrollbarWidth: 'thin' }}
+              >
+                <table className="branch-table">
+                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 2 }}>
+                    <tr>
+                      <th style={{ width: '60px', position: 'sticky', top: 0, background: '#f8fafc', zIndex: 2 }}>S.No</th>
+                      {keys.map((key) => (
+                        <th key={key} style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 2 }}>
+                          {formatHeaderName(key)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.length ? items.map((item, index) => (
+                      <tr key={item?._id || item?.id || index}>
+                        <td>{index + 1}</td>
+                        {keys.map((key) => {
+                          const val = item?.[key]
+                          const sKey = String(key).toLowerCase()
+                          if (sKey === 'status') {
+                            const sVal = String(val ?? 'Active')
+                            const isGood = sVal.toLowerCase().includes('active') || sVal.toLowerCase().includes('in stock') || sVal.toLowerCase().includes('success') || sVal.toLowerCase().includes('ready')
+                            return (
+                              <td key={key}>
+                                <span className={`branch-status ${isGood ? 'active' : 'expired'}`}>{sVal}</span>
+                              </td>
+                            )
+                          }
+                          if (sKey === 'role') {
+                            return (
+                              <td key={key}>
+                                <span className="sup-cat-pill">{String(val || '-')}</span>
+                              </td>
+                            )
+                          }
+                          if (sKey === 'action') {
+                            return (
+                              <td key={key}>
+                                <span className="branch-status active">{String(val || '-')}</span>
+                              </td>
+                            )
+                          }
+                          return (
+                            <td key={key}>
+                              {formatCellValue(val, key)}
+                            </td>
+                          )
+                        })}
                       </tr>
-                    </thead>
-                    <tbody>
-                      {items.length ? items.map((item, index) => (
-                        <tr key={item?._id || item?.id || index}>
-                          {keys.map((key) => <td key={key}>{String(item?.[key] ?? '-')}</td>)}
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={Math.max(keys.length, 1)}>No data found.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {message ? (
-                  <pre className="inventory-json" style={{ marginTop: '20px' }}>{message}</pre>
-                ) : null}
-              </>
+                    )) : (
+                      <tr>
+                        <td colSpan={keys.length + 1} style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
+                          No records found for this report.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 

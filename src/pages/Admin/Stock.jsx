@@ -557,41 +557,29 @@ export default function Stock({ initialView }) {
           if (name) medMap.set(`name:${name}`, m)
         })
 
-        // Track which medicines are covered by existing batch rows
-        const coveredMedIds = new Set()
-
-        const enrichedBatches = invList.map((batch, idx) => {
-          const batchMedId = String(batch?.medicineId || batch?.MedicineId || batch?.medicine?.id || batch?.medicine?._id || batch?.medicine?.medicineId || '').trim().toLowerCase()
-          const batchCode = String(batch?.code || batch?.medicineCode || batch?.MedicineCode || '').trim().toLowerCase()
-          const batchName = String(batch?.medicineName || batch?.MedicineName || batch?.medicine?.name || batch?.name || '').trim().toLowerCase()
-
-          const linked = medMap.get(`id:${batchMedId}`) || medMap.get(`code:${batchCode}`) || medMap.get(`name:${batchName}`) || {}
-          if (batchMedId) coveredMedIds.add(`id:${batchMedId}`)
-          if (batchCode) coveredMedIds.add(`code:${batchCode}`)
-          if (batchName) coveredMedIds.add(`name:${batchName}`)
-
-          const mergedExpiry = batch?.expiryDate || batch?.ExpiryDate || batch?.expiresAt || batch?.ExpiresAt || batch?.expiry || batch?.Expiry || batch?.batch?.expiryDate || linked?.expiryDate || linked?.ExpiryDate || linked?.expiresAt || linked?.ExpiresAt || linked?.expiry || linked?.Expiry || null
-          return formatStockRecord({ ...linked, ...batch, expiryDate: mergedExpiry }, idx)
-        })
-
-        // For all medicines from the catalogue that do not have separate batch rows,
-        // include them as stock inventory items so ALL uploaded medicines are present in stock!
-        const catalogueItems = []
-        meds.forEach((m, idx) => {
+        // "stocks should come from medicines" - every stock record originates from a medicine in catalogue!
+        const combined = meds.map((m, idx) => {
           const id = String(m?.id || m?._id || m?.medicineId || '').trim().toLowerCase()
           const code = String(m?.code || m?.medicineCode || '').trim().toLowerCase()
           const name = String(m?.name || m?.medicineName || '').trim().toLowerCase()
 
-          const alreadyCovered = (id && coveredMedIds.has(`id:${id}`)) ||
-                                (code && coveredMedIds.has(`code:${code}`)) ||
-                                (name && coveredMedIds.has(`name:${name}`))
+          // Check if a backend inventory batch matches this medicine
+          const matchingBatch = invList.find((b) => {
+            const bMedId = String(b?.medicineId || b?.MedicineId || b?.medicine?.id || b?.medicine?._id || '').trim().toLowerCase()
+            const bCode = String(b?.code || b?.medicineCode || b?.MedicineCode || '').trim().toLowerCase()
+            const bName = String(b?.medicineName || b?.MedicineName || b?.medicine?.name || b?.name || '').trim().toLowerCase()
+            return (id && bMedId === id) || (code && bCode === code) || (name && bName === name)
+          })
 
-          if (!alreadyCovered) {
-            catalogueItems.push(formatStockRecord(m, invList.length + idx))
+          if (matchingBatch) {
+            const mergedExpiry = matchingBatch?.expiryDate || matchingBatch?.expiresAt || m?.expiryDate || m?.expiresAt || null
+            const batchNo = matchingBatch?.batchNo || matchingBatch?.batchNumber || m?.batchNumber || m?.batchNo || m?.code || `BAT-${idx + 1}`
+            const qty = Number(matchingBatch?.quantity ?? matchingBatch?.stock ?? m?.quantity ?? m?.stock ?? 0)
+            return formatStockRecord({ ...m, ...matchingBatch, batchNo, batchNumber: batchNo, quantity: qty, stock: qty, expiryDate: mergedExpiry }, idx)
           }
-        })
 
-        let combined = [...enrichedBatches, ...catalogueItems]
+          return formatStockRecord(m, idx)
+        })
 
         // Filter based on view tabs
         const now = Date.now()

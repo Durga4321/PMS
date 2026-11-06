@@ -818,27 +818,80 @@ function Users({ initialAdd = false }) {
   return (
     <AdminLayout headerAction={<button className="page-heading-refresh" type="button" onClick={loadPharmacists} disabled={loading}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 7v5h-5M20 12a8 8 0 1 0-2.34 5.66" /></svg>Refresh</button>} activeLabel="Pharmacists" title="Manage Pharmacists" subtitle="Admin / Pharmacists">
       <section className="branch-panel pharmacist-panel">
-        <div className="branch-panel-heading">
-<label className="pharmacist-filter-search">
-          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
-          <input aria-label="Search pharmacists" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && loadPharmacists()} placeholder="Search by name, email or phone" />
-        </label>
-          <div className="pharmacist-header-actions">
-          <select aria-label="Filter pharmacists by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
-        <button className="btn-secondary" type="button" onClick={() => { setQuery(''); setStatusFilter('all') }}>Clear Filters</button>
-
-          <button type="button" className="btn-primary" onClick={openCreate}>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: '6px' }}>
-              <path d="M12 5v14M5 12h14" />
+<div className="branch-panel-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
+          <div className="sa-search-wrap" style={{ position: 'relative', flex: '1', maxWidth: '420px', minWidth: '240px' }}>
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="#64748b"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: '14px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
+              }}
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            Add Pharmacist
-          </button>
+            <input
+              type="text"
+              aria-label="Search pharmacists"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && loadPharmacists()}
+              placeholder="Search pharmacists by name, email, or phone..."
+              style={{
+                padding: '10px 14px 10px 38px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                fontSize: '13px',
+                width: '100%',
+                outline: 'none',
+                backgroundColor: '#ffffff',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div className="pharmacist-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <select
+              aria-label="Filter pharmacists by status"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <button
+              className="btn-secondary"
+              type="button"
+              onClick={() => { setQuery(''); setStatusFilter('all') }}
+            >
+              Clear Filters
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={openCreate}
+              style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: '6px' }}>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Add Pharmacist
+            </button>
           </div>
         </div>
 
-
-
-        {loadError ? <p className="pharmacist-load-error" role="alert">{loadError}</p> : null}
+        {loadError ? <p className="pharmacist-load-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', marginBottom: '12px' }}>{loadError}</p> : null}
         <div className="branch-table-wrap">
           <table className="branch-table">
             <thead>
