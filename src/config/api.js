@@ -3334,13 +3334,18 @@ export const updateSuperAdminRolePermissions = (roleId, payload) => {
     })
   }
 
-  const cleanList = list.map((item) => ({
-    module: String(item?.module || item?.Module || item?.name || item?.key || ''),
-    canView: Boolean(item?.canView ?? item?.view),
-    canCreate: Boolean(item?.canCreate ?? item?.create),
-    canEdit: Boolean(item?.canEdit ?? item?.edit),
-    canDelete: Boolean(item?.canDelete ?? item?.delete),
-  }))
+  const cleanList = list
+    .filter((item) => {
+      const mod = String(item?.module || item?.Module || item?.name || item?.key || '').trim().toLowerCase()
+      return mod && mod !== 'cms integration' && mod !== 'cms'
+    })
+    .map((item) => ({
+      module: String(item?.module || item?.Module || item?.name || item?.key || ''),
+      canView: Boolean(item?.canView ?? item?.view),
+      canCreate: Boolean(item?.canCreate ?? item?.create),
+      canEdit: Boolean(item?.canEdit ?? item?.edit),
+      canDelete: Boolean(item?.canDelete ?? item?.delete),
+    }))
 
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }), {
     method: 'PUT',

@@ -84,7 +84,6 @@ const VALID_BACKEND_MODULES = [
   'Expiry Alerts',
   'Reports',
   'Settings',
-  'CMS Integration',
 ]
 
 function permissionPayload(permissions) {
@@ -108,7 +107,7 @@ function permissionPayload(permissions) {
 
   VALID_BACKEND_MODULES.forEach((mod) => {
     const key = mod.toLowerCase()
-    if (seen.has(key)) return
+    if (seen.has(key) || key === 'cms integration' || key === 'cms') return
     seen.add(key)
 
     const act = effective[mod] || effective[mod.toLowerCase()] || permissions?.[mod] || permissions?.[mod.toLowerCase()] || { view: true, create: true, edit: true, delete: true }
@@ -121,7 +120,10 @@ function permissionPayload(permissions) {
     })
   })
 
-  return modulePermissions
+  return modulePermissions.filter((item) => {
+    const mod = String(item?.module || '').trim().toLowerCase()
+    return mod && mod !== 'cms integration' && mod !== 'cms'
+  })
 }
 
 function permissionCount(permissions) {
@@ -245,10 +247,20 @@ export default function UsersPermissions() {
       const response = await getSuperAdminRolePermissions(targetId)
       const src = permissionSource(response, null)
       if (src && (Array.isArray(src) ? src.length > 0 : Object.keys(src).length > 0)) {
-        const normalized = normalizePermissions(src, MODULES)
+        // Filter out obsolete CMS Integration from server response
+        const cleanSrc = Array.isArray(src)
+          ? src.filter((item) => {
+              const mod = String(item?.module || item?.Module || item?.name || item?.key || '').trim().toLowerCase()
+              return mod !== 'cms integration' && mod !== 'cms'
+            })
+          : src
+        const normalized = normalizePermissions(cleanSrc, MODULES)
         if (normalized.Branches) {
           normalized.Pharmacies = { ...normalized.Branches }
         }
+        delete normalized['CMS Integration']
+        delete normalized['cms integration']
+        delete normalized['cms']
         setPermissions(normalized)
         savePermissionsLocallyForAdmin(targetId, normalized, adminEmail)
       } else if (!cached) {
@@ -448,6 +460,9 @@ export default function UsersPermissions() {
       setSuccess(successMsg)
       setSaveFeedback({ type: 'success', message: successMsg })
       showToast(successMsg, 'success')
+
+      // Refresh permissions from GET API with latest server response
+      await loadRolePermissions(selectedAdminId, adminEmail)
     } catch (requestError) {
       console.error('Backend savePermissions error:', requestError)
       const errorMsg = requestError?.message || `Failed to save permissions for ${adminName}.`
