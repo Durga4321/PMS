@@ -280,6 +280,7 @@ export default function AdminBranches() {
   const [currentBranch, setCurrentBranch] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [mainBranch, setMainBranch] = useState(() => buildMainBranch())
+  
 
   const displayBranches = useMemo(() => {
     // 1. Detect if backend branches already has the Main Branch record
@@ -630,8 +631,15 @@ export default function AdminBranches() {
   }
 
   const filteredBranches = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return displayBranches.filter((branch) => !query || [nameOf(branch), locationOf(branch), branchField(branch, 'phone'), branchField(branch, 'email')].some((value) => String(value || '').toLowerCase().includes(query)))
+if (!search.trim()) return displayBranches
+    const term = search.trim().toLowerCase()
+    return displayBranches.filter((b) => {
+      const name = String(nameOf(b) || '').toLowerCase()
+      const loc = String(locationOf(b) || '').toLowerCase()
+      const phone = String(branchField(b, 'phone') || '').toLowerCase()
+      const email = String(branchField(b, 'email') || '').toLowerCase()
+      return name.includes(term) || loc.includes(term) || phone.includes(term) || email.includes(term)
+    })
   }, [displayBranches, search])
 
   const rows = useMemo(() => filteredBranches.map((branch, index) => {
@@ -649,9 +657,48 @@ export default function AdminBranches() {
 
   return (
     <AdminLayout activeLabel="Branches" title="Branches" subtitle="Main pharmacy branch and sub branches.">
-      <section className="super-admin-module-panel admin-branches-panel">
-        <div className="super-admin-module-header">
-          <input className="admin-branches-search" type="search" aria-label="Search branches" placeholder="Search branches by name, contact or address..." value={search} onChange={(event) => setSearch(event.target.value)} />
+<section className="super-admin-module-panel admin-branches-panel">
+        <div className="super-admin-module-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div className="sa-search-wrap" style={{ position: 'relative', flex: '1', maxWidth: '480px', minWidth: '260px' }}>
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="#64748b"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                position: 'absolute',
+                left: '14px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
+              }}
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              aria-label="Search branches"
+              className="admin-branches-search"
+              placeholder="Search branches by name, location, contact..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                padding: '10px 14px 10px 38px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                fontSize: '13px',
+                width: '100%',
+                outline: 'none',
+                backgroundColor: '#ffffff',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
           <button type="button" className="sa-btn-primary" onClick={openCreate}>+ Add Sub Branch</button>
         </div>
         {error ? <div className="super-admin-module-error">{error}</div> : null}
