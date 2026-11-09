@@ -645,7 +645,7 @@ if (!search.trim()) return displayBranches
 
   const rows = useMemo(() => filteredBranches.map((branch, index) => {
     const id = idOf(branch) || index
-    const actions = <RowActions key={`actions-${id}`} itemName={nameOf(branch)} isActive={isActive(branch)} onView={() => openView(branch)} onEdit={() => openEdit(branch)} onStatus={() => toggleStatus(branch)} onDelete={branch?.isMainBranch ? undefined : () => deleteBranch(branch)} />
+    const actions = <RowActions key={`actions-${id}`} itemName={nameOf(branch)} isActive={isActive(branch)} onView={() => openView(branch)} onEdit={() => openEdit(branch)} onDelete={() => deleteBranch(branch)} />
     return [
       <span className="branches-serial" key="serial">{index + 1}</span>,
       <BranchNameCell key="branch" branch={branch} index={index} pharmacies={pharmacies} />,
