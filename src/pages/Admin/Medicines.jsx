@@ -1,3 +1,4 @@
+import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { useToast } from '../../components/ToastProvider'
@@ -767,7 +768,7 @@ export default function Medicines() {
 
   async function handleDelete(medicine) {
     const medName = getName(medicine)
-    if (!window.confirm(`Are you sure you want to delete ${medName}?`)) return
+    if (!await confirmAction(`Are you sure you want to delete ${medName}?`)) return
     const id = getId(medicine)
     try {
       setMedicines((prev) => prev.filter((item) => getId(item) !== id))

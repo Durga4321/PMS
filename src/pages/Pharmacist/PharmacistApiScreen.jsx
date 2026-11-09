@@ -248,6 +248,13 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
     try {
       const parsedBody = bodyText.trim() ? JSON.parse(bodyText) : {}
       const body = typeof action.payload === 'function' ? action.payload(id, parsedBody) : action.payload || parsedBody
+      if (/^(delete|remove|cancel|dispose|quarantine)\b/i.test(action.label)) {
+        const confirmed = await confirmAction(`Are you sure you want to ${action.label.toLowerCase()}${id ? ` record ${id}` : ' this record'}?`, {
+          title: `${action.label} record?`,
+          confirmLabel: action.label,
+        })
+        if (!confirmed) return
+      }
       const response = await action.fn(id, body)
       setRawResponse(response)
       setItems(normalizeItems(response, activeLabel))
@@ -460,3 +467,4 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
 
 export default PharmacistApiScreen
 
+import { confirmAction } from '../../components/confirmAction'

@@ -1,3 +1,4 @@
+import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
@@ -76,7 +77,7 @@ export default function ExpiryAlerts() {
   async function handleDispose(item) {
     const batchNo = item?.batchNo || item?.batchNumber
     const medName = getMedicineName(item)
-    if (!window.confirm(`Are you sure you want to dispose expired medicine: ${medName} (batch: ${batchNo || 'N/A'})?`)) return
+    if (!await confirmAction(`Are you sure you want to dispose expired medicine: ${medName} (batch: ${batchNo || 'N/A'})?`)) return
     try {
       if (batchNo) {
         await disposeInventoryBatch(batchNo, { reason: 'Expired medicine alert disposal' })
@@ -171,9 +172,9 @@ export default function ExpiryAlerts() {
               height: '38px',
               padding: '0 16px',
               borderRadius: '8px',
-              border: '1px solid #cbd5e1',
-              background: '#fff',
-              color: '#475569',
+              border: '1px solid var(--pms-border, #cbd5e1)',
+              background: 'var(--pms-surface, #fff)',
+              color: 'var(--pms-text, #475569)',
               fontWeight: 600,
               fontSize: '13px',
               cursor: 'pointer',
@@ -187,14 +188,13 @@ export default function ExpiryAlerts() {
             </svg>
             Refresh
           </button>} activeLabel="Expiry Alerts" title="Expiry Inventory" subtitle="Track medicines that are near expiry or already expired.">
-      <section className="branch-panel">
-        <div className="branch-panel-heading" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
-          <div className="expiry-tabs-card-grid">
+          <div className="expiry-tabs-card-grid" aria-label="Filter expiry alerts">
             {/* Tab 1: All Expiry Alerts */}
             <button
               type="button"
               className={`expiry-tab-card ${mode === 'alerts' ? 'active' : ''}`}
-              style={{ '--card-accent': '#dc2626', '--card-bg': '#fee2e2', '--card-border': 'rgba(220, 38, 38, 0.25)' }}
+              aria-pressed={mode === 'alerts'}
+              style={{ '--card-accent': 'var(--pms-accent-strong, #007d79)', '--card-bg': 'var(--pms-page-bg, #ecfbfa)', '--card-border': 'var(--pms-border, #c5ebe7)' }}
               onClick={() => setMode('alerts')}
             >
               <div className="expiry-card-icon-wrap">
@@ -214,7 +214,8 @@ export default function ExpiryAlerts() {
             <button
               type="button"
               className={`expiry-tab-card ${mode === 'near' ? 'active' : ''}`}
-              style={{ '--card-accent': '#f97316', '--card-bg': '#ffedd5', '--card-border': 'rgba(249, 115, 22, 0.25)' }}
+              aria-pressed={mode === 'near'}
+              style={{ '--card-accent': 'var(--pms-accent-strong, #007d79)', '--card-bg': 'var(--pms-page-bg, #ecfbfa)', '--card-border': 'var(--pms-border, #c5ebe7)' }}
               onClick={() => setMode('near')}
             >
               <div className="expiry-card-icon-wrap">
@@ -233,7 +234,8 @@ export default function ExpiryAlerts() {
             <button
               type="button"
               className={`expiry-tab-card ${mode === 'expired' ? 'active' : ''}`}
-              style={{ '--card-accent': '#ef4444', '--card-bg': '#fee2e2', '--card-border': 'rgba(239, 68, 68, 0.25)' }}
+              aria-pressed={mode === 'expired'}
+              style={{ '--card-accent': 'var(--pms-accent-strong, #007d79)', '--card-bg': 'var(--pms-page-bg, #ecfbfa)', '--card-border': 'var(--pms-border, #c5ebe7)' }}
               onClick={() => setMode('expired')}
             >
               <div className="expiry-card-icon-wrap">
@@ -253,11 +255,10 @@ export default function ExpiryAlerts() {
           </div>
 
 
-        </div>
-
+      <section className="branch-panel expiry-inventory-panel" style={{ borderColor: 'var(--pms-border, #c5ebe7)', borderTopColor: 'var(--pms-accent, #0bb5aa)' }}>
         <div className="medicine-filters" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
           <div className="report-search-input-wrap" style={{ flex: 1, maxWidth: '320px', position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon" style={{ position: 'absolute', left: '12px', width: '15px', height: '15px', stroke: '#94a3b8', fill: 'none', strokeWidth: 2 }}>
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon" style={{ position: 'absolute', left: '12px', width: '15px', height: '15px', stroke: 'var(--pms-muted, #94a3b8)', fill: 'none', strokeWidth: 2 }}>
               <circle cx="11" cy="11" r="6" />
               <path d="m16 16 4 4" />
             </svg>
@@ -265,13 +266,13 @@ export default function ExpiryAlerts() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search medicine, batch number..."
-              style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px' }}
+              style={{ width: '100%', height: '38px', padding: '0 12px 0 36px', border: '1px solid var(--pms-border, #cbd5e1)', borderRadius: '8px', fontSize: '13px' }}
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ height: '38px', padding: '0 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', background: '#fff', outline: 'none' }}
+            style={{ height: '38px', padding: '0 12px', border: '1px solid var(--pms-border, #cbd5e1)', borderRadius: '8px', fontSize: '13px', background: 'var(--pms-surface, #fff)', outline: 'none' }}
           >
             <option value="all">All Statuses</option>
             <option value="near">Near Expiry</option>
@@ -280,7 +281,7 @@ export default function ExpiryAlerts() {
         </div>
 
         {loading ? (
-          <p style={{ padding: '20px 0', color: '#64748b', fontSize: '14px' }}>Loading expiry alerts...</p>
+          <p style={{ padding: '20px 0', color: 'var(--pms-muted, #64748b)', fontSize: '14px' }}>Loading expiry alerts...</p>
         ) : (
           <div className="branch-table-wrap">
             <table className="branch-table">
@@ -300,7 +301,7 @@ export default function ExpiryAlerts() {
                   filteredItems.map((item, index) => (
                     <tr key={getId(item, index)}>
                       <td>
-                        <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--pms-text, #1e293b)' }}>
                           {item?.medicineName || item?.name || '-'}
                         </div>
                       </td>
@@ -333,10 +334,10 @@ export default function ExpiryAlerts() {
                 ) : (
                   <tr>
                     <td colSpan="7" style={{ textAlign: 'center', padding: '40px 20px' }}>
-                      <div style={{ color: '#64748b', fontSize: '15px', fontWeight: 600 }}>
+                      <div style={{ color: 'var(--pms-muted, #64748b)', fontSize: '15px', fontWeight: 600 }}>
                         {mode === 'near' ? 'No near-expiry medicines found.' : mode === 'expired' ? 'No expired medicines found.' : 'No expiry alert medicines found.'}
                       </div>
-                      <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
+                      <div style={{ color: 'var(--pms-muted, #94a3b8)', fontSize: '13px', marginTop: '4px' }}>
                         All checkups complete.
                       </div>
                     </td>
@@ -357,34 +358,34 @@ export default function ExpiryAlerts() {
               <div className="stock-modal-body" style={{ padding: '20px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Medicine Name</label>
-                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>{getMedicineName(viewingItem)}</p>
+                    <label style={{ fontSize: '11px', color: 'var(--pms-muted, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Medicine Name</label>
+                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: 'var(--pms-text, #0f172a)', fontSize: '14px' }}>{getMedicineName(viewingItem)}</p>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Batch Number</label>
-                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a', fontSize: '14px' }}><code>{viewingItem.batchNo || viewingItem.batchNumber || '-'}</code></p>
+                    <label style={{ fontSize: '11px', color: 'var(--pms-muted, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Batch Number</label>
+                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: 'var(--pms-text, #0f172a)', fontSize: '14px' }}><code>{viewingItem.batchNo || viewingItem.batchNumber || '-'}</code></p>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Quantity Remaining</label>
-                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>{viewingItem.quantity ?? stockOf(viewingItem)} units</p>
+                    <label style={{ fontSize: '11px', color: 'var(--pms-muted, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Quantity Remaining</label>
+                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: 'var(--pms-text, #0f172a)', fontSize: '14px' }}>{viewingItem.quantity ?? stockOf(viewingItem)} units</p>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Expiry Date</label>
+                    <label style={{ fontSize: '11px', color: 'var(--pms-muted, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Expiry Date</label>
                     <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#ef4444', fontSize: '14px' }}>{formatDate(expiryOf(viewingItem))}</p>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Days Remaining</label>
+                    <label style={{ fontSize: '11px', color: 'var(--pms-muted, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Days Remaining</label>
                     <p style={{ margin: '4px 0 0', fontWeight: 700, color: (viewingItem.daysLeft ?? 30) < 0 ? '#ef4444' : '#f59e0b', fontSize: '14px' }}>
                       {formatDaysLeft(viewingItem.daysLeft)}
                     </p>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Status</label>
+                    <label style={{ fontSize: '11px', color: 'var(--pms-muted, #64748b)', fontWeight: 600, textTransform: 'uppercase' }}>Status</label>
                     <p style={{ margin: '4px 0 0', fontWeight: 700, fontSize: '14px' }}>{getStatusLabel(viewingItem)}</p>
                   </div>
                 </div>
               </div>
-              <div className="stock-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', borderTop: '1px solid #e2e8f0' }}>
+              <div className="stock-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 20px', borderTop: '1px solid var(--pms-border, #e2e8f0)' }}>
                 <button type="button" className="stock-btn stock-btn-secondary" onClick={() => setViewingItem(null)}>Close</button>
                 <button type="button" className="stock-btn stock-btn-primary" onClick={() => { const it = viewingItem; setViewingItem(null); handleEdit(it) }}>Adjust in Stock &rarr;</button>
               </div>

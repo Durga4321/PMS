@@ -1,3 +1,4 @@
+import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
@@ -546,7 +547,7 @@ function Users({ initialAdd = false }) {
   }
 
   async function handleDelete(pharmacist) {
-    if (!window.confirm(`Delete ${getName(pharmacist)}?`)) return
+    if (!await confirmAction(`Delete ${getName(pharmacist)}?`)) return
     try {
       const response = await deletePharmacist(getId(pharmacist))
       showToast(response?.message || 'Pharmacist deleted successfully.')
@@ -690,7 +691,7 @@ function Users({ initialAdd = false }) {
           </button>
         }
       >
-        <section className="branch-panel pharmacist-create-panel" style={{ maxWidth: '840px', margin: '0 auto', borderTop: '3.5px solid #2563eb' }}>
+        <section className="branch-panel pharmacist-create-panel" style={{ maxWidth: '840px', margin: '0 auto', borderTop: '3.5px solid var(--pms-accent, #0bb5aa)' }}>
           <div className="branch-panel-heading">
             <div>
               <h2>{editing ? 'Edit Pharmacist Profile' : 'New Pharmacist Registration'}</h2>

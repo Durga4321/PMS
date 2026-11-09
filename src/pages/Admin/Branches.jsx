@@ -1,3 +1,4 @@
+import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import RowActions from '../../components/RowActions'
 import { useToast } from '../../components/ToastProvider'
@@ -596,7 +597,7 @@ export default function AdminBranches() {
 
   async function deleteBranch(branch) {
     const id = idOf(branch)
-    if (!id || !window.confirm(`Delete ${nameOf(branch)}?`)) return
+    if (!id || !await confirmAction(`Delete ${nameOf(branch)}?`)) return
     setError('')
     try {
       await deletePharmacyBranch(id)

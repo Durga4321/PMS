@@ -1,3 +1,4 @@
+import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useMemo, useState } from 'react'
 import AdminLayout from './AdminLayout'
 import RowActions from '../../components/RowActions'
@@ -6,7 +7,7 @@ import {
   getPharmacySettings,
   changeSuperAdminPharmacyStatus,
   createSuperAdminPharmacy,
-  deleteSuperAdminPharmacy,
+  deleteOwnPharmacy,
   getAddressByPincode,
   getSuperAdminPharmacies,
   updateSuperAdminPharmacy,
@@ -864,14 +865,15 @@ export default function AdminPharmacies() {
     const id = idOf(pharmacy)
     if (!id) return
     const name = pharmacyName(pharmacy)
-    if (!window.confirm(`Are you sure you want to delete ${name}?`)) return
+    if (!await confirmAction(`Are you sure you want to delete ${name}?`)) return
 
     // 1. If it has a numeric database ID, attempt backend deletion
     if (/^\d+$/.test(String(id))) {
       try {
-        await deleteSuperAdminPharmacy(id)
+        await deleteOwnPharmacy(id)
       } catch (err) {
-        console.log('Backend delete request completed:', err.message)
+        showToast(err.message || 'Unable to delete pharmacy.', 'error')
+        return
       }
     }
 
