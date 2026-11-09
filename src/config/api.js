@@ -2244,11 +2244,44 @@ export const approveMedicineReturn = (id, payload = {}) => request(replacePathPa
 export const cancelMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
 export const listStockTransfers = (params = {}) => request(`inventory/transfers${queryString(params)}`)
-export const createStockTransfer = (payload) => request('inventory/transfers', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const createStockTransfer = (payload) => {
+  const quantity = Number(payload?.transferQuantity ?? payload?.quantity ?? payload?.qty ?? 1)
+  const cleanPayload = {
+    fromLocation: String(payload?.fromLocation || payload?.source || '').trim(),
+    toLocation: String(payload?.toLocation || payload?.destination || '').trim(),
+    medicineName: String(payload?.medicineName || payload?.name || '').trim(),
+    batchNumber: String(payload?.batchNumber || payload?.batchNo || payload?.batch || '').trim(),
+    transferQuantity: isNaN(quantity) || quantity <= 0 ? 1 : Math.round(quantity),
+    requestedBy: String(payload?.requestedBy || '').trim(),
+    approvedBy: String(payload?.approvedBy || '').trim(),
+  }
+  return request('inventory/transfers', {
+    method: 'POST',
+    body: JSON.stringify(cleanPayload),
+  })
+}
 export const getStockTransfer = (id) => request(replacePathParams('inventory/transfers/{id}', { id }))
-export const dispatchStockTransfer = (id, payload = {}) => request(replacePathParams('inventory/transfers/{id}/dispatch', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const receiveStockTransfer = (id, payload = {}) => request(replacePathParams('inventory/transfers/{id}/receive', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const changeStockTransferStatus = (id, payload) => request(replacePathParams('inventory/transfers/{id}/status', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const dispatchStockTransfer = (id) => request(replacePathParams('inventory/transfers/{id}/dispatch', { id }), { method: 'POST' })
+export const receiveStockTransfer = (id) => request(replacePathParams('inventory/transfers/{id}/receive', { id }), { method: 'POST' })
+export const changeStockTransferStatus = (id, payload) => {
+  const statusVal = typeof payload === 'string' ? payload : (payload?.status || 'Pending')
+  return request(replacePathParams('inventory/transfers/{id}/status', { id }), {
+    method: 'POST',
+    body: JSON.stringify({ status: statusVal }),
+  })
+}
+export const updateStockTransferDraft = (id, payload = {}) => {
+  const quantity = Number(payload?.quantity ?? payload?.transferQuantity ?? 1)
+  const cleanPayload = {
+    quantity: isNaN(quantity) || quantity <= 0 ? 1 : Math.round(quantity),
+    notes: String(payload?.notes || payload?.comment || '').trim() || null,
+  }
+  return request(replacePathParams('inventory/transfers/{id}', { id }), {
+    method: 'PUT',
+    body: JSON.stringify(cleanPayload),
+  })
+}
+export const deleteStockTransferDraft = (id) => request(replacePathParams('inventory/transfers/{id}', { id }), { method: 'DELETE' })
 
 const LOCAL_STOCK_TRANSFERS_KEY = 'pms_stock_transfers'
 

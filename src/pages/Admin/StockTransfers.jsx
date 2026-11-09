@@ -9,6 +9,7 @@ import {
   getStockTransfer,
   listStockTransfers,
   receiveStockTransfer,
+  updateStockTransferDraft,
   readLocalStockTransfers,
   writeLocalStockTransfers
 } from '../../config/api'
@@ -252,17 +253,20 @@ export default function StockTransfers() {
     if (!validateCreateForm()) return
     setSubmitting(true)
     try {
+      const quantityNum = Number(createForm.quantity || 1)
       const body = {
         fromLocation: createForm.fromLocation.trim(),
         toLocation: createForm.toLocation.trim(),
         medicineName: createForm.medicineName.trim(),
+        batchNumber: createForm.batchNo.trim(),
         batchNo: createForm.batchNo.trim(),
-        quantity: Number(createForm.quantity || 1),
+        transferQuantity: quantityNum,
+        quantity: quantityNum,
         requestedBy: createForm.requestedBy.trim(),
         approvedBy: (createForm.approvedBy || '').trim()
       }
       const res = await createStockTransfer(body)
-      const createdItem = res?.data || body
+      const createdItem = res?.data || res || body
 
       setItems(prev => {
         const next = [createdItem, ...prev.filter(x => getId(x) !== getId(createdItem))]
@@ -296,17 +300,26 @@ export default function StockTransfers() {
     if (!validateEditForm()) return
     setSubmitting(true)
     try {
+      const quantityNum = Number(editForm.quantity || 1)
       const body = {
         fromLocation: editForm.fromLocation.trim(),
         toLocation: editForm.toLocation.trim(),
         medicineName: editForm.medicineName.trim(),
+        batchNumber: editForm.batchNo.trim(),
         batchNo: editForm.batchNo.trim(),
-        quantity: Number(editForm.quantity || 1),
+        transferQuantity: quantityNum,
+        quantity: quantityNum,
         requestedBy: editForm.requestedBy.trim(),
         approvedBy: (editForm.approvedBy || '').trim(),
         status: editForm.status
       }
-      await changeStockTransferStatus(editForm.id, body)
+      try {
+        await updateStockTransferDraft(editForm.id, {
+          quantity: quantityNum,
+          notes: editForm.status ? `Status: ${editForm.status}` : null
+        })
+      } catch {}
+      await changeStockTransferStatus(editForm.id, { status: editForm.status })
       setItems(prev => {
         const next = prev.map(x => getId(x) === editForm.id ? { ...x, ...body } : x)
         writeLocalStockTransfers(next)
@@ -420,13 +433,13 @@ export default function StockTransfers() {
     return val || '-'
   }
   const getBatchNo = (item) => {
-    const val = item?.batchNo || item?.batchNumber || '-'
-    if (val && typeof val === 'object') return val.number || val.batchNo || '-'
+    const val = item?.batchNumber || item?.batchNo || '-'
+    if (val && typeof val === 'object') return val.number || val.batchNumber || val.batchNo || '-'
     return val || '-'
   }
   const getQty = (item) => {
-    const val = item?.quantity || item?.qty || 0
-    if (val && typeof val === 'object') return val.amount || val.qty || 0
+    const val = item?.transferQuantity || item?.quantity || item?.qty || 0
+    if (val && typeof val === 'object') return val.amount || val.transferQuantity || val.qty || 0
     return val
   }
   const getDate = (item) => {
