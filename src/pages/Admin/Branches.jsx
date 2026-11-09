@@ -765,7 +765,9 @@ if (!search.trim()) return displayBranches
                         ? 'Select Pharmacy *'
                         : field === 'name'
                         ? 'Sub Branch Name *'
-                        : field}
+                        : field === 'postalCode'
+                        ? 'Postal Code *'
+                        : `${field.charAt(0).toUpperCase() + field.slice(1)} *`}
                     </label>
                     {field === 'pharmacyId' ? (
                       <select
