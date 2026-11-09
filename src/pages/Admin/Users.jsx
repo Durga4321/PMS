@@ -750,7 +750,7 @@ function Users({ initialAdd = false }) {
               </div>
 
               <div className="pharmacist-form-field">
-                <label htmlFor="user-phone">Phone Number</label>
+                <label htmlFor="user-phone">Phone Number *</label>
                 <input
                   id="user-phone" inputMode="numeric" maxLength={10} pattern="[0-9]{10}"
                   name="pharmacist_new_phone"
