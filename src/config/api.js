@@ -5,7 +5,8 @@ const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
 
 const env = typeof process !== 'undefined' ? process.env : {}
 
-export const API_BASE_URL = (
+// Local API calls use Vite's server proxy so the browser stays on the same origin.
+export const API_BASE_URL = import.meta.env.DEV ? '' : (
   import.meta.env.VITE_API_BASE_URL ||
   env.REACT_APP_API_BASE_URL ||
   DEFAULT_API_BASE_URL
@@ -276,14 +277,16 @@ export async function syncPharmacyAdminTenantContext(assignmentHint = null) {
   return mergedAssignment
 }
 
-function pharmacyTenantHeaders(path = '', authRole = '') {
+function pharmacyTenantHeaders(path = '', authRole = '', branchOverride) {
   const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
   // Do not send pharmacy tenant headers for super admin platform management routes
   if (cleanPath.startsWith('pharmacy-super-admin')) {
     return {}
   }
 
-  const { pharmacyId, branchId } = pharmacyTenantContext()
+  const context = pharmacyTenantContext()
+  const pharmacyId = context.pharmacyId
+  const branchId = branchOverride === undefined ? context.branchId : branchOverride
   return {
     ...(pharmacyId ? {
       'X-Pharmacy-Id': String(pharmacyId),
@@ -375,8 +378,8 @@ function passwordResetPayload(payload = {}) {
   return value === undefined ? payload : { ...payload, newPassword: value, NewPassword: value }
 }
 async function request(path, options = {}) {
-  const { authRole, signal, headers: customHeaders, ...fetchOptions } = options
-  const token = authTokenFor(path, authRole)
+  const { authRole, signal, headers: customHeaders, tenantBranchId, publicRequest = false, ...fetchOptions } = options
+  const token = publicRequest ? null : authTokenFor(path, authRole)
 
   const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
   const controller = new AbortController()
@@ -393,7 +396,7 @@ async function request(path, options = {}) {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     Accept: 'application/json, text/plain, */*',
     ...(token ? { Authorization: 'Bearer ' + token } : {}),
-    ...pharmacyTenantHeaders(path, authRole),
+    ...(publicRequest ? {} : pharmacyTenantHeaders(path, authRole, tenantBranchId)),
     ...(customHeaders || {}),
   }
 
@@ -523,9 +526,11 @@ async function downloadRequest(path, filename) {
 }
 export function loginUnifiedAuth(credentials) {
   return request('auth/login', {
+    publicRequest: true,
     method: 'POST',
+    cache: 'no-store',
     body: JSON.stringify({
-      email: String(credentials.email ?? '').trim(),
+      email: String(credentials.email ?? '').trim().toLowerCase(),
       password: String(credentials.password ?? ''),
     }),
   })
@@ -1264,6 +1269,52 @@ export async function syncDeletedMedicinesWithBackend() {
   }
 }
 
+const medicineBranchChecks = new Map()
+const rejectedMedicineBranches = new Set()
+
+async function validateMedicineBranch(params) {
+  const context = pharmacyTenantContext()
+  const token = authTokenFor('medicine')
+  // Platform catalogue requests do not require a pharmacy branch.
+  if (!context.pharmacyId || token === readStoredToken('superAdminToken')) return context.branchId
+  const key = JSON.stringify([token, context.pharmacyId])
+  if (!medicineBranchChecks.has(key)) {
+    const check = request(`pharmacy/branches${queryString({ pharmacyId: context.pharmacyId })}`, {
+      // Branch discovery must not be constrained by the stale branch being checked.
+      tenantBranchId: '',
+    }).then(extractBranchesArray)
+    medicineBranchChecks.set(key, check)
+    check.finally(() => medicineBranchChecks.delete(key)).catch(() => {})
+  }
+  const branches = (await medicineBranchChecks.get(key)).filter((branch) => {
+    const pharmacyId = branch.pharmacyId ?? branch.PharmacyId
+    return (pharmacyId == null || String(pharmacyId) === context.pharmacyId)
+      && branch.isActive !== false && branch.IsActive !== false
+      && branch.isDeleted !== true && branch.IsDeleted !== true
+      && !/^(inactive|deleted)$/i.test(String(branch.status || branch.Status || ''))
+  })
+  const idOf = (branch) => String(branch.branchId ?? branch.BranchId ?? branch.id ?? branch.Id ?? '')
+  const explicit = params.branchId !== undefined && params.branchId !== null && params.branchId !== ''
+  const requested = String(explicit ? params.branchId : context.branchId)
+  let selected = branches.find((branch) => idOf(branch) === requested)
+  if (!selected && !explicit) {
+    selected = branches.find((branch) => branch.isMainBranch === true || branch.IsMainBranch === true)
+      || (branches.length === 1 ? branches[0] : null)
+  }
+  const branchId = selected && idOf(selected)
+  if (!branchId || !/^\d+$/.test(branchId) || Number(branchId) <= 0) {
+    throw new Error('No valid pharmacy branch is selected. Select an active branch assigned to this pharmacy, or ask your administrator to correct the assignment.')
+  }
+  const rejectionKey = JSON.stringify([token, context.pharmacyId, branchId])
+  if (rejectedMedicineBranches.has(rejectionKey)) {
+    throw new Error('The server rejected this pharmacy branch. Ask your administrator to correct the branch assignment, then reload the page.')
+  }
+  if (!explicit && branchId !== context.branchId) {
+    for (const storage of [sessionStorage, localStorage]) storage.setItem('workingBranchId', branchId)
+  }
+  return branchId
+}
+
 export async function listMedicines(params = {}) {
   const query = new URLSearchParams()
 
@@ -1271,15 +1322,12 @@ export async function listMedicines(params = {}) {
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
 
-  // Ensure working branch is included in query if available
-  const ctx = pharmacyTenantContext()
-  if (ctx?.branchId && !query.has('branchId')) {
-    query.set('branchId', ctx.branchId)
-  }
+  const branchId = await validateMedicineBranch(params)
+  if (branchId) query.set('branchId', branchId)
 
   let backendList = []
   try {
-    const response = await request(`medicine${query.toString() ? `?${query}` : ''}`)
+    const response = await request(`medicine${query.toString() ? `?${query}` : ''}`, { tenantBranchId: branchId })
     const normalized = normalizeMedicineResponse(response)
     if (Array.isArray(normalized)) {
       backendList = normalized
@@ -1295,6 +1343,12 @@ export async function listMedicines(params = {}) {
       backendList = normalized.items
     }
   } catch (error) {
+    if (error.status === 400 && /invalid pharmacy branch/i.test(error.message)) {
+      const context = pharmacyTenantContext()
+      rejectedMedicineBranches.add(JSON.stringify([authTokenFor('medicine'), context.pharmacyId, branchId]))
+      throw new Error('The server rejected this pharmacy branch. Ask your administrator to correct the branch assignment, then reload the page.')
+    }
+    if ([400, 401, 403, 404].includes(error.status)) throw error
     console.warn('Backend listMedicines failed, using local medicines:', error.message)
   }
 
@@ -3039,6 +3093,17 @@ export const changePharmacyBranchStatus = async (id, payload) => {
 
 export const getPharmacyAdminPharmacy = (options = {}) =>
   request('pharmacy-admin/pharmacy', { authRole: 'pharmacyAdmin', ...options })
+
+export async function deleteOwnPharmacy(id) {
+  // This endpoint deletes the authenticated admin's pharmacy, not an arbitrary ID.
+  const response = await getPharmacyAdminPharmacy()
+  const own = response?.data?.pharmacy || response?.pharmacy || response?.data || response
+  const ownId = own?.pharmacyId ?? own?.PharmacyId ?? own?.id ?? own?.Id
+  if (ownId == null || String(ownId) !== String(id)) {
+    throw new Error('Only your assigned pharmacy can be deleted from this account. Refresh the pharmacy list and try again.')
+  }
+  return request('pharmacy/settings/pharmacy', { authRole: 'pharmacyAdmin', method: 'DELETE' })
+}
 
 export const registerPharmacyAdminPharmacy = async (payload, options = {}) => {
   const cleanPayload = cleanPharmacyPayload(payload)

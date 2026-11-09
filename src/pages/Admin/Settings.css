@@ -7,8 +7,8 @@
 
 /* Settings Card sections */
 .settings-section-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--pms-surface, #ffffff);
+  border: 1px solid var(--pms-border, #e2e8f0);
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
@@ -23,18 +23,18 @@
   margin: 0 0 20px;
   font-size: 16px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--pms-text, #0f172a);
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--pms-page-bg, #f1f5f9);
   padding-bottom: 12px;
 }
 
 .settings-section-card h2 svg {
   width: 18px;
   height: 18px;
-  stroke: #2563eb;
+  stroke: var(--pms-accent-strong, #2563eb);
   fill: none;
   stroke-width: 2;
 }
@@ -55,7 +55,7 @@
 .settings-form-group label {
   font-size: 13px;
   font-weight: 700;
-  color: #020617;
+  color: var(--pms-text, #020617);
 }
 
 .settings-form-group input[type="text"],
@@ -64,33 +64,33 @@
 .settings-form-group select {
   height: 42px;
   padding: 0 14px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--pms-border, #bfdbfe);
   border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
-  color: #2563eb;
+  color: var(--pms-accent-strong, #2563eb);
   outline: none;
-  background: #eff6ff;
+  background: var(--pms-page-bg, #eff6ff);
   transition: all 0.2s ease;
 }
 
 .settings-form-group input::placeholder {
-  color: #64748b;
+  color: var(--pms-muted, #64748b);
   font-weight: 500;
 }
 
 .settings-form-group input:focus,
 .settings-form-group select:focus {
-  border-color: #2563eb;
-  background: #dbeafe;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  border-color: var(--pms-accent-strong, #2563eb);
+  background: var(--pms-sidebar, #dbeafe);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pms-accent, #2563eb) 18%, transparent);
 }
 
 .settings-form-group input:disabled,
 .settings-form-group select:disabled {
-  background: #f1f5f9;
-  color: #64748b;
-  border-color: #cbd5e1;
+  background: var(--pms-page-bg, #f1f5f9);
+  color: var(--pms-muted, #64748b);
+  border-color: var(--pms-border, #cbd5e1);
   cursor: not-allowed;
 }
 
@@ -106,7 +106,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 0;
-  border-bottom: 1px dashed #f1f5f9;
+  border-bottom: 1px dashed var(--pms-page-bg, #f1f5f9);
 }
 
 .settings-toggle-row:last-child {
@@ -122,14 +122,14 @@
 .settings-toggle-info label {
   font-size: 14px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--pms-text, #1e293b);
   cursor: pointer;
 }
 
 .settings-toggle-info p {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--pms-muted, #64748b);
 }
 
 /* Switch Styles */
@@ -154,7 +154,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #cbd5e1;
+  background-color: var(--pms-border, #cbd5e1);
   transition: 0.3s;
   border-radius: 24px;
 }
@@ -173,7 +173,7 @@
 }
 
 .settings-switch input:checked + .settings-slider {
-  background-color: #2563eb;
+  background-color: var(--pms-accent-strong, #2563eb);
 }
 
 .settings-switch input:checked + .settings-slider:before {
@@ -186,8 +186,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: 16px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--pms-surface, #ffffff);
+  border: 1px solid var(--pms-border, #e2e8f0);
   border-radius: 12px;
   padding: 16px 24px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
@@ -198,7 +198,7 @@
 .settings-save-bar button {
   height: 42px;
   padding: 0 24px;
-  background: #2563eb;
+  background: var(--pms-accent-strong, #2563eb);
   color: #ffffff;
   border: none;
   border-radius: 10px;
@@ -206,16 +206,16 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--pms-accent, #2563eb) 20%, transparent);
 }
 
 .settings-save-bar button:hover {
-  background: #1d4ed8;
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.3);
+  background: var(--pms-accent-strong, #1d4ed8);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--pms-accent, #2563eb) 30%, transparent);
 }
 
 .settings-save-bar button:disabled {
-  background: #94a3b8;
+  background: var(--pms-muted, #94a3b8);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -223,7 +223,7 @@
 .settings-status-msg {
   font-size: 14px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--pms-muted, #64748b);
 }
 
 /* Responsive */
@@ -232,3 +232,28 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Section tabs replace the vertically stacked settings cards. */
+.settings-layout-container { gap: 14px; }
+.settings-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.settings-tabs [role="tab"] { min-width: 0; min-height: 48px; padding: 10px 12px; border: 1px solid var(--pms-border, #cbd5e1); border-radius: 10px; background: var(--pms-surface, #fff); color: var(--pms-text, #183044); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; overflow-wrap: anywhere; }
+.settings-tabs [aria-selected="true"] { background: var(--pms-accent-strong, #007d79); border-color: var(--pms-accent-strong, #007d79); color: #fff; }
+.settings-tabs [role="tab"]:hover { border-color: var(--pms-accent-strong, #007d79); }
+.settings-tabs [role="tab"]:focus-visible, .settings-switch input:focus-visible + .settings-slider { outline: 3px solid var(--pms-accent, #0bb5aa); outline-offset: 3px; }
+.settings-layout-container .settings-section-card { padding: 16px 20px; }
+.settings-layout-container .settings-section-card h2 { margin-bottom: 14px; padding-bottom: 10px; }
+.settings-layout-container .settings-form-grid { gap: 12px 16px; }
+.settings-layout-container .settings-toggle-group { gap: 10px; }
+.settings-layout-container .settings-save-bar {
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--pms-border, #e2e8f0);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.settings-layout-container .settings-save-bar button { height: 38px; }
+.settings-form-group select option { background: var(--pms-surface, #fff); color: var(--pms-text, #183044); }
+@media (max-width: 900px) { .settings-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .settings-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-layout-container .settings-form-group { grid-column: auto !important; } }

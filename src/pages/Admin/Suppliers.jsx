@@ -1,3 +1,4 @@
+import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useState, useMemo } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
@@ -462,7 +463,7 @@ export default function Suppliers() {
 
   // Action Helpers: Delete
   async function handleDelete(id) {
-    if (!window.confirm('Are you sure you want to delete this supplier? This action cannot be undone.')) {
+    if (!await confirmAction('Are you sure you want to delete this supplier? This action cannot be undone.')) {
       return
     }
     setLoading(true)

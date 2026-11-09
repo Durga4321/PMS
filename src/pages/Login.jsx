@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import { useToast } from '../components/ToastProvider'
@@ -131,6 +131,7 @@ function roleFrom(loginData, user, response) {
 }
 
 function Login() {
+  const submittingRef = useRef(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -174,16 +175,24 @@ function Login() {
 
   async function handleSubmit(event) {
     event.preventDefault()
-    if (isSubmitting) return
+    if (submittingRef.current) return
+    submittingRef.current = true
+    // Read the submitted controls so password-manager autofill is included even
+    // when it has not emitted a React change event.
+    const submitted = new FormData(event.currentTarget)
+    const credentials = {
+      email: String(submitted.get('login-email') ?? email).trim().toLowerCase(),
+      password: String(submitted.get('login-password') ?? password),
+    }
     setError('')
     setIsSubmitting(true)
 
     try {
       clearAuthSession()
       const storage = remember ? localStorage : sessionStorage
-      const response = await loginUnifiedAuth({ email, password })
+      const response = await loginUnifiedAuth(credentials)
       const loginData = unwrapLogin(response)
-      const user = loginData?.user || response?.user || { email }
+      const user = loginData?.user || response?.user || { email: credentials.email }
       const flow = roleFrom(loginData, user, response)
       const token = loginData?.[flow.tokenKey] || response?.[flow.tokenKey] || loginData?.token || loginData?.accessToken || loginData?.jwt || response?.token || response?.accessToken
 
@@ -192,7 +201,7 @@ function Login() {
       storage.setItem(flow.tokenKey, token)
 
       if (flow.role === 'pharmacy-admin') {
-        sessionStorage.setItem('__pms_admin_pending_auth', JSON.stringify({ email, password }))
+        sessionStorage.setItem('__pms_admin_pending_auth', JSON.stringify(credentials))
       }
 
       // Start independent access checks together; keep navigation gated on both.
@@ -297,24 +306,26 @@ function Login() {
       showToast('Welcome back to your dashboard.', 'success', response?.message || loginData?.message || 'Login successful')
       navigate(flow.dashboardPath, { replace: true })
     } catch (loginError) {
+      clearAuthSession()
       setError(loginError.message)
       showToast(loginError.message, 'error')
     } finally {
+      submittingRef.current = false
       setIsSubmitting(false)
     }
   }
 
   return (
     <AuthLayout title="PMS Login" subtitle="Welcome back to your Pharmacy Management System" hideThemePicker>
-      <form className="auth-form" onSubmit={handleSubmit} autoComplete="off">
+      <form className="auth-form" onSubmit={handleSubmit} autoComplete="on">
         <label>
           Email Address
-          <input type="email" name="login-email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Enter your email" autoComplete="off" required />
+          <input type="email" name="login-email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Enter your email" autoComplete="username" autoCapitalize="none" spellCheck={false} required />
         </label>
         <label>
           Password
           <span className="auth-password-field">
-            <input type={showPassword ? 'text' : 'password'} name="login-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete="new-password" required />
+            <input type={showPassword ? 'text' : 'password'} name="login-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete="current-password" autoCapitalize="none" spellCheck={false} required />
             <button type="button" className="auth-password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>
               <PasswordIcon visible={showPassword} />
             </button>

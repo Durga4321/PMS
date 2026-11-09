@@ -1,3 +1,4 @@
+import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
@@ -872,7 +873,7 @@ export default function Stock({ initialView }) {
     e.preventDefault()
 
     if (adjustmentForm.type === 'decrease') {
-      if (!window.confirm('Are you sure you want to decrease stock levels? This will impact availability.')) {
+      if (!await confirmAction('Are you sure you want to decrease stock levels? This will impact availability.')) {
         return
       }
     }
@@ -968,7 +969,7 @@ export default function Stock({ initialView }) {
 
   // Action Triggers: Dispose & Quarantine
   async function handleDispose(batchNo) {
-    if (!window.confirm(`Are you sure you want to dispose batch: ${batchNo}?`)) return
+    if (!await confirmAction(`Are you sure you want to dispose batch: ${batchNo}?`)) return
     setLoading(true)
     try {
       const response = await disposeInventoryBatch(batchNo, { reason: 'Expired stock disposal' })
@@ -997,7 +998,7 @@ export default function Stock({ initialView }) {
   }
 
   async function handleQuarantine(batchNo) {
-    if (!window.confirm(`Are you sure you want to quarantine batch: ${batchNo}?`)) return
+    if (!await confirmAction(`Are you sure you want to quarantine batch: ${batchNo}?`)) return
     setLoading(true)
     try {
       const response = await quarantineInventoryBatch(batchNo, { quarantined: true })
