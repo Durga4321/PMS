@@ -2246,9 +2246,14 @@ export const cancelMedicineReturn = (id, payload = {}) => request(replacePathPar
 export const listStockTransfers = (params = {}) => request(`inventory/transfers${queryString(params)}`)
 export const createStockTransfer = (payload) => {
   const quantity = Number(payload?.transferQuantity ?? payload?.quantity ?? payload?.qty ?? 1)
+  let fromLoc = String(payload?.fromLocation || payload?.source || '').trim()
+  if (fromLoc.includes('•')) fromLoc = fromLoc.split('•')[0].trim()
+  let toLoc = String(payload?.toLocation || payload?.destination || '').trim()
+  if (toLoc.includes('•')) toLoc = toLoc.split('•')[0].trim()
+
   const cleanPayload = {
-    fromLocation: String(payload?.fromLocation || payload?.source || '').trim(),
-    toLocation: String(payload?.toLocation || payload?.destination || '').trim(),
+    fromLocation: fromLoc,
+    toLocation: toLoc,
     medicineName: String(payload?.medicineName || payload?.name || '').trim(),
     batchNumber: String(payload?.batchNumber || payload?.batchNo || payload?.batch || '').trim(),
     transferQuantity: isNaN(quantity) || quantity <= 0 ? 1 : Math.round(quantity),

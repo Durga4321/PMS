@@ -10,6 +10,7 @@ import {
   listStockTransfers,
   receiveStockTransfer,
   updateStockTransferDraft,
+  listPharmacyBranches,
   readLocalStockTransfers,
   writeLocalStockTransfers
 } from '../../config/api'
@@ -46,6 +47,45 @@ export default function StockTransfers() {
   const [viewingItem, setViewineItem] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
+  const [branches, setBranches] = useState([])
+  const [signedInBranch, setSignedInBranch] = useState('Main Branch')
+
+  useEffect(() => {
+    let active = true
+    async function loadBranchData() {
+      try {
+        const res = await listPharmacyBranches()
+        const list = res?.branches || res?.data || []
+        if (active && Array.isArray(list)) {
+          setBranches(list)
+        }
+      } catch {}
+      try {
+        const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
+        const name = assignment?.branch?.name || assignment?.branchName || assignment?.branchLocation || 'Main Branch'
+        const cleanName = name.includes('•') ? name.split('•')[0].trim() : name.trim()
+        if (active && cleanName) {
+          setSignedInBranch(cleanName)
+        }
+      } catch {}
+    }
+    loadBranchData()
+    return () => { active = false }
+  }, [])
+
+  function openCreateModal() {
+    let currentBranch = signedInBranch || 'Main Branch'
+    try {
+      const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
+      const name = assignment?.branch?.name || assignment?.branchName || assignment?.branchLocation
+      if (name) currentBranch = name.includes('•') ? name.split('•')[0].trim() : name.trim()
+    } catch {}
+    setCreateForm(prev => ({
+      ...prev,
+      fromLocation: prev.fromLocation || currentBranch || 'Main Branch'
+    }))
+    setCreateOpen(true)
+  }
 
   // Dashboard summaries - strictly derived from items, completely stable
   const summary = useMemo(() => {
@@ -88,14 +128,16 @@ export default function StockTransfers() {
 
   function validateCreateForm() {
     const errs = {}
-    const fromLoc = (createForm.fromLocation || '').trim()
+    let fromLoc = (createForm.fromLocation || '').trim()
+    if (fromLoc.includes('•')) fromLoc = fromLoc.split('•')[0].trim()
     if (!fromLoc) {
       errs.fromLocation = 'From Location / Pharmacy is required.'
     } else if (fromLoc.length < 2) {
       errs.fromLocation = 'From Location must be at least 2 characters.'
     }
 
-    const toLoc = (createForm.toLocation || '').trim()
+    let toLoc = (createForm.toLocation || '').trim()
+    if (toLoc.includes('•')) toLoc = toLoc.split('•')[0].trim()
     if (!toLoc) {
       errs.toLocation = 'To Location / Pharmacy is required.'
     } else if (toLoc.length < 2) {
@@ -254,9 +296,14 @@ export default function StockTransfers() {
     setSubmitting(true)
     try {
       const quantityNum = Number(createForm.quantity || 1)
+      let fromLocClean = createForm.fromLocation.trim()
+      if (fromLocClean.includes('•')) fromLocClean = fromLocClean.split('•')[0].trim()
+      let toLocClean = createForm.toLocation.trim()
+      if (toLocClean.includes('•')) toLocClean = toLocClean.split('•')[0].trim()
+
       const body = {
-        fromLocation: createForm.fromLocation.trim(),
-        toLocation: createForm.toLocation.trim(),
+        fromLocation: fromLocClean,
+        toLocation: toLocClean,
         medicineName: createForm.medicineName.trim(),
         batchNumber: createForm.batchNo.trim(),
         batchNo: createForm.batchNo.trim(),
@@ -556,7 +603,7 @@ export default function StockTransfers() {
 <button
                 type="button"
                 className="transfer-btn transfer-btn-primary"
-                onClick={() => setCreateOpen(true)}
+                onClick={openCreateModal}
               >
                 <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Create Transfer
@@ -644,14 +691,22 @@ export default function StockTransfers() {
                       <input
                         type="text"
                         id="create-fromLocation"
+                        list="from-branches-list"
                         value={createForm.fromLocation}
                         onChange={(e) => {
                           setCreateForm({...createForm, fromLocation: e.target.value})
                           if (createErrors.fromLocation) setCreateErrors({...createErrors, fromLocation: ''})
                         }}
+                        placeholder="e.g. Main Branch"
                         style={createErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
                         required
                       />
+                      <datalist id="from-branches-list">
+                        <option value={signedInBranch} />
+                        {branches.map((b, i) => (
+                          <option key={b.id || i} value={b.name || b.branchName} />
+                        ))}
+                      </datalist>
                       {createErrors.fromLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.fromLocation}</span>
                       )}
@@ -661,14 +716,21 @@ export default function StockTransfers() {
                       <input
                         type="text"
                         id="create-toLocation"
+                        list="to-branches-list"
                         value={createForm.toLocation}
                         onChange={(e) => {
                           setCreateForm({...createForm, toLocation: e.target.value})
                           if (createErrors.toLocation) setCreateErrors({...createErrors, toLocation: ''})
                         }}
+                        placeholder="e.g. Jaya"
                         style={createErrors.toLocation ? { borderColor: '#ef4444' } : {}}
                         required
                       />
+                      <datalist id="to-branches-list">
+                        {branches.filter(b => (b.name || b.branchName) !== createForm.fromLocation).map((b, i) => (
+                          <option key={b.id || i} value={b.name || b.branchName} />
+                        ))}
+                      </datalist>
                       {createErrors.toLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.toLocation}</span>
                       )}
