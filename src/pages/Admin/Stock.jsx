@@ -1522,7 +1522,7 @@ export default function Stock({ initialView }) {
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
-                      <label>Cost Price (₹)</label>
+                      <label>Cost Price (₹) *</label>
                       <input
                         type="number"
                         value={stockForm.costPrice}
@@ -1530,7 +1530,7 @@ export default function Stock({ initialView }) {
                       />
                     </div>
                     <div className="stock-form-group">
-                      <label>Selling Price (₹)</label>
+                      <label>Selling Price (₹) *</label>
                       <input
                         type="number"
                         value={stockForm.sellingPrice}
@@ -1540,7 +1540,7 @@ export default function Stock({ initialView }) {
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
-                      <label>Supplier</label>
+                      <label>Supplier *</label>
                       <input
                         type="text"
                         value={stockForm.supplier}
@@ -1548,7 +1548,7 @@ export default function Stock({ initialView }) {
                       />
                     </div>
                     <div className="stock-form-group">
-                      <label>Purchase Date</label>
+                      <label>Purchase Date *</label>
                       <input
                         type="date"
                         value={stockForm.purchaseDate}
@@ -1557,7 +1557,7 @@ export default function Stock({ initialView }) {
                     </div>
                   </div>
                   <div className="stock-form-group">
-                    <label>Notes</label>
+                    <label>Notes *</label>
                     <textarea
                       value={stockForm.notes}
                       onChange={(e) => setStockForm({...stockForm, notes: e.target.value})}
@@ -1607,7 +1607,7 @@ export default function Stock({ initialView }) {
                       )}
                     </div>
                     <div className="stock-form-group">
-                      <label>Batch Number</label>
+                      <label>Batch Number *</label>
                       <input
                         type="text"
                         value={adjustmentForm.batchId}
@@ -1617,7 +1617,7 @@ export default function Stock({ initialView }) {
                   </div>
                   <div className="stock-detail-row">
                     <div className="stock-form-group">
-                      <label>Adjustment Type</label>
+                      <label>Adjustment Type *</label>
                       <select
                         value={adjustmentForm.type}
                         onChange={(e) => setAdjustmentForm({...adjustmentForm, type: e.target.value})}
@@ -1646,7 +1646,7 @@ export default function Stock({ initialView }) {
                     />
                   </div>
                   <div className="stock-form-group">
-                    <label>Notes</label>
+                    <label>Notes *</label>
                     <textarea
                       value={adjustmentForm.notes}
                       onChange={(e) => setAdjustmentForm({...adjustmentForm, notes: e.target.value})}
