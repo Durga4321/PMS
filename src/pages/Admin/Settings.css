@@ -58,6 +58,12 @@
   color: var(--pms-text, #020617);
 }
 
+.req-star {
+  color: #ef4444 !important;
+  margin-left: 3px;
+  font-weight: 700;
+}
+
 .settings-form-group input[type="text"],
 .settings-form-group input[type="email"],
 .settings-form-group input[type="number"],
