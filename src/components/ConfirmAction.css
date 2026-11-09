@@ -1,0 +1,20 @@
+.pms-action-confirm-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 28px;
+  border: 1px solid var(--pms-border);
+  border-radius: 20px;
+  background: var(--pms-surface, #fff);
+  color: var(--pms-text, #122033);
+  box-shadow: 0 24px 80px #0f172a33;
+}
+.pms-action-confirm-dialog::backdrop { background: #0f172a66; backdrop-filter: blur(4px); }
+.pms-action-confirm-symbol { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: color-mix(in srgb, var(--pms-accent) 14%, var(--pms-surface)); color: var(--pms-accent-strong); }
+.pms-action-confirm-symbol svg { width: 25px; height: 25px; }
+.pms-action-confirm-dialog h2 { margin: 18px 0 8px; font-size: 22px; }
+.pms-action-confirm-dialog p { margin: 0; color: var(--pms-muted); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.pms-action-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.pms-action-confirm-actions button { padding: 9px 16px; border: 1px solid var(--pms-border); border-radius: 9px; background: var(--pms-surface); color: var(--pms-text); font-weight: 600; }
+.pms-action-confirm-actions .pms-action-confirm-confirm { background: var(--pms-gradient); border-color: transparent; color: #fff; }
+.pms-action-confirm-actions button:disabled { opacity: .6; cursor: wait; }
+.pms-action-confirm-actions button:focus-visible { outline: 2px solid var(--pms-accent); outline-offset: 3px; }
+

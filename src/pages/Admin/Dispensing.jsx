@@ -1,3 +1,4 @@
+import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useState, useMemo } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
@@ -214,7 +215,7 @@ export default function Dispensing() {
 
     const availableStock = Number(targetMed.stock ?? targetMed.quantity ?? targetMed.currentStock ?? 0)
     if (availableStock < qty) {
-      if (!window.confirm(`Available stock is only ${availableStock} units. Do you still want to dispense ${qty} units?`)) {
+      if (!await confirmAction(`Available stock is only ${availableStock} units. Do you still want to dispense ${qty} units?`)) {
         return
       }
     }

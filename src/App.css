@@ -178,20 +178,23 @@
 
 /* Expiry Tab Cards Container */
 .expiry-tabs-card-grid {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .expiry-tab-card {
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   border: 1px solid var(--card-border, #e2e8f0);
-  border-radius: 14px;
-  padding: 10px 16px;
+  border-radius: 13px;
+  padding: 10px 12px;
+  min-width: 0;
+  min-height: 64px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -205,8 +208,8 @@
 }
 
 .expiry-card-icon-wrap {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: var(--card-bg, #eff6ff);
   color: var(--card-accent, #2563eb);
@@ -230,18 +233,20 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .expiry-card-text span {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--card-accent, #0f172a);
   line-height: 1.2;
 }
 
 .expiry-card-text small {
   font-size: 11px;
-  color: #64748b;
+  color: var(--card-accent, #64748b);
   font-weight: 500;
 }
 
@@ -260,6 +265,23 @@
 .expiry-tab-card.active .expiry-card-text span,
 .expiry-tab-card.active .expiry-card-text small {
   color: #ffffff !important;
+}
+
+.expiry-tab-card:focus-visible {
+  outline: 3px solid var(--card-accent, #2563eb);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .expiry-tabs-card-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .expiry-tab-card {
+    min-height: 64px;
+    padding: 10px 12px;
+  }
 }
 
 /* Super Admin Reusable Modals */
