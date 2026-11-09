@@ -427,7 +427,7 @@ export default function Settings() {
                 </h2>
                 <div className="settings-form-grid">
                   <div className="settings-form-group">
-                    <label>Pharmacy Name</label>
+                    <label>Pharmacy Name <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="text" 
                       value={settings.pharmacyName} 
@@ -436,7 +436,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>Branch / Location</label>
+                    <label>Branch / Location <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="text" 
                       value={settings.branchName} 
@@ -445,7 +445,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>Phone Number</label>
+                    <label>Phone Number <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="text" 
                       value={settings.phone} inputMode="numeric" maxLength={10} pattern="[0-9]{10}" 
@@ -453,7 +453,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>Email Address</label>
+                    <label>Email Address <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="email" 
                       value={settings.email} 
@@ -461,7 +461,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>License Number</label>
+                    <label>License Number <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="text" 
                       value={settings.licenseNumber} 
@@ -470,7 +470,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>GST Number</label>
+                    <label>GST Number <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="text" 
                       value={settings.gstNumber} 
@@ -479,7 +479,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label>Address</label>
+                    <label>Address <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="text" 
                       value={settings.address} 
@@ -487,7 +487,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>Pharmacy Status</label>
+                    <label>Pharmacy Status <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <select 
                       value={settings.status} 
                       onChange={(e) => handleChange('status', e.target.value)}
@@ -512,7 +512,7 @@ export default function Settings() {
                 </h2>
                 <div className="settings-form-grid">
                   <div className="settings-form-group">
-                    <label>Currency</label>
+                    <label>Currency <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <select 
                       value={settings.currency} 
                       onChange={(e) => handleChange('currency', e.target.value)}
@@ -524,7 +524,7 @@ export default function Settings() {
                     </select>
                   </div>
                   <div className="settings-form-group">
-                    <label>Tax / GST Rate (%)</label>
+                    <label>Tax / GST Rate (%) <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="number" 
                       value={settings.taxRate} 
@@ -534,7 +534,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>Invoice Prefix</label>
+                    <label>Invoice Prefix <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="text" 
                       value={settings.invoicePrefix} 
@@ -542,7 +542,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>Payment Terms</label>
+                    <label>Payment Terms <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <select 
                       value={settings.paymentTerms} 
                       onChange={(e) => handleChange('paymentTerms', e.target.value)}
@@ -554,7 +554,7 @@ export default function Settings() {
                     </select>
                   </div>
                   <div className="settings-form-group">
-                    <label>Business Hours</label>
+                    <label>Business Hours <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="text" 
                       value={settings.businessHours} 
@@ -577,7 +577,7 @@ export default function Settings() {
                 </h2>
                 <div className="settings-form-grid" style={{ marginBottom: '20px' }}>
                   <div className="settings-form-group">
-                    <label>Low Stock Threshold (units)</label>
+                    <label>Low Stock Threshold (units) <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="number" 
                       value={settings.lowStockThreshold} 
@@ -586,7 +586,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>Expiry Alert Horizon (Days)</label>
+                    <label>Expiry Alert Horizon (Days) <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="number" 
                       value={settings.expiryAlertDays} 
@@ -598,7 +598,7 @@ export default function Settings() {
                 <div className="settings-toggle-group">
                   <div className="settings-toggle-row">
                     <div className="settings-toggle-info">
-                      <label htmlFor="toggle-stock-mgnt">Stock Management</label>
+                      <label htmlFor="toggle-stock-mgnt">Stock Management <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                       <p>Automatically adjust stock levels on sales and returns</p>
                     </div>
                     <label className="settings-switch">
@@ -613,7 +613,7 @@ export default function Settings() {
                   </div>
                   <div className="settings-toggle-row">
                     <div className="settings-toggle-info">
-                      <label htmlFor="toggle-batch-tracking">Batch & Expiry Tracking</label>
+                      <label htmlFor="toggle-batch-tracking">Batch & Expiry Tracking <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                       <p>Require batch number and expiry dates for inventory stock-in</p>
                     </div>
                     <label className="settings-switch">
@@ -642,7 +642,7 @@ export default function Settings() {
                 </h2>
                 <div className="settings-form-grid" style={{ marginBottom: '20px' }}>
                   <div className="settings-form-group">
-                    <label>Maximum Allowed Discount (%)</label>
+                    <label>Maximum Allowed Discount (%) <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="number" 
                       value={settings.maxDiscount} 
@@ -652,7 +652,7 @@ export default function Settings() {
                     />
                   </div>
                   <div className="settings-form-group">
-                    <label>Sales Invoice Details</label>
+                    <label>Sales Invoice Details <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <select 
                       value={settings.invoiceSettings} 
                       onChange={(e) => handleChange('invoiceSettings', e.target.value)}
@@ -663,7 +663,7 @@ export default function Settings() {
                     </select>
                   </div>
                   <div className="settings-form-group">
-                    <label>Return Window (Days)</label>
+                    <label>Return Window (Days) <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                     <input 
                       type="number" 
                       value={settings.returnWindowDays} 
@@ -675,7 +675,7 @@ export default function Settings() {
                 <div className="settings-toggle-group">
                   <div className="settings-toggle-row">
                     <div className="settings-toggle-info">
-                      <label htmlFor="toggle-auto-reorder">Automatic Reordering</label>
+                      <label htmlFor="toggle-auto-reorder">Automatic Reordering <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                       <p>Generate draft purchase orders when stock falls below threshold</p>
                     </div>
                     <label className="settings-switch">
@@ -705,7 +705,7 @@ export default function Settings() {
                 <div className="settings-toggle-group">
                   <div className="settings-toggle-row">
                     <div className="settings-toggle-info">
-                      <label htmlFor="toggle-low-stock-alert">Low Stock Notifications</label>
+                      <label htmlFor="toggle-low-stock-alert">Low Stock Notifications <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                       <p>Send daily email alerts for items running low</p>
                     </div>
                     <label className="settings-switch">
@@ -720,7 +720,7 @@ export default function Settings() {
                   </div>
                   <div className="settings-toggle-row">
                     <div className="settings-toggle-info">
-                      <label htmlFor="toggle-expiry-alert">Expiry Warning Alerts</label>
+                      <label htmlFor="toggle-expiry-alert">Expiry Warning Alerts <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                       <p>Notify when batches are approaching their expiry horizon</p>
                     </div>
                     <label className="settings-switch">
@@ -735,7 +735,7 @@ export default function Settings() {
                   </div>
                   <div className="settings-toggle-row">
                     <div className="settings-toggle-info">
-                      <label htmlFor="toggle-order-alert">Order & Transfer Warnings</label>
+                      <label htmlFor="toggle-order-alert">Order & Transfer Warnings <span className="req-star" style={{ color: '#ef4444', marginLeft: '3px' }}>*</span></label>
                       <p>Send in-app notifications on stock transfer completions</p>
                     </div>
                     <label className="settings-switch">

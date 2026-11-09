@@ -1068,7 +1068,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field">
-                  <label>Contact Number (10 digits)</label>
+                  <label>Contact Number (10 digits) *</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1079,7 +1079,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field">
-                  <label>Email Address</label>
+                  <label>Email Address *</label>
                   <input
                     type="email"
                     placeholder="pharmacy@example.com"
@@ -1088,7 +1088,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field" style={{ gridColumn: '1 / -1' }}>
-                  <label>Address</label>
+                  <label>Address *</label>
                   <textarea
                     rows={2}
                     placeholder="Street address, building, suite"
@@ -1097,7 +1097,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field">
-                  <label>Pincode / Postal Code</label>
+                  <label>Pincode / Postal Code *</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1108,7 +1108,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field">
-                  <label>City</label>
+                  <label>City *</label>
                   <input
                     type="text"
                     placeholder="City"
@@ -1117,7 +1117,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field">
-                  <label>District</label>
+                  <label>District *</label>
                   <input
                     type="text"
                     placeholder="District"
@@ -1126,7 +1126,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field">
-                  <label>State</label>
+                  <label>State *</label>
                   <input
                     type="text"
                     placeholder="State"
@@ -1135,7 +1135,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field">
-                  <label>Country</label>
+                  <label>Country *</label>
                   <input
                     type="text"
                     placeholder="Country"
@@ -1144,7 +1144,7 @@ export default function AdminPharmacies() {
                   />
                 </div>
                 <div className="sa-modal-field">
-                  <label>Status</label>
+                  <label>Status *</label>
                   <select
                     value={form.status}
                     onChange={(e) => setForm({ ...form, status: e.target.value })}
