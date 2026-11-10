@@ -925,7 +925,7 @@ export default function Suppliers() {
                       )}
                     </div>
                     <div className="sup-form-group">
-                      <label>Email Address</label>
+                      <label>Email Address *</label>
                       <input
                         type="email"
                         id="create-email"
@@ -941,7 +941,7 @@ export default function Suppliers() {
                       )}
                     </div>
                     <div className="sup-form-group">
-                      <label>GST / Tax ID</label>
+                      <label>GST / Tax ID *</label>
                       <input
                         type="text"
                         id="create-estNumber"
@@ -968,19 +968,19 @@ export default function Suppliers() {
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.status}</span>
                       )}
                     </div>                    <div className="sup-form-group">
-                      <label>Pincode</label>
+                      <label>Pincode *</label>
                       <input type="text" id="create-pincode" value={createForm.pincode} onChange={(e) => handleSupplierPincodeChange('create', e.target.value)} />
                     </div>
                     <div className="sup-form-group">
-                      <label>Area</label>
+                      <label>Area *</label>
                       <input type="text" id="create-area" value={createForm.area} onChange={(e) => setCreateForm({...createForm, area: e.target.value})} />
                     </div>
                     <div className="sup-form-group">
-                      <label>District</label>
+                      <label>District *</label>
                       <input type="text" id="create-district" value={createForm.district} onChange={(e) => setCreateForm({...createForm, district: e.target.value})} />
                     </div>
                     <div className="sup-form-group">
-                      <label>City</label>
+                      <label>City *</label>
                       <input
                         type="text"
                         id="create-city"
@@ -989,7 +989,7 @@ export default function Suppliers() {
                       />
                     </div>
                     <div className="sup-form-group">
-                      <label>State</label>
+                      <label>State *</label>
                       <input
                         type="text"
                         id="create-state"
@@ -997,11 +997,11 @@ export default function Suppliers() {
                         onChange={(e) => setCreateForm({...createForm, state: e.target.value})}
                       />
                     </div>                    <div className="sup-form-group">
-                      <label>Country</label>
+                      <label>Country *</label>
                       <input type="text" id="create-country" value={createForm.country} onChange={(e) => setCreateForm({...createForm, country: e.target.value})} />
                     </div>
                     <div className="sup-form-group full-width">
-                      <label>Address</label>
+                      <label>Address *</label>
                       <textarea
                         id="create-address"
                         value={createForm.address}
@@ -1009,7 +1009,7 @@ export default function Suppliers() {
                       />
                     </div>
                     <div className="sup-form-group full-width">
-                      <label>Notes</label>
+                      <label>Notes *</label>
                       <textarea
                         id="create-notes"
                         value={createForm.notes}
@@ -1090,7 +1090,7 @@ export default function Suppliers() {
                       )}
                     </div>
                     <div className="sup-form-group">
-                      <label>Email Address</label>
+                      <label>Email Address *</label>
                       <input
                         type="email"
                         id="edit-email"
@@ -1106,7 +1106,7 @@ export default function Suppliers() {
                       )}
                     </div>
                     <div className="sup-form-group">
-                      <label>GST / Tax ID</label>
+                      <label>GST / Tax ID *</label>
                       <input
                         type="text"
                         id="edit-estNumber"
@@ -1133,19 +1133,19 @@ export default function Suppliers() {
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.status}</span>
                       )}
                     </div>                    <div className="sup-form-group">
-                      <label>Pincode</label>
+                      <label>Pincode *</label>
                       <input type="text" id="edit-pincode" value={editForm.pincode} onChange={(e) => handleSupplierPincodeChange('edit', e.target.value)} />
                     </div>
                     <div className="sup-form-group">
-                      <label>Area</label>
+                      <label>Area *</label>
                       <input type="text" id="edit-area" value={editForm.area} onChange={(e) => setEditForm({...editForm, area: e.target.value})} />
                     </div>
                     <div className="sup-form-group">
-                      <label>District</label>
+                      <label>District *</label>
                       <input type="text" id="edit-district" value={editForm.district} onChange={(e) => setEditForm({...editForm, district: e.target.value})} />
                     </div>
                     <div className="sup-form-group">
-                      <label>City</label>
+                      <label>City *</label>
                       <input
                         type="text"
                         id="edit-city"
@@ -1154,7 +1154,7 @@ export default function Suppliers() {
                       />
                     </div>
                     <div className="sup-form-group">
-                      <label>State</label>
+                      <label>State *</label>
                       <input
                         type="text"
                         id="edit-state"
@@ -1162,11 +1162,11 @@ export default function Suppliers() {
                         onChange={(e) => setEditForm({...editForm, state: e.target.value})}
                       />
                     </div>                    <div className="sup-form-group">
-                      <label>Country</label>
+                      <label>Country *</label>
                       <input type="text" id="edit-country" value={editForm.country} onChange={(e) => setEditForm({...editForm, country: e.target.value})} />
                     </div>
                     <div className="sup-form-group full-width">
-                      <label>Address</label>
+                      <label>Address *</label>
                       <textarea
                         id="edit-address"
                         value={editForm.address}
@@ -1174,7 +1174,7 @@ export default function Suppliers() {
                       />
                     </div>
                     <div className="sup-form-group full-width">
-                      <label>Notes</label>
+                      <label>Notes *</label>
                       <textarea
                         id="edit-notes"
                         value={editForm.notes}

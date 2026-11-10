@@ -1519,7 +1519,7 @@ export default function Medicines() {
                         </div>
                       </div>
                       <div className="med-form-group">
-                        <label htmlFor="med-medicineCode">Medicine Code</label>
+                        <label htmlFor="med-medicineCode">Medicine Code <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8v8M11 8v8M15 8v4M17 8v8"/></svg>
                           <input
@@ -1573,7 +1573,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-brandName">Brand Name</label>
+                        <label htmlFor="med-brandName">Brand Name <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                           <input
@@ -1610,7 +1610,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-manufacturer">Manufacturer</label>
+                        <label htmlFor="med-manufacturer">Manufacturer <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
                           <input
@@ -1661,7 +1661,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-strength">Strength</label>
+                        <label htmlFor="med-strength">Strength <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                           <input
@@ -1678,7 +1678,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-packSize">Pack Size</label>
+                        <label htmlFor="med-packSize">Pack Size <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                           <input
@@ -1692,7 +1692,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-storageLocation">Storage Location</label>
+                        <label htmlFor="med-storageLocation">Storage Location <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                           <input
@@ -1720,7 +1720,7 @@ export default function Medicines() {
                     </div>
                     <div className="med-card-grid">
                       <div className="med-form-group">
-                        <label htmlFor="med-batchNumber">Batch Number</label>
+                        <label htmlFor="med-batchNumber">Batch Number <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                           <input
@@ -1734,7 +1734,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-supplierCode">Supplier Code</label>
+                        <label htmlFor="med-supplierCode">Supplier Code <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8v8M11 8v8M15 8v4M17 8v8"/></svg>
                           <input
@@ -1748,7 +1748,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-supplierName">Supplier Name</label>
+                        <label htmlFor="med-supplierName">Supplier Name <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                           <input
@@ -1762,7 +1762,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-contactPerson">Contact Person</label>
+                        <label htmlFor="med-contactPerson">Contact Person <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                           <input
@@ -1776,7 +1776,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-phone">Phone</label>
+                        <label htmlFor="med-phone">Phone <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                           <input
@@ -1790,7 +1790,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-email">Email</label>
+                        <label htmlFor="med-email">Email <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                           <input
@@ -1804,7 +1804,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-manufactureDate">Manufacture Date</label>
+                        <label htmlFor="med-manufactureDate">Manufacture Date <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                           <input
@@ -1817,7 +1817,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-expiryDate">Expiry Date</label>
+                        <label htmlFor="med-expiryDate">Expiry Date <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                           <input
@@ -1844,7 +1844,7 @@ export default function Medicines() {
                     </div>
                     <div className="med-card-grid">
                       <div className="med-form-group">
-                        <label htmlFor="med-quantity">Quantity (Stock)</label>
+                        <label htmlFor="med-quantity">Quantity (Stock) <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                           <input
@@ -1864,7 +1864,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-purchasePrice">Purchase Price (₹)</label>
+                        <label htmlFor="med-purchasePrice">Purchase Price (₹) <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <span className="currency-prefix">₹</span>
                           <input
@@ -1907,7 +1907,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-gst">GST (%)</label>
+                        <label htmlFor="med-gst">GST (%) <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
                           <input
@@ -1940,7 +1940,7 @@ export default function Medicines() {
                       )}
 
                       <div className="med-form-group">
-                        <label htmlFor="med-minimumStock">Minimum Stock</label>
+                        <label htmlFor="med-minimumStock">Minimum Stock <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                           <input
@@ -1960,7 +1960,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-maximumStock">Maximum Stock</label>
+                        <label htmlFor="med-maximumStock">Maximum Stock <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                           <input
@@ -1980,7 +1980,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-reorderLevel">Reorder Level</label>
+                        <label htmlFor="med-reorderLevel">Reorder Level <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                           <input
@@ -2000,7 +2000,7 @@ export default function Medicines() {
                       </div>
 
                       <div className="med-form-group">
-                        <label htmlFor="med-lastPurchase">Last Purchase Date</label>
+                        <label htmlFor="med-lastPurchase">Last Purchase Date <span className="req-star">*</span></label>
                         <div className="input-icon-wrap">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                           <input
