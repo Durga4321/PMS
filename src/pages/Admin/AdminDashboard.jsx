@@ -163,6 +163,21 @@ function AdminDashboard() {
   const [salesFilter, setSalesFilter] = useState('7d')
 
   function loadDashboardData() {
+    const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+    const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
+    const user = JSON.parse(sessionStorage.getItem('pharmacyAdminUser') || localStorage.getItem('pharmacyAdminUser') || '{}')
+    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+    if (!isAssigned) {
+      setDashboard({})
+      setMedicinesList([])
+      setInventoryList([])
+      setBillsList([])
+      setDailySalesData(null)
+      setPaymentsList([])
+      setLoading(false)
+      return
+    }
+
     Promise.allSettled([
       getPharmacyAdminDashboard(),
       listMedicines(),

@@ -159,12 +159,17 @@ function isDefaultOwner(name) {
 }
 
 function buildMainBranch(settings = {}) {
+  const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+  const user = readStoredValue('pharmacyAdminUser') || {}
+  const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+  const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+  if (!isAssigned) return null
+
   const localPharmacies = readLocalPharmacies().filter((p) => {
     const name = String(pharmacyNameOf(p) || p.name || p.pharmacyName || '').trim()
     return name && !isDefaultOwner(name)
   })
   const firstPharmacy = localPharmacies[0]
-  const assignment = readStoredValue('pharmacyAdminAssignment') || {}
 
   let pharmacyRecord = firstPharmacy || null
   if (!pharmacyRecord && assignment.pharmacyName && !isDefaultOwner(assignment.pharmacyName) && assignment.pharmacyId) {
@@ -349,9 +354,11 @@ export default function AdminBranches() {
       const storedPharmacyId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || ''
       const assignment = readStoredValue('pharmacyAdminAssignment') || {}
       const user = readStoredValue('pharmacyAdminUser') || {}
-      const effectivePharmacyId = storedPharmacyId || assignment.pharmacyId || assignment.PharmacyId || user.pharmacyId || user.PharmacyId || ''
+      const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || storedPharmacyId)
+      const effectivePharmacyId = isAssigned ? (storedPharmacyId || assignment.pharmacyId || assignment.PharmacyId || user.pharmacyId || user.PharmacyId || '') : ''
       if (!effectivePharmacyId) {
         setBranches([])
+        setMainBranch(null)
         setLoading(false)
         return
       }

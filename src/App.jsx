@@ -31,6 +31,7 @@ import AdminStockTransfers from './pages/Admin/StockTransfers'
 import PharmacistDashboard from './pages/Pharmacist/Dashboard'
 import PharmacistPending from './pages/Pharmacist/Pending'
 import PharmacistDispensing from './pages/Pharmacist/Dispensing'
+import PharmacistMedicines from './pages/Pharmacist/Medicines'
 import PharmacistBills from './pages/Pharmacist/Bills'
 import PharmacistReturns from './pages/Pharmacist/Returns'
 import PharmacistReports from './pages/Pharmacist/Reports'
@@ -105,6 +106,7 @@ function App() {
             <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
             <Route path="/pharmacist/pending" element={<PharmacistPending />} />
             <Route path="/pharmacist/dispensing" element={<PharmacistDispensing />} />
+            <Route path="/pharmacist/medicines" element={<PharmacistMedicines />} />
             <Route path="/pharmacist/bills" element={<PharmacistBills />} />
             <Route path="/pharmacist/returns" element={<PharmacistReturns />} />
             <Route path="/pharmacist/reports" element={<PharmacistReports />} />

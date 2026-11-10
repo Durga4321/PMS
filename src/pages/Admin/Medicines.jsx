@@ -23,9 +23,22 @@ import {
   writeLocalMedicines,
   readLocalMedicines,
   saveMedicineToCache,
-  formatExcelDate
+  formatExcelDate,
+  readLocalSubBranches,
+  matchesMedicineBranch,
+  clearLocalMedicinesCache
 } from '../../config/api'
 import './Medicines.css'
+
+function readStoredValue(key) {
+  const value = sessionStorage.getItem(key) || localStorage.getItem(key)
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
 
 // Exactly the 22 Excel fields
 const emptyForm = {
@@ -54,7 +67,9 @@ const emptyForm = {
   maximumStock: '',
   reorderLevel: '',
   storageLocation: '',
-  lastPurchase: ''
+  lastPurchase: '',
+  branchId: '',
+  branchName: ''
 }
 
 function normalizeList(response) {
@@ -380,6 +395,9 @@ export default function Medicines() {
     return Object.keys(errs).length === 0
   }
 
+  // Branch filter state
+  const [branchFilter, setBranchFilter] = useState('all')
+
   // Import state
   const [importFile, setImportFile] = useState(null)
   const [importBranchId, setImportBranchId] = useState('')
@@ -398,12 +416,26 @@ export default function Medicines() {
       try {
         const res = await listPharmacyBranches()
         const bList = Array.isArray(res?.data) ? res.data : Array.isArray(res?.branches) ? res.branches : []
-        const currentBranch = sessionStorage.getItem('workingBranchId') || localStorage.getItem('workingBranchId') || ''
-        const currentPharmacyName = sessionStorage.getItem('workingPharmacyName') || (currentBranch ? 'Main Branch' : '')
-        const main = currentBranch ? [{ id: currentBranch, name: currentPharmacyName || 'Main Branch' }] : []
-        const merged = [...main, ...bList.filter((b) => String(b?.id || b?.branchId) !== String(currentBranch))]
-        setBranchOptions(merged)
-        setImportBranchId(currentBranch || (merged[0]?.id ? String(merged[0].id) : ''))
+        const localSub = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+        const otherBranches = [...bList, ...localSub].filter(b => {
+          const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
+          return bName && !bName.includes('main branch') && bName !== 'main'
+        })
+
+        const seen = new Set(['main branch', '1'])
+        const unique = [{ id: '1', name: 'Main Branch' }]
+        for (const b of otherBranches) {
+          const id = String(b?.id || b?.branchId || b?._id || '')
+          const name = String(b?.name || b?.branchName || '').trim()
+          const key = name.toLowerCase()
+          if (name && !seen.has(key)) {
+            seen.add(key)
+            seen.add(id)
+            unique.push({ id: id || String(unique.length + 1), name })
+          }
+        }
+        setBranchOptions(unique)
+        setImportBranchId('1')
       } catch {
         setBranchOptions([{ id: '1', name: 'Main Branch' }])
         setImportBranchId('1')
@@ -422,42 +454,76 @@ export default function Medicines() {
 
   async function loadSummaryMetrics() {
     try {
+      const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+      const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+      const user = readStoredValue('pharmacyAdminUser') || {}
+      const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+      if (!isAssigned) {
+        setMetrics({ total: 0, active: 0, lowStock: 0, outStock: 0, categoriesCount: 0 })
+        return
+      }
+
       const response = await getPharmacyAdminDashboard()
       const data = response?.data?.dashboard || response?.data || response || {}
-      const total = Number(data?.totalMedicines || data?.medicinesCount || 0)
-      const active = Number(data?.activeMedicines || data?.activeMedicinesCount || 0)
-      const lowStock = Number(data?.lowStockMedicines || data?.lowStockCount || 0)
-      const outStock = Number(data?.outOfStockMedicines || data?.outOfStockCount || 0)
-      const categoriesCount = Number(data?.totalCategories || data?.categoriesCount || 0)
-      setMetrics(prev => ({
-        total: total > 0 ? total : prev.total,
-        active: active > 0 ? active : prev.active,
-        lowStock: lowStock > 0 ? lowStock : prev.lowStock,
-        outStock: outStock > 0 ? outStock : prev.outStock,
-        categoriesCount: categoriesCount > 0 ? categoriesCount : prev.categoriesCount
-      }))
+      const total = Number(data?.totalMedicines ?? data?.medicinesCount ?? 0)
+      const active = Number(data?.activeMedicines ?? data?.activeMedicinesCount ?? 0)
+      const lowStock = Number(data?.lowStockMedicines ?? data?.lowStockCount ?? 0)
+      const outStock = Number(data?.outOfStockMedicines ?? data?.outOfStockCount ?? 0)
+      const categoriesCount = Number(data?.totalCategories ?? data?.categoriesCount ?? 0)
+      setMetrics({
+        total: !isNaN(total) ? total : 0,
+        active: !isNaN(active) ? active : 0,
+        lowStock: !isNaN(lowStock) ? lowStock : 0,
+        outStock: !isNaN(outStock) ? outStock : 0,
+        categoriesCount: !isNaN(categoriesCount) ? categoriesCount : 0
+      })
     } catch (e) {
       console.log('Unable to load Medicines metrics:', e.message)
     }
   }
 
+  const branchFilteredMedicines = useMemo(() => {
+    if (!branchFilter || branchFilter === 'all') return medicines
+    const targetBranch = branchOptions.find((b) => String(b.id) === String(branchFilter) || String(b.name) === String(branchFilter))
+    const targetName = targetBranch?.name || branchFilter
+    return medicines.filter((m) => matchesMedicineBranch(m, branchFilter, targetName))
+  }, [medicines, branchFilter, branchOptions])
+
   const computedMetrics = useMemo(() => {
-    if (medicines.length > 0) {
+    if (branchFilteredMedicines.length > 0) {
       const uniqueCategories = new Set(
-        medicines.map((m) => getCategory(m)).filter((c) => c && c !== '-')
+        branchFilteredMedicines.map((m) => getCategory(m)).filter((c) => c && c !== '-')
       )
       return {
-        total: medicines.length,
-        active: medicines.filter((m) => {
+        total: branchFilteredMedicines.length,
+        active: branchFilteredMedicines.filter((m) => {
           const st = String(getStatus(m)).toLowerCase()
           return (st === 'active' || st === 'available') && getStock(m) > 0
         }).length,
-        lowStock: medicines.filter((m) => {
+        lowStock: branchFilteredMedicines.filter((m) => {
           const qty = getStock(m)
           return qty > 0 && qty <= getReorderLevel(m)
         }).length,
-        outStock: medicines.filter((m) => getStock(m) <= 0).length,
-        categoriesCount: Math.max(uniqueCategories.size, categories.length, metrics.categoriesCount),
+        outStock: branchFilteredMedicines.filter((m) => getStock(m) <= 0).length,
+        categoriesCount: uniqueCategories.size || categories.length,
+      }
+    }
+    if (!medicines.length) {
+      return {
+        total: 0,
+        active: 0,
+        lowStock: 0,
+        outStock: 0,
+        categoriesCount: 0,
+      }
+    }
+    if (branchFilter && branchFilter !== 'all') {
+      return {
+        total: 0,
+        active: 0,
+        lowStock: 0,
+        outStock: 0,
+        categoriesCount: 0,
       }
     }
     return {
@@ -465,9 +531,9 @@ export default function Medicines() {
       active: metrics.active,
       lowStock: metrics.lowStock,
       outStock: metrics.outStock,
-      categoriesCount: Math.max(categories.length, metrics.categoriesCount),
+      categoriesCount: categories.length || metrics.categoriesCount,
     }
-  }, [medicines, categories, metrics])
+  }, [branchFilteredMedicines, medicines.length, branchFilter, categories, metrics])
 
   async function loadLookups() {
     try {
@@ -484,9 +550,24 @@ export default function Medicines() {
     }
   }
 
-  async function loadMedicines() {
+  async function loadMedicines(forceFresh = false) {
     setLoading(true)
     try {
+      const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+      const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+      const user = readStoredValue('pharmacyAdminUser') || {}
+      const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+      if (!isAssigned) {
+        setMedicines([])
+        setMetrics({ total: 0, active: 0, lowStock: 0, outStock: 0, categoriesCount: 0 })
+        setLoading(false)
+        return
+      }
+
+      if (forceFresh) {
+        clearLocalMedicinesCache()
+        setMedicines([])
+      }
       // Sync any medicines deleted in the frontend with the backend database
       try {
         await syncDeletedMedicinesWithBackend()
@@ -495,9 +576,7 @@ export default function Medicines() {
       const params = { search: query, q: query, category, dosageForm }
       const response = query ? await searchMedicines(params) : await listMedicines(params)
       const list = normalizeList(response)
-      if (list && list.length) {
-        writeLocalMedicines(list)
-      }
+      writeLocalMedicines(list)
       setMedicines(list)
     } catch (error) {
       showToast(error.message, 'error')
@@ -507,27 +586,49 @@ export default function Medicines() {
   }
 
   useEffect(() => {
-    // Initial pass: heal any existing medicines in local storage that have missing batch, mfg date, or supplier
-    const existing = readLocalMedicines()
-    if (existing && existing.length > 0) {
-      const healed = existing.map(normalizeMedicineRecord)
-      writeLocalMedicines(healed)
-      setMedicines(healed)
+    const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+    const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+    const user = readStoredValue('pharmacyAdminUser') || {}
+    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+
+    if (isAssigned) {
+      // Initial pass: heal any existing medicines in local storage that have missing batch, mfg date, or supplier, or unassigned branch
+      const existing = readLocalMedicines()
+      if (existing && existing.length > 0) {
+        let updatedAny = false
+        const healed = existing.map((m) => {
+          const norm = normalizeMedicineRecord(m)
+          if (!norm.branchName && !norm.branchId) {
+            norm.branchId = '1'
+            norm.branchName = 'Main Branch'
+            updatedAny = true
+          }
+          return norm
+        })
+        if (updatedAny) {
+          writeLocalMedicines(healed)
+        }
+        setMedicines(healed)
+      }
+      loadLookups()
+      loadMedicines()
+      loadSummaryMetrics()
+    } else {
+      setMedicines([])
+      setMetrics({ total: 0, active: 0, lowStock: 0, outStock: 0, categoriesCount: 0 })
+      setLoading(false)
     }
-    loadLookups()
-    loadMedicines()
-    loadSummaryMetrics()
 
     function handleStockSync() {
       const fresh = readLocalMedicines()
-      if (fresh && fresh.length > 0) {
-        setMedicines(fresh)
-      }
+      setMedicines(fresh || [])
       loadSummaryMetrics()
     }
+    window.addEventListener('pms:medicines-updated', handleStockSync)
     window.addEventListener('pms:stock-updated', handleStockSync)
     window.addEventListener('storage', handleStockSync)
     return () => {
+      window.removeEventListener('pms:medicines-updated', handleStockSync)
       window.removeEventListener('pms:stock-updated', handleStockSync)
       window.removeEventListener('storage', handleStockSync)
     }
@@ -535,7 +636,7 @@ export default function Medicines() {
 
   // Filtered local medicines list matching query across relevant Excel fields
   const filteredMedicines = useMemo(() => {
-    return medicines.filter((medicine) => {
+    return branchFilteredMedicines.filter((medicine) => {
       const nameVal = String(getName(medicine) || '').toLowerCase()
       const genVal = String(medicine?.genericName || medicine?.GenericName || '').toLowerCase()
       const brandVal = String(medicine?.brandName || medicine?.BrandName || '').toLowerCase()
@@ -572,11 +673,17 @@ export default function Medicines() {
 
       return matchesSearch && matchesCategory && matchesDosage && matchesStatus
     })
-  }, [category, dosageForm, medicines, query, statusFilter])
+  }, [category, dosageForm, branchFilteredMedicines, query, statusFilter])
 
   function openCreate() {
     setEditing(null)
-    setForm(emptyForm)
+    const defaultBranch = branchFilter !== 'all' ? branchFilter : (branchOptions[0]?.id || '1')
+    const defaultBranchObj = branchOptions.find(b => String(b.id) === String(defaultBranch))
+    setForm({
+      ...emptyForm,
+      branchId: defaultBranch,
+      branchName: defaultBranchObj?.name || (defaultBranch === '2' ? 'NTR Nagar Branch' : 'Main Branch')
+    })
     setFormErrors({})
     setFormOpen(true)
   }
@@ -612,7 +719,9 @@ export default function Medicines() {
       maximumStock: medicine?.maximumStock !== undefined && medicine?.maximumStock !== null ? String(medicine.maximumStock) : (medicine?.maxStock !== undefined ? String(medicine.maxStock) : ''),
       reorderLevel: medicine?.reorderLevel !== undefined && medicine?.reorderLevel !== null ? String(medicine.reorderLevel) : (medicine?.ReorderLevel !== undefined ? String(medicine.ReorderLevel) : ''),
       storageLocation: medicine?.storageLocation || medicine?.StorageLocation || '',
-      lastPurchase: formatExcelDate(medicine?.lastPurchase || medicine?.LastPurchase || medicine?.lastPurchaseDate || medicine?.LastPurchaseDate) || ''
+      lastPurchase: formatExcelDate(medicine?.lastPurchase || medicine?.LastPurchase || medicine?.lastPurchaseDate || medicine?.LastPurchaseDate) || '',
+      branchId: medicine?.branchId || medicine?.BranchId || '1',
+      branchName: medicine?.branchName || medicine?.BranchName || (medicine?.branchId === '2' ? 'NTR Nagar Branch' : 'Main Branch')
     })
     setFormOpen(true)
   }
@@ -717,6 +826,16 @@ export default function Medicines() {
 
       LastPurchase: form.lastPurchase || null,
       lastPurchase: form.lastPurchase || null,
+
+      branchId: form.branchId || '1',
+      BranchId: form.branchId || '1',
+      branchName: form.branchName || 'Main Branch',
+      BranchName: form.branchName || 'Main Branch',
+
+      pharmacyId: String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '1'),
+      PharmacyId: String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '1'),
+      pharmacyName: sessionStorage.getItem('workingPharmacyName') || localStorage.getItem('workingPharmacyName') || '',
+      PharmacyName: sessionStorage.getItem('workingPharmacyName') || localStorage.getItem('workingPharmacyName') || '',
 
       status: 'Active',
       catalogueStatus: 'Active',
@@ -838,7 +957,9 @@ export default function Medicines() {
     setImportPercent(15)
     setImportMessage(`Reading ${importFile.name}...`)
     try {
-      const activeBranch = importBranchId || sessionStorage.getItem('workingBranchId') || localStorage.getItem('workingBranchId') || ''
+      const activeBranchId = String(importBranchId || sessionStorage.getItem('workingBranchId') || localStorage.getItem('workingBranchId') || '1')
+      const targetBranchObj = branchOptions.find(b => String(b.id) === activeBranchId || String(b.branchId) === activeBranchId)
+      const activeBranchName = targetBranchObj?.name || (activeBranchId === '2' ? 'NTR Nagar Branch' : 'Main Branch')
       const activePharmacy = sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || ''
 
       // 1. Immediate client-side parse (runs in ~30ms)
@@ -853,22 +974,40 @@ export default function Medicines() {
       setImportPercent(65)
       setImportMessage(`Importing ${rows.length} medicines into inventory...`)
 
-      // 2. Batch update local medicines and stock
+      // 2. Batch update local medicines and stock with branch isolation
       const currentLocal = readLocalMedicines()
       const updatedMap = new Map()
       currentLocal.forEach((m) => {
-        const key = (m?.medicineCode || m?.code || m?.name || '').trim().toLowerCase()
-        if (key) updatedMap.set(key, m)
+        const branchKey = String(m?.branchId || m?.BranchId || m?.branchName || 'default').trim().toLowerCase()
+        const codeKey = (m?.medicineCode || m?.code || m?.name || '').trim().toLowerCase()
+        if (codeKey) updatedMap.set(`${branchKey}__${codeKey}`, m)
       })
       rows.forEach((row) => {
-        const key = (row?.medicineCode || row?.code || row?.name || '').trim().toLowerCase()
-        const existing = updatedMap.get(key) || {}
+        const taggedRow = {
+          ...row,
+          branchId: row.branchId || activeBranchId,
+          BranchId: row.BranchId || activeBranchId,
+          branchName: row.branchName || activeBranchName,
+          BranchName: row.BranchName || activeBranchName,
+          pharmacyId: activePharmacy || '1',
+          PharmacyId: activePharmacy || '1',
+          pharmacyName: sessionStorage.getItem('workingPharmacyName') || localStorage.getItem('workingPharmacyName') || '',
+          PharmacyName: sessionStorage.getItem('workingPharmacyName') || localStorage.getItem('workingPharmacyName') || ''
+        }
+        const branchKey = String(taggedRow.branchId || taggedRow.branchName || 'default').trim().toLowerCase()
+        const codeKey = (taggedRow?.medicineCode || taggedRow?.code || taggedRow?.name || '').trim().toLowerCase()
+        const mapKey = `${branchKey}__${codeKey}`
+        const existing = updatedMap.get(mapKey) || {}
         const merged = normalizeMedicineRecord({
           ...existing,
-          ...row,
-          id: existing.id || row.id || `med_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+          ...taggedRow,
+          branchId: activeBranchId,
+          BranchId: activeBranchId,
+          branchName: activeBranchName,
+          BranchName: activeBranchName,
+          id: existing.id || taggedRow.id || `med_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
         })
-        updatedMap.set(key, merged)
+        updatedMap.set(mapKey, merged)
         saveMedicineToCache(merged, merged)
       })
       const fullMergedList = Array.from(updatedMap.values())
@@ -880,8 +1019,8 @@ export default function Medicines() {
 
       // 3. Fire backend upload in parallel (with safe catch so it never stalls)
       uploadMedicineImport(importFile, {
-        branchId: activeBranch,
-        BranchId: activeBranch,
+        branchId: activeBranchId,
+        BranchId: activeBranchId,
         pharmacyId: activePharmacy,
         PharmacyId: activePharmacy,
       }).catch((e) => console.warn('Backend medicine-import/upload background notice:', e.message))
@@ -1001,7 +1140,8 @@ export default function Medicines() {
     <AdminLayout headerAction={<button
               type="button"
               className="page-heading-refresh"
-              onClick={() => { loadMedicines(); loadSummaryMetrics(); loadLookups(); }}
+              onClick={() => { loadMedicines(true); loadSummaryMetrics(); loadLookups(); }}
+              title="Refresh and sync directly with database"
             >
               <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Refresh
@@ -1101,6 +1241,20 @@ export default function Medicines() {
             </div>
             <div className="med-filters">
               <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="med-branch-filter"
+                style={{ fontWeight: 600, color: '#166534', borderColor: '#86efac', background: '#f0fdf4' }}
+                title="Filter medicines by Pharmacy Branch"
+              >
+                <option value="all">All Branches</option>
+                {branchOptions.map((b) => (
+                  <option key={b.id || b.name} value={b.id || b.name}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
@@ -1132,6 +1286,7 @@ export default function Medicines() {
                   setCategory('')
                   setDosageForm('')
                   setStatusFilter('all')
+                  setBranchFilter('all')
                 }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px' }}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1155,6 +1310,7 @@ export default function Medicines() {
                     <tr>
                       <th style={{ width: '50px' }}>S.No.</th>
                       <th>Medicine Code</th>
+                      <th>Branch</th>
                       <th>Medicine Name</th>
                       <th>Generic Name</th>
                       <th>Brand Name</th>
@@ -1211,6 +1367,11 @@ export default function Medicines() {
                         <tr key={getId(medicine) || index}>
                           <td>{index + 1}</td>
                           <td><code>{medCode}</code></td>
+                          <td>
+                            <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', whiteSpace: 'nowrap' }}>
+                              {medicine?.branchName || (medicine?.branchId === '2' ? 'NTR Nagar Branch' : 'Main Branch')}
+                            </span>
+                          </td>
                           <td><div style={{ fontWeight: 600, color: '#1e293b' }}>{getName(medicine)}</div></td>
                           <td>{medicine?.genericName || medicine?.GenericName || '-'}</td>
                           <td>{brand}</td>
@@ -1327,6 +1488,36 @@ export default function Medicines() {
                       </div>
                     </div>
                     <div className="med-card-grid">
+                      <div className="med-form-group">
+                        <label htmlFor="med-branchId">Pharmacy Branch <span className="req-star">*</span></label>
+                        <div className="input-icon-wrap">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M10 3h4v4h-4z"/></svg>
+                          <select
+                            id="med-branchId"
+                            value={form.branchId || '1'}
+                            onChange={(e) => {
+                              const selId = e.target.value
+                              const selObj = branchOptions.find(b => String(b.id) === selId)
+                              setForm({
+                                ...form,
+                                branchId: selId,
+                                branchName: selObj?.name || (selId === '2' ? 'NTR Nagar Branch' : 'Main Branch')
+                              })
+                            }}
+                          >
+                            {branchOptions.length ? branchOptions.map((b) => (
+                              <option key={b.id || b.name} value={b.id || b.name}>
+                                {b.name}
+                              </option>
+                            )) : (
+                              <>
+                                <option value="1">Main Branch</option>
+                                <option value="2">NTR Nagar Branch</option>
+                              </>
+                            )}
+                          </select>
+                        </div>
+                      </div>
                       <div className="med-form-group">
                         <label htmlFor="med-medicineCode">Medicine Code</label>
                         <div className="input-icon-wrap">
@@ -1881,9 +2072,15 @@ export default function Medicines() {
                     </div>
                     <div className="med-detail-row" style={{ marginTop: '8px' }}>
                       <div className="med-detail-item">
+                        <label>Pharmacy Branch</label>
+                        <span style={{ fontWeight: 600, color: '#166534' }}>{viewingItem?.branchName || (viewingItem?.branchId === '2' ? 'NTR Nagar Branch' : 'Main Branch')}</span>
+                      </div>
+                      <div className="med-detail-item">
                         <label>Generic Name</label>
                         <span>{viewingItem?.genericName || viewingItem?.GenericName || '-'}</span>
                       </div>
+                    </div>
+                    <div className="med-detail-row" style={{ marginTop: '8px' }}>
                       <div className="med-detail-item">
                         <label>Brand Name</label>
                         <span>{viewingItem?.brandName || viewingItem?.BrandName || '-'}</span>

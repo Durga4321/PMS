@@ -148,6 +148,21 @@ export default function Settings() {
       } else {
         const user = readStoredValue('pharmacyAdminUser') || {}
         const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+        const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || assignment?.pharmacyId || user?.pharmacyId)
+        if (!isAssigned) {
+          setSettings((prev) => ({
+            ...prev,
+            pharmacyName: '',
+            branchName: '',
+            address: '',
+            phone: user?.phone || '',
+            email: user?.email || '',
+            licenseNumber: '',
+            gstNumber: '',
+            status: 'Active',
+          }))
+          return
+        }
         setSettings((prev) => ({
           ...prev,
           pharmacyName: savedLocal.pharmacyName || assignment?.pharmacyName || assignment?.pharmacy?.name || prev.pharmacyName,
@@ -194,6 +209,8 @@ export default function Settings() {
       accountStatus: cleanStatus,
       isActive: isActiveBool,
       IsActive: isActiveBool,
+      isCmsIntegrated: false,
+      IsCmsIntegrated: false,
       currency: settings.currency || 'INR',
       taxRate: String(settings.taxRate ?? '18'),
       taxGSTRate: Number(settings.taxRate ?? 18),
