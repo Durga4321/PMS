@@ -16,6 +16,7 @@ import {
   updatePharmacist,
   updatePharmacistPermissions,
   scopedKey,
+  readLocalPharmacists,
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 
@@ -308,20 +309,86 @@ function Users({ initialAdd = false }) {
   async function loadPharmacists() {
     setLoading(true)
     setLoadError('')
+    const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+    const assignment = readStoredJson('pharmacyAdminAssignment') || {}
+    const user = readStoredJson('pharmacyAdminUser') || {}
+    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+
+    if (!isAssigned) {
+      setPharmacists([])
+      setLoading(false)
+      return
+    }
+
     try {
       const response = await listPharmacists({ search: query })
-      setPharmacists(normalizeList(response))
+      let list = normalizeList(response)
+      if (!list || !list.length) {
+        list = readLocalPharmacists(activePharmacyId)
+      }
+      // Filter strictly by active pharmacy so Pharmacy A and Pharmacy B pharmacists are completely isolated
+      if (activePharmacyId && list && list.length) {
+        const hasPharmacyTags = list.some(p => p.pharmacyId || p.PharmacyId)
+        if (hasPharmacyTags) {
+          list = list.filter(p => {
+            const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
+            return !pId || pId === activePharmacyId
+          })
+        }
+      }
+      setPharmacists(list)
     } catch (error) {
-      const message = error.message || 'Unable to load pharmacists.'
+      const rawMsg = error.message || 'Unable to load pharmacists.'
+      let message = rawMsg
+      if (rawMsg.includes('<!DOCTYPE') || rawMsg.includes('<html') || rawMsg.includes('ERR_NGROK')) {
+        message = 'Backend server tunnel is currently offline (ngrok ERR_NGROK_3200). Operating in local offline mode.'
+      }
       setLoadError(message)
-      if (!/View permission for User Management/i.test(message)) showToast(message, 'error')
-      setPharmacists([])
+      let local = readLocalPharmacists(activePharmacyId)
+      if (activePharmacyId && local && local.length) {
+        const hasPharmacyTags = local.some(p => p.pharmacyId || p.PharmacyId)
+        if (hasPharmacyTags) {
+          local = local.filter(p => {
+            const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
+            return !pId || pId === activePharmacyId
+          })
+        }
+      }
+      setPharmacists(local)
+      if (!/View permission for User Management/i.test(message) && !rawMsg.includes('ERR_NGROK')) {
+        showToast(message, 'warning')
+      }
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
+    // Initial pass: load cached pharmacists immediately for active pharmacy
+    const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+    const assignment = readStoredJson('pharmacyAdminAssignment') || {}
+    const user = readStoredJson('pharmacyAdminUser') || {}
+    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+
+    if (!isAssigned) {
+      setPharmacists([])
+      setLoading(false)
+      return
+    }
+
+    let cached = readLocalPharmacists(activePharmacyId)
+    if (activePharmacyId && cached && cached.length) {
+      const hasPharmacyTags = cached.some(p => p.pharmacyId || p.PharmacyId)
+      if (hasPharmacyTags) {
+        cached = cached.filter(p => {
+          const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
+          return !pId || pId === activePharmacyId
+        })
+      }
+    }
+    if (cached && cached.length) {
+      setPharmacists(cached)
+    }
     if (!isAddRoute) loadPharmacists()
   }, [isAddRoute])
 
@@ -498,11 +565,15 @@ function Users({ initialAdd = false }) {
       }
     }
 
+    const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '1')
+    const activePharmacyName = sessionStorage.getItem('workingPharmacyName') || localStorage.getItem('workingPharmacyName') || ''
     const payload = {
       name: form.name.trim(),
       email: form.email.trim(),
       mobileNumber: phoneVal,
       branchId: numericBranchId,
+      pharmacyId: activePharmacyId,
+      pharmacyName: activePharmacyName,
     }
 
     try {
@@ -892,7 +963,23 @@ function Users({ initialAdd = false }) {
           </div>
         </div>
 
-        {loadError ? <p className="pharmacist-load-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', marginBottom: '12px' }}>{loadError}</p> : null}
+        {loadError && !loadError.includes('<') ? (
+          <div style={{
+            background: '#fffbeb',
+            border: '1px solid #fef3c7',
+            color: '#b45309',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            marginBottom: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>{loadError}</span>
+          </div>
+        ) : null}
         <div className="branch-table-wrap">
           <table className="branch-table">
             <thead>

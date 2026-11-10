@@ -69,6 +69,35 @@ function clearAuthSession() {
   localStorage.removeItem('workingBranchId')
   sessionStorage.removeItem('workingPharmacyId')
   localStorage.removeItem('workingPharmacyId')
+  sessionStorage.removeItem('workingPharmacyName')
+  localStorage.removeItem('workingPharmacyName')
+  sessionStorage.removeItem('pharmacySettings')
+  localStorage.removeItem('pharmacySettings')
+
+  const cachePrefixes = [
+    'pms_local_medicines',
+    'pms_medicine_catalogue_cache',
+    'pms_deleted_medicines',
+    'pms_admin_pharmacies_list',
+    'pms_admin_branches_list',
+    'pms_pharmacy_sub_branches',
+    'pms_pharmacy_pharmacists',
+    'pharmacySettings',
+    'pms_legacy_data_owner',
+    'pms_admin_permissions'
+  ]
+  for (const store of [sessionStorage, localStorage]) {
+    try {
+      const keysToRemove = []
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i)
+        if (k && cachePrefixes.some(prefix => k === prefix || k.startsWith(prefix + '_'))) {
+          keysToRemove.push(k)
+        }
+      }
+      keysToRemove.forEach(k => store.removeItem(k))
+    } catch {}
+  }
 }
 
 function unwrapLogin(data) {
@@ -192,7 +221,22 @@ function Login() {
       const storage = remember ? localStorage : sessionStorage
       const response = await loginUnifiedAuth(credentials)
       const loginData = unwrapLogin(response)
-      const user = loginData?.user || response?.user || { email: credentials.email }
+      const rawUser = loginData?.user || response?.user || {}
+
+      let adminName = String(rawUser.name || rawUser.fullName || '').trim()
+      if (/pharmacy/i.test(adminName) || (!credentials.email.includes('nithish') && /nithish/i.test(adminName))) {
+        adminName = ''
+      }
+      if (!adminName && credentials.email) {
+        const prefix = credentials.email.split('@')[0].replace(/[0-9._-]+$/, '')
+        adminName = prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : 'Admin'
+      }
+
+      const user = {
+        ...rawUser,
+        name: adminName,
+        email: credentials.email,
+      }
       const flow = roleFrom(loginData, user, response)
       const token = loginData?.[flow.tokenKey] || response?.[flow.tokenKey] || loginData?.token || loginData?.accessToken || loginData?.jwt || response?.token || response?.accessToken
 
@@ -213,16 +257,21 @@ function Login() {
         try {
           const assignment = await flow.assignment()
           const assignmentData = assignment?.data || assignment
-          const rawPharmId = assignmentData?.pharmacyId || assignmentData?.PharmacyId || user?.pharmacyId || user?.PharmacyId || assignmentData?.pharmacy?.id || assignmentData?.pharmacy?.pharmacyId || ''
-          const rawBranchId = assignmentData?.branchId || assignmentData?.BranchId || assignmentData?.mainBranchId || user?.branchId || user?.BranchId || ''
-          const rawPharmName = assignmentData?.pharmacyName || assignmentData?.PharmacyName || user?.pharmacyName || user?.PharmacyName || ''
+          const isExplicitlyAssigned = Boolean(assignmentData?.isPharmacyAssigned || assignmentData?.isAssigned)
+          const nestedAssignment = assignmentData?.assignment || assignmentData?.pharmacyAssignment || assignmentData?.assignedPharmacy || assignmentData?.tenant || {}
+          const pharmacyRecord = assignmentData?.pharmacy || nestedAssignment?.pharmacy || nestedAssignment
+          const rawPharmId = isExplicitlyAssigned ? (assignmentData?.pharmacyId || assignmentData?.PharmacyId || pharmacyRecord?.id || pharmacyRecord?.pharmacyId || '') : ''
+          const rawBranchId = isExplicitlyAssigned ? (assignmentData?.branchId || assignmentData?.BranchId || assignmentData?.mainBranchId || '') : ''
+          const rawPharmName = isExplicitlyAssigned ? (assignmentData?.pharmacyName || assignmentData?.PharmacyName || pharmacyRecord?.name || pharmacyRecord?.pharmacyName || '') : ''
           const finalPharmacyId = rawPharmId ? String(rawPharmId) : ''
           const finalBranchId = rawBranchId ? String(rawBranchId) : ''
+          const finalPharmName = finalPharmacyId ? rawPharmName : ''
           const merged = {
             ...assignmentData,
             pharmacyId: finalPharmacyId,
             branchId: finalBranchId,
-            pharmacyName: rawPharmName,
+            pharmacyName: finalPharmName,
+            isPharmacyAssigned: Boolean(finalPharmacyId),
           }
           storage.setItem(flow.assignmentKey, JSON.stringify(merged))
           if (finalPharmacyId) {
@@ -239,32 +288,36 @@ function Login() {
             storage.removeItem('workingBranchId')
             sessionStorage.removeItem('workingBranchId')
           }
-          storedUser = { ...storedUser, ...merged, role: storedUser.role }
-        } catch {
-          const rawPharmId = user?.pharmacyId || user?.PharmacyId || ''
-          const rawBranchId = user?.branchId || user?.BranchId || user?.mainBranchId || ''
-          const rawPharmName = user?.pharmacyName || user?.PharmacyName || ''
-          const finalPharmacyId = rawPharmId ? String(rawPharmId) : ''
-          const finalBranchId = rawBranchId ? String(rawBranchId) : ''
-          const fallback = {
+          if (finalPharmName) {
+            storage.setItem('workingPharmacyName', finalPharmName)
+            sessionStorage.setItem('workingPharmacyName', finalPharmName)
+          } else {
+            storage.removeItem('workingPharmacyName')
+            sessionStorage.removeItem('workingPharmacyName')
+          }
+          storedUser = {
+            ...storedUser,
             pharmacyId: finalPharmacyId,
             branchId: finalBranchId,
-            pharmacyName: rawPharmName,
+            pharmacyName: finalPharmName,
+            isPharmacyAssigned: Boolean(finalPharmacyId),
+            role: storedUser.role
           }
-          storage.setItem(flow.assignmentKey, JSON.stringify(fallback))
-          if (finalPharmacyId) {
-            storage.setItem('workingPharmacyId', finalPharmacyId)
-            sessionStorage.setItem('workingPharmacyId', finalPharmacyId)
-          } else {
-            storage.removeItem('workingPharmacyId')
-            sessionStorage.removeItem('workingPharmacyId')
-          }
-          if (finalBranchId) {
-            storage.setItem('workingBranchId', finalBranchId)
-            sessionStorage.setItem('workingBranchId', finalBranchId)
-          } else {
-            storage.removeItem('workingBranchId')
-            sessionStorage.removeItem('workingBranchId')
+        } catch {
+          storage.removeItem(flow.assignmentKey)
+          storage.removeItem('workingPharmacyId')
+          sessionStorage.removeItem('workingPharmacyId')
+          storage.removeItem('workingBranchId')
+          sessionStorage.removeItem('workingBranchId')
+          storage.removeItem('workingPharmacyName')
+          sessionStorage.removeItem('workingPharmacyName')
+          storedUser = {
+            ...storedUser,
+            pharmacyId: '',
+            branchId: '',
+            pharmacyName: '',
+            isPharmacyAssigned: false,
+            role: storedUser.role
           }
         }
       }

@@ -21,13 +21,12 @@ function getStoredPharmacyTitle() {
   try {
     const assignment = JSON.parse(localStorage.getItem('pharmacyAdminAssignment') || sessionStorage.getItem('pharmacyAdminAssignment') || '{}')
     const user = JSON.parse(localStorage.getItem('pharmacyAdminUser') || sessionStorage.getItem('pharmacyAdminUser') || '{}')
-    const assignedName = assignment.pharmacyName || assignment?.pharmacy?.name || user.pharmacyName || user?.pharmacy?.name
-    if (assignedName && String(assignedName).trim().toLowerCase() !== 'goutham pharmacy') return assignedName
-
-    const userScope = user.adminId || user.id || user.email || 'default'
-    const scopedSettingsKey = `pharmacySettings_admin_${String(userScope).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
-    const saved = JSON.parse(localStorage.getItem(scopedSettingsKey) || sessionStorage.getItem(scopedSettingsKey) || '{}')
-    if (saved.pharmacyName && String(saved.pharmacyName).trim().toLowerCase() !== 'goutham pharmacy') return saved.pharmacyName
+    if (assignment?.pharmacyId && assignment?.pharmacyName) {
+      return assignment.pharmacyName
+    }
+    if (user?.pharmacyId && user?.pharmacyName) {
+      return user.pharmacyName
+    }
   } catch {}
   return ''
 }

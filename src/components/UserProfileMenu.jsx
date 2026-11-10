@@ -54,11 +54,33 @@ function getProfile(roleType) {
   if (roleType === 'pharmacy-admin') {
     const user = readUser(['pharmacyAdminUser'])
     const assignment = readUser(['pharmacyAdminAssignment'])
+    const pendingAuth = readUser(['__pms_admin_pending_auth'])
+
+    let cleanEmail = String(user?.email || pendingAuth?.email || '').trim().toLowerCase()
+    // Sanitize cross-session contamination (e.g. Preethi logged in, but old nithish email was stored)
+    if (cleanEmail.includes('nithish') && pendingAuth?.email && !pendingAuth.email.includes('nithish')) {
+      cleanEmail = pendingAuth.email.trim().toLowerCase()
+    }
+
+    let rawName = String(user?.name || user?.fullName || '').trim()
+    // If rawName contains "pharmacy" or matches any pharmacy name or contains "nithish" (when email is not nithish), it is NOT the admin's personal name!
+    if (/pharmacy/i.test(rawName) || (!cleanEmail.includes('nithish') && /nithish/i.test(rawName))) {
+      rawName = ''
+    }
+
+    // Derive personal display name from email (e.g. preethimittapalli3@gmail.com -> Preethi)
+    let displayName = rawName
+    if (!displayName && cleanEmail) {
+      const emailPrefix = cleanEmail.split('@')[0].replace(/[0-9._-]+$/, '')
+      displayName = emailPrefix ? emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) : 'Admin'
+    }
+    if (!displayName) displayName = 'Admin'
+
     return {
-      name: user?.name || user?.fullName || user?.email || 'Admin',
-      email: user?.email || '',
+      name: displayName,
+      email: cleanEmail,
       roleLabel: 'Admin',
-      branchName: assignment?.branchName || assignment?.branch?.name || assignment?.pharmacyName || 'Branch A',
+      branchName: (assignment?.pharmacyId && assignment?.pharmacyName) ? assignment.pharmacyName : '',
       profilePath: '/admin/profile',
       passwordPath: '/admin/change-password',
     }
@@ -91,6 +113,33 @@ function clearRoleSession(roleType) {
   localStorage.removeItem('workingBranchId')
   sessionStorage.removeItem('workingPharmacyId')
   localStorage.removeItem('workingPharmacyId')
+  sessionStorage.removeItem('workingPharmacyName')
+  localStorage.removeItem('workingPharmacyName')
+  sessionStorage.removeItem('pharmacySettings')
+  localStorage.removeItem('pharmacySettings')
+
+  const cachePrefixes = [
+    'pms_local_medicines',
+    'pms_medicine_catalogue_cache',
+    'pms_deleted_medicines',
+    'pms_admin_pharmacies_list',
+    'pms_admin_branches_list',
+    'pms_pharmacy_sub_branches',
+    'pharmacySettings',
+    'pms_legacy_data_owner'
+  ]
+  for (const store of [sessionStorage, localStorage]) {
+    try {
+      const keysToRemove = []
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i)
+        if (k && cachePrefixes.some(prefix => k === prefix || k.startsWith(prefix + '_'))) {
+          keysToRemove.push(k)
+        }
+      }
+      keysToRemove.forEach(k => store.removeItem(k))
+    } catch {}
+  }
 }
 
 function UserProfileMenu({ roleType = 'pharmacy-admin' }) {

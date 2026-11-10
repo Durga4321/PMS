@@ -33,14 +33,10 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
   const assignment = readStoredValue('pharmacyAdminAssignment') || {}
   const savedSettings = readStoredValue('pharmacySettings') || {}
   const adminName = user?.name || user?.fullName || user?.email || 'Admin'
-  const [hospitalName, setHospitalName] = useState(() => assignment?.hospitalName || assignment?.hospital?.name || assignment?.clinicName || assignment?.clinic?.name || 'PMS')
+  const [hospitalName, setHospitalName] = useState(() => assignment?.hospitalName || assignment?.hospital?.name || 'PMS')
   const [branchName, setBranchName] = useState(() => {
-    const assignedName = assignment?.pharmacyName || assignment?.pharmacy?.name || user?.pharmacyName || assignment?.branchName || assignment?.branch?.name
-    if (assignedName && String(assignedName).trim().toLowerCase() !== 'goutham pharmacy') return assignedName
-    const scope = user?.adminId || user?.id || user?.email || 'default'
-    const scopedSettingsKey = `pharmacySettings_admin_${String(scope).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
-    const scopedSettings = readStoredValue(scopedSettingsKey) || {}
-    if (scopedSettings?.pharmacyName && String(scopedSettings.pharmacyName).trim().toLowerCase() !== 'goutham pharmacy') return scopedSettings.pharmacyName
+    if (assignment?.pharmacyId && assignment?.pharmacyName) return assignment.pharmacyName
+    if (user?.pharmacyId && user?.pharmacyName) return user.pharmacyName
     return 'Admin Console'
   })
 
@@ -76,28 +72,68 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
     getPharmacyAdminAssignmentStatus()
       .then((res) => {
         const data = res?.data || res || {}
+        const isAssigned = Boolean(data?.isPharmacyAssigned || data?.isAssigned)
+        if (!isAssigned) {
+          sessionStorage.removeItem('workingPharmacyId')
+          localStorage.removeItem('workingPharmacyId')
+          sessionStorage.removeItem('workingPharmacyName')
+          localStorage.removeItem('workingPharmacyName')
+          sessionStorage.removeItem('workingBranchId')
+          localStorage.removeItem('workingBranchId')
+          const emptyAssignment = { isPharmacyAssigned: false, pharmacyId: '', branchId: '', pharmacyName: '' }
+          sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(emptyAssignment))
+          localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(emptyAssignment))
+          setBranchName('Admin Console')
+          return
+        }
         const existing = readStoredValue('pharmacyAdminAssignment') || {}
         const nestedAssignment = data?.assignment || data?.pharmacyAssignment || data?.assignedPharmacy || data?.tenant || {}
         const pharmacyRecord = data?.pharmacy || nestedAssignment?.pharmacy || nestedAssignment
         const branchRecord = data?.branch || nestedAssignment?.branch || {}
-        const pharmacyId = data?.pharmacyId || data?.PharmacyId || data?.assignedPharmacyId || data?.AssignedPharmacyId || pharmacyRecord?.id || pharmacyRecord?.pharmacyId || existing.pharmacyId || ''
-        const branchId = data?.branchId || data?.BranchId || data?.mainBranchId || branchRecord?.id || branchRecord?.branchId || nestedAssignment?.mainBranchId || existing.branchId || ''
-        const merged = { ...existing, ...data, ...(nestedAssignment && typeof nestedAssignment === 'object' ? nestedAssignment : {}), pharmacyId: String(pharmacyId), branchId: String(branchId) }
+        const rawPharmId = data?.pharmacyId || data?.PharmacyId || data?.assignedPharmacyId || data?.AssignedPharmacyId || pharmacyRecord?.id || pharmacyRecord?.pharmacyId || ''
+        const rawBranchId = data?.branchId || data?.BranchId || data?.mainBranchId || branchRecord?.id || branchRecord?.branchId || nestedAssignment?.mainBranchId || ''
+        const rawPharmName = data?.pharmacyName || data?.PharmacyName || pharmacyRecord?.name || pharmacyRecord?.pharmacyName || ''
+        const pharmacyId = rawPharmId ? String(rawPharmId) : ''
+        const branchId = rawBranchId ? String(rawBranchId) : ''
+        const pharmacyName = pharmacyId ? rawPharmName : ''
+        const merged = { ...existing, ...data, ...(nestedAssignment && typeof nestedAssignment === 'object' ? nestedAssignment : {}), pharmacyId, branchId, pharmacyName, isPharmacyAssigned: Boolean(pharmacyId) }
         sessionStorage.setItem('pharmacyAdminAssignment', JSON.stringify(merged))
         localStorage.setItem('pharmacyAdminAssignment', JSON.stringify(merged))
-        sessionStorage.setItem('workingPharmacyId', String(pharmacyId))
-        localStorage.setItem('workingPharmacyId', String(pharmacyId))
-        sessionStorage.setItem('workingBranchId', String(branchId))
-        localStorage.setItem('workingBranchId', String(branchId))
+        if (pharmacyId) {
+          sessionStorage.setItem('workingPharmacyId', pharmacyId)
+          localStorage.setItem('workingPharmacyId', pharmacyId)
+        } else {
+          sessionStorage.removeItem('workingPharmacyId')
+          localStorage.removeItem('workingPharmacyId')
+        }
+        if (branchId) {
+          sessionStorage.setItem('workingBranchId', branchId)
+          localStorage.setItem('workingBranchId', branchId)
+        } else {
+          sessionStorage.removeItem('workingBranchId')
+          localStorage.removeItem('workingBranchId')
+        }
+        if (pharmacyName) {
+          sessionStorage.setItem('workingPharmacyName', pharmacyName)
+          localStorage.setItem('workingPharmacyName', pharmacyName)
+          setBranchName(pharmacyName)
+        } else {
+          sessionStorage.removeItem('workingPharmacyName')
+          localStorage.removeItem('workingPharmacyName')
+          setBranchName('Admin Console')
+        }
       })
       .catch(() => {
         const existing = readStoredValue('pharmacyAdminAssignment') || {}
-        const pharmacyId = existing.pharmacyId || ''
-        const branchId = existing.branchId || ''
-        sessionStorage.setItem('workingPharmacyId', String(pharmacyId))
-        localStorage.setItem('workingPharmacyId', String(pharmacyId))
-        sessionStorage.setItem('workingBranchId', String(branchId))
-        localStorage.setItem('workingBranchId', String(branchId))
+        if (!existing.isPharmacyAssigned) {
+          sessionStorage.removeItem('workingPharmacyId')
+          localStorage.removeItem('workingPharmacyId')
+          sessionStorage.removeItem('workingPharmacyName')
+          localStorage.removeItem('workingPharmacyName')
+          sessionStorage.removeItem('workingBranchId')
+          localStorage.removeItem('workingBranchId')
+          setBranchName('Admin Console')
+        }
       })
   }, [])
   

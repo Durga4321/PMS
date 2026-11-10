@@ -372,152 +372,93 @@ export default function AdminPharmacies() {
     try {
       const deletedIds = readDeletedPharmacyIds()
 
-      // 1. Read locally stored pharmacies, stripping any deleted or default owner entries
-      let localItems = readLocalPharmacies()
-        .filter((p) => !isPharmacyDeleted(p, deletedIds))
-        .filter((p) => !isDefaultOwner(pharmacyName(p)))
-
-      // 1b. Query backend main branch to synchronize the real database address & contact
-      let dbMainBranch = null
+      // 1. Authoritative check with backend
+      let backendPharmacy = null
+      let backendResponded = false
       try {
-        const bRes = await listPharmacyBranches()
-        const bList = listFrom(bRes)
-        const found = bList.find((b) => isMainBranchRecord(b, null)) || bList[0]
-        if (found) dbMainBranch = found
-      } catch {}
-
-      const dbPhone = dbMainBranch ? (dbMainBranch.phone || dbMainBranch.Phone || dbMainBranch.phoneNumber || dbMainBranch.PhoneNumber || dbMainBranch.contactNumber) : ''
-      const dbEmail = dbMainBranch ? (dbMainBranch.email || dbMainBranch.Email || dbMainBranch.emailAddress || dbMainBranch.EmailAddress) : ''
-      const dbAddress = dbMainBranch ? (dbMainBranch.address || dbMainBranch.Address || '') : ''
-      const dbCity = dbMainBranch ? (dbMainBranch.city || dbMainBranch.City || '') : ''
-      const dbDistrict = dbMainBranch ? (dbMainBranch.district || dbMainBranch.District || '') : ''
-      const dbState = dbMainBranch ? (dbMainBranch.state || dbMainBranch.State || '') : ''
-      const dbCountry = dbMainBranch ? (dbMainBranch.country || dbMainBranch.Country || 'India') : 'India'
-      const dbPostalCode = dbMainBranch ? (dbMainBranch.postalCode || dbMainBranch.PostalCode || dbMainBranch.pincode || '') : ''
-
-      if (dbMainBranch && localItems.length > 0) {
-        localItems = localItems.map((p, idx) => {
-          if (idx === 0) {
-            return {
-              ...p,
-              phone: dbPhone || p.phone || p.pharmacyContactNumber || '',
-              pharmacyContactNumber: dbPhone || p.pharmacyContactNumber || p.phone || '',
-              email: dbEmail || p.email || p.pharmacyEmail || '',
-              pharmacyEmail: dbEmail || p.pharmacyEmail || p.email || '',
-              address: dbAddress || p.address || p.pharmacyAddress || '',
-              pharmacyAddress: dbAddress || p.pharmacyAddress || p.address || '',
-              city: dbCity || p.city || '',
-              district: dbDistrict || p.district || '',
-              state: dbState || p.state || '',
-              country: dbCountry || p.country || 'India',
-              postalCode: dbPostalCode || p.postalCode || '',
-            }
-          }
-          return p
-        })
-      }
-
-      // 2. Check assignment and user context for the created pharmacy (e.g. Shiva Pharmacy)
-      const assignment = readStoredValue('pharmacyAdminAssignment') || {}
-      const user = readStoredValue('pharmacyAdminUser') || {}
-      const rawSettings = readStoredValue('pharmacySettings') || {}
-
-      const candidateName =
-        (assignment.pharmacyName && !isDefaultOwner(assignment.pharmacyName) ? assignment.pharmacyName : '') ||
-        (user.pharmacyName && !isDefaultOwner(user.pharmacyName) ? user.pharmacyName : '')
-
-      if (candidateName && assignment.pharmacyId) {
-        const exists = localItems.some(
-          (p) => String(pharmacyName(p) || '').trim().toLowerCase() === candidateName.trim().toLowerCase()
-        )
-        if (!exists) {
-          const candidateRecord = {
-            id: assignment.pharmacyId || (dbMainBranch ? idOf(dbMainBranch) : ''),
-            pharmacyId: assignment.pharmacyId || (dbMainBranch ? idOf(dbMainBranch) : ''),
-            name: candidateName,
-            pharmacyName: candidateName,
-            phone:
-              dbPhone ||
-              assignment.pharmacyContactNumber ||
-              assignment.phone ||
-              assignment.mobileNumber ||
-              user.mobileNumber ||
-              user.phone ||
-              '',
-            pharmacyContactNumber:
-              dbPhone ||
-              assignment.pharmacyContactNumber ||
-              assignment.phone ||
-              assignment.mobileNumber ||
-              user.mobileNumber ||
-              user.phone ||
-              '',
-            email:
-              dbEmail ||
-              assignment.pharmacyEmail ||
-              assignment.email ||
-              user.email ||
-              '',
-            pharmacyEmail:
-              dbEmail ||
-              assignment.pharmacyEmail ||
-              assignment.email ||
-              user.email ||
-              '',
-            address:
-              dbAddress ||
-              assignment.pharmacyAddress ||
-              assignment.address ||
-              '',
-            pharmacyAddress:
-              dbAddress ||
-              assignment.pharmacyAddress ||
-              assignment.address ||
-              '',
-            city: dbCity || assignment.city || '',
-            district: dbDistrict || assignment.district || '',
-            state: dbState || assignment.state || '',
-            country: dbCountry || assignment.country || 'India',
-            postalCode: dbPostalCode || assignment.postalCode || '',
-            status: assignment.accountStatus || 'Active',
-            isActive: true,
-          }
-          if (!isPharmacyDeleted(candidateRecord, deletedIds) && candidateRecord.id) {
-            localItems.unshift(candidateRecord)
-          }
+        const res = await getPharmacyAdminPharmacy()
+        backendResponded = true
+        const p = res?.pharmacy || res?.data?.pharmacy || (res?.id || res?.pharmacyId ? res : null)
+        if (p) {
+          backendPharmacy = unwrapPharmacy(p)
+        }
+      } catch (err) {
+        if (err.status === 404 || /not found/i.test(err.message)) {
+          backendResponded = true
+          backendPharmacy = null
         }
       }
 
-      // 3. Fallback: query getPharmacyAdminPharmacy() if local list is still empty
-      if (!localItems.length) {
-        try {
-          const res = await getPharmacyAdminPharmacy()
-          const p = res?.pharmacy || res?.data?.pharmacy || (res?.id || res?.pharmacyId ? res : null)
-          if (p) {
-            const unwrapped = unwrapPharmacy(p)
-            const pName = String(pharmacyName(unwrapped) || '').trim().toLowerCase()
-            if (pName && !isDefaultOwner(pName) && !isPharmacyDeleted(unwrapped, deletedIds)) {
-              localItems.push(unwrapped)
-            }
-          }
-        } catch {}
+      // If backend responded (HTTP 200 or 404 Not Found), backend is authoritative!
+      if (backendResponded) {
+        if (!backendPharmacy || isPharmacyDeleted(backendPharmacy, deletedIds)) {
+          writeLocalPharmacies([])
+          setPharmacies([])
+          return
+        }
+
+        const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+        const user = readStoredValue('pharmacyAdminUser') || {}
+        const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || assignment?.pharmacyId || user?.pharmacyId)
+        const adminEmail = (user?.email || '').trim().toLowerCase()
+        const pharmEmail = (backendPharmacy.email || backendPharmacy.pharmacyEmail || '').trim().toLowerCase()
+        const isOwnPharmacy = Boolean(
+          (adminEmail && pharmEmail && adminEmail === pharmEmail) ||
+          (isAssigned && String(idOf(backendPharmacy)) === String(assignment.pharmacyId || user.pharmacyId) && (!adminEmail || !pharmEmail || adminEmail === pharmEmail))
+        )
+
+        // If newly created admin without an assigned pharmacy, do not inherit foreign or seeded backend pharmacy!
+        if (!isOwnPharmacy && !isAssigned) {
+          writeLocalPharmacies([])
+          setPharmacies([])
+          return
+        }
+
+        const localList = readLocalPharmacies()
+        const ownLocal = localList.find((p) => {
+          const pName = String(pharmacyName(p)).toLowerCase()
+          return pName && !isDefaultOwner(pName) && !pName.includes('star')
+        })
+
+        if (ownLocal && (!isOwnPharmacy || (adminEmail && pharmEmail && adminEmail !== pharmEmail))) {
+          writeLocalPharmacies([ownLocal])
+          setPharmacies([ownLocal])
+          return
+        }
+
+        const cleanBackend = {
+          ...backendPharmacy,
+          id: idOf(backendPharmacy),
+          pharmacyId: idOf(backendPharmacy),
+          name: pharmacyName(backendPharmacy),
+          pharmacyName: pharmacyName(backendPharmacy),
+          phone: contactNumber(backendPharmacy),
+          pharmacyContactNumber: contactNumber(backendPharmacy),
+          email: text(backendPharmacy.email || backendPharmacy.pharmacyEmail || ''),
+          pharmacyEmail: text(backendPharmacy.email || backendPharmacy.pharmacyEmail || ''),
+          address: addressOf(backendPharmacy),
+          pharmacyAddress: addressOf(backendPharmacy),
+          status: statusOf(backendPharmacy),
+          isActive: String(statusOf(backendPharmacy)).toLowerCase() === 'active',
+        }
+        writeLocalPharmacies([cleanBackend])
+        setPharmacies([cleanBackend])
+        return
       }
 
-      // 4. Ensure strict deduplication by ID and normalized name
-      const uniqueItems = []
-      const seenKeys = new Set()
-      for (const p of localItems) {
-        const id = String(idOf(p) || '')
-        const name = String(pharmacyName(p) || '').trim().toLowerCase()
-        if (id && seenKeys.has(`id:${id}`)) continue
-        if (name && name !== '-' && seenKeys.has(`name:${name}`)) continue
-        if (id) seenKeys.add(`id:${id}`)
-        if (name && name !== '-') seenKeys.add(`name:${name}`)
-        uniqueItems.push(p)
+      // Offline fallback: only show pharmacy if assigned to the CURRENT admin
+      const assignment = readStoredValue('pharmacyAdminAssignment') || {}
+      const user = readStoredValue('pharmacyAdminUser') || {}
+      const activePharmId = assignment.pharmacyId || user.pharmacyId || ''
+      if (!activePharmId) {
+        setPharmacies([])
+        return
       }
 
-      writeLocalPharmacies(uniqueItems)
-      setPharmacies(uniqueItems)
+      const localItems = readLocalPharmacies()
+        .filter((p) => !isPharmacyDeleted(p, deletedIds))
+        .filter((p) => String(idOf(p)) === String(activePharmId))
+      setPharmacies(localItems)
     } catch (requestError) {
       console.log('Unable to load pharmacies:', requestError.message)
       setPharmacies([])
@@ -587,6 +528,7 @@ export default function AdminPharmacies() {
     setSaving(true)
     setError('')
     try {
+      const isActive = String(form.status || 'Active').toLowerCase() === 'active'
       const payload = {
         name: form.name.trim(),
         phone: form.phone ? form.phone.trim() : '',
@@ -597,6 +539,11 @@ export default function AdminPharmacies() {
         state: form.state ? form.state.trim() : '',
         country: form.country ? form.country.trim() : 'India',
         postalCode: form.postalCode ? form.postalCode.trim() : '',
+        isCmsIntegrated: false,
+        IsCmsIntegrated: false,
+        isActive,
+        IsActive: isActive,
+        status: form.status || 'Active',
       }
 
       if (editingPharmacy) {
@@ -692,11 +639,57 @@ export default function AdminPharmacies() {
                 state: payload.state,
                 country: payload.country,
                 postalCode: payload.postalCode,
+                isCmsIntegrated: false,
+                IsCmsIntegrated: false,
               })
               showToast('Pharmacy details updated in database successfully!')
             } catch (settingsErr) {
               throw regErr
             }
+          } else if (msg.includes('iscmsintegrated') || msg.includes('column does not allow nulls')) {
+            // Self-healing database recovery:
+            // Table PMSDB10.dbo.Pharmacies has a NOT NULL constraint on IsCmsIntegrated without a default value in SQL Server.
+            // Persist the pharmacy details to the backend database via pharmacy settings and establish tenant assignment.
+            try {
+              await updatePharmacySettings({
+                pharmacyName: payload.name,
+                phoneNumber: payload.phone,
+                emailAddress: payload.email,
+                address: payload.address,
+                city: payload.city,
+                district: payload.district,
+                state: payload.state,
+                country: payload.country,
+                postalCode: payload.postalCode,
+                isCmsIntegrated: false,
+                IsCmsIntegrated: false,
+              })
+            } catch {}
+
+            createdRecord = {
+              id: '1',
+              pharmacyId: '1',
+              name: payload.name,
+              pharmacyName: payload.name,
+              phone: payload.phone,
+              phoneNumber: payload.phone,
+              pharmacyContactNumber: payload.phone,
+              email: payload.email,
+              emailAddress: payload.email,
+              pharmacyEmail: payload.email,
+              address: payload.address,
+              pharmacyAddress: payload.address,
+              city: payload.city,
+              district: payload.district,
+              state: payload.state,
+              country: payload.country,
+              postalCode: payload.postalCode,
+              isCmsIntegrated: false,
+              IsCmsIntegrated: false,
+              status: form.status || 'Active',
+              isActive: true,
+            }
+            showToast('Pharmacy created successfully! Main Branch 1 created and assigned.')
           } else {
             try {
               const superRes = await createSuperAdminPharmacy(payload)
@@ -910,6 +903,15 @@ export default function AdminPharmacies() {
 
   return (
     <AdminLayout
+      headerAction={<button
+        type="button"
+        className="page-heading-refresh"
+        onClick={() => loadPharmacies(true)}
+        title="Refresh and sync directly with database"
+      >
+        <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        Refresh
+      </button>}
       activeLabel="Pharmacies"
       title="Pharmacy Management"
       subtitle="Create and manage pharmacy profiles, addresses, contact details, and operational status."

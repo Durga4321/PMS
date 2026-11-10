@@ -166,9 +166,9 @@ export default function Pharmacies() {
       const payload = Object.fromEntries(Object.entries(form).map(([key, value]) => [key, String(value || '').trim()]).filter(([, value]) => value !== ''))
       if (editingPharmacy) {
         const isActive = String(statusOf(editingPharmacy)).toLowerCase() === 'active'
-        await updateSuperAdminPharmacy(idOf(editingPharmacy), { ...payload, isActive })
+        await updateSuperAdminPharmacy(idOf(editingPharmacy), { ...payload, isActive, isCmsIntegrated: false, IsCmsIntegrated: false })
       } else {
-        const response = await createSuperAdminPharmacy(payload)
+        const response = await createSuperAdminPharmacy({ ...payload, isCmsIntegrated: false, IsCmsIntegrated: false })
         const created = response?.data?.pharmacy || response?.pharmacy || response?.data || response
         const mainBranch = response?.data?.mainBranch || response?.mainBranch
         if (created?.id || created?.pharmacyId) sessionStorage.setItem('lastCreatedPharmacyId', String(created.id || created.pharmacyId))
