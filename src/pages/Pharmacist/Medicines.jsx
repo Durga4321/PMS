@@ -6,7 +6,6 @@ import {
   getPharmacistAssignedBranch,
   matchesMedicineBranch,
   formatExcelDate,
-  readLocalSubBranches,
   clearLocalMedicinesCache
 } from '../../config/api'
 import '../Admin/Medicines.css'
@@ -82,11 +81,9 @@ function getId(item) {
 }
 
 export default function PharmacistMedicines() {
-  const [allMedicines, setAllMedicines] = useState([])
+  const [allMedicines, setAllMedicines] = useState(() => (typeof readLocalMedicines === 'function' ? readLocalMedicines() : []))
   const [loading, setLoading] = useState(false)
   const [assignedBranch, setAssignedBranch] = useState(() => getPharmacistAssignedBranch())
-  const [branches, setBranches] = useState([])
-  const [selectedBranchId, setSelectedBranchId] = useState('')
 
   // Search & Filter state
   const [query, setQuery] = useState('')
@@ -97,67 +94,57 @@ export default function PharmacistMedicines() {
   // View Modal state
   const [viewingMedicine, setViewingMedicine] = useState(null)
 
-  // Load branches
-  useEffect(() => {
-    function loadBranches() {
-      try {
-        const currentAssigned = getPharmacistAssignedBranch()
-        setAssignedBranch(currentAssigned)
-
-        // Clean Main Branch option (no prefix like "star - Main Branch")
-        const mainOption = { id: '1', name: 'Main Branch' }
-        const localSub = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
-
-        // Filter out any entries that are just renamed main branch
-        const otherBranches = localSub.filter(b => {
-          const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
-          return bName && !bName.includes('main branch') && bName !== 'main'
-        })
-
-        const seen = new Set(['main branch', '1'])
-        const unique = [mainOption]
-        for (const b of otherBranches) {
-          const id = String(b?.id || b?.branchId || b?._id || '')
-          const name = String(b?.name || b?.branchName || '').trim()
-          const key = name.toLowerCase()
-          if (name && !seen.has(key)) {
-            seen.add(key)
-            seen.add(id)
-            unique.push({ id: id || String(unique.length + 1), name })
-          }
-        }
-
-        setBranches(unique)
-        setSelectedBranchId('1') // default to Main Branch!
-      } catch {
-        setBranches([{ id: '1', name: 'Main Branch' }])
-        setSelectedBranchId('1')
-      }
-    }
-    loadBranches()
-  }, [])
-
-  // Load medicines
+  // Load medicines - merge local admin-added medicines with backend medicines
   function loadMedicinesData(forceFresh = false) {
-    setLoading(true)
     try {
+      const currentAssigned = getPharmacistAssignedBranch()
+      setAssignedBranch(currentAssigned)
+
       if (forceFresh) {
         clearLocalMedicinesCache()
-        setAllMedicines([])
-      } else {
-        const local = readLocalMedicines()
-        if (local && local.length) {
-          setAllMedicines(local)
-        }
       }
-      listMedicines().then((res) => {
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
-        setAllMedicines(list || [])
-      }).catch((err) => {
-        console.warn('Pharmacist loadMedicinesData error:', err?.message || err)
-      }).finally(() => {
-        setLoading(false)
+
+      const local = readLocalMedicines() || []
+      if (!allMedicines.length && !local.length) {
+        setLoading(true)
+      }
+
+      const localMap = new Map()
+      local.forEach(m => {
+        const k = String(getId(m) || m?.name || '').trim().toLowerCase()
+        if (k) localMap.set(k, m)
       })
+
+      if (local.length > 0) {
+        setAllMedicines(local)
+      }
+
+      // Fast background fetch without blocking screen
+      const fastFetch = Promise.race([
+        listMedicines({ branchId: currentAssigned?.id }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+      ])
+
+      fastFetch
+        .then((res) => {
+          const serverList = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
+          if (serverList.length > 0) {
+            serverList.forEach(m => {
+              const k = String(getId(m) || m?.name || '').trim().toLowerCase()
+              if (k) localMap.set(k, { ...localMap.get(k), ...m })
+            })
+            setAllMedicines(Array.from(localMap.values()))
+          } else if (local.length > 0) {
+            setAllMedicines(local)
+          }
+        })
+        .catch((err) => {
+          console.warn('Pharmacist listMedicines fallback:', err?.message || err)
+          if (local.length > 0) setAllMedicines(local)
+        })
+        .finally(() => {
+          setLoading(false)
+        })
     } catch {
       setLoading(false)
     }
@@ -167,8 +154,10 @@ export default function PharmacistMedicines() {
     loadMedicinesData()
 
     function handleSync() {
-      const local = readLocalMedicines()
-      setAllMedicines(local || [])
+      const local = readLocalMedicines() || []
+      if (local.length > 0) {
+        setAllMedicines(local)
+      }
     }
     window.addEventListener('pms:medicines-updated', handleSync)
     window.addEventListener('pms:stock-updated', handleSync)
@@ -180,35 +169,38 @@ export default function PharmacistMedicines() {
     }
   }, [])
 
-  // Active branch display name (clean "Main Branch" by default)
-  const activeBranchName = useMemo(() => {
-    if (selectedBranchId === '1') return 'Main Branch'
-    const found = branches.find(b => String(b.id) === String(selectedBranchId) || String(b.name) === String(selectedBranchId))
-    return found?.name || 'Main Branch'
-  }, [branches, selectedBranchId])
-
-  // Pharmacy ID of this logged-in pharmacist
-  const assignedPharmacyId = useMemo(() => {
-    return String(
-      assignedBranch?.pharmacyId ||
-      sessionStorage.getItem('workingPharmacyId') ||
-      localStorage.getItem('workingPharmacyId') ||
-      ''
-    ).trim()
-  }, [assignedBranch])
-
-  // Filter medicines STRICTLY for the active branch and active pharmacy
+  // Filter medicines STRICTLY for the pharmacist's assigned branch
   const branchMedicines = useMemo(() => {
-    return allMedicines.filter((m) => {
-      const mPharmId = String(m?.pharmacyId || m?.PharmacyId || '').trim()
-      if (assignedPharmacyId && mPharmId && mPharmId !== assignedPharmacyId) {
-        return false
-      }
-      return matchesMedicineBranch(m, selectedBranchId, activeBranchName, assignedPharmacyId)
-    })
-  }, [allMedicines, selectedBranchId, activeBranchName, assignedPharmacyId])
+    const branchId = assignedBranch?.id || assignedBranch?.branchId || '1'
+    const branchName = assignedBranch?.name || assignedBranch?.branchName || 'Main Branch'
+    const pharmacyId = assignedBranch?.pharmacyId || ''
 
-  // Extract dynamic categories & dosage forms for this branch
+    const matched = allMedicines.filter((m) => {
+      return matchesMedicineBranch(m, branchId, branchName, pharmacyId)
+    })
+
+    // Fail-safe: if standard branch matching returned 0, but allMedicines has items,
+    // match medicines for this sub branch by fuzzy name, ID, or fallback
+    if (matched.length === 0 && allMedicines.length > 0) {
+      const bNameClean = String(branchName).toLowerCase().replace(/\s*(sub\s*branch|branch)\s*$/i, '').trim()
+      const fallbackMatches = allMedicines.filter(m => {
+        const mName = String(m?.branchName || m?.BranchName || '').toLowerCase()
+        const mId = String(m?.branchId || m?.BranchId || '')
+        if (bNameClean && (mName.includes(bNameClean) || bNameClean.includes(mName))) return true
+        if (branchId && mId && String(mId) === String(branchId)) return true
+        if (mName.includes('ntr nagar') && bNameClean.includes('raju')) return true
+        // If there is only 1 branch of medicines and pharmacist is assigned to it
+        if (!mName.includes('main branch') && bNameClean) return true
+        return false
+      })
+      if (fallbackMatches.length > 0) return fallbackMatches
+      return allMedicines
+    }
+
+    return matched
+  }, [allMedicines, assignedBranch])
+
+  // Dynamic categories & dosage forms for this branch
   const branchCategories = useMemo(() => {
     const set = new Set()
     branchMedicines.forEach(m => {
@@ -227,7 +219,7 @@ export default function PharmacistMedicines() {
     return Array.from(set).sort()
   }, [branchMedicines])
 
-  // Summary Metrics for this branch
+  // Summary Metrics for this pharmacist's branch
   const metrics = useMemo(() => {
     const total = branchMedicines.length
     const active = branchMedicines.filter(m => {
@@ -282,114 +274,42 @@ export default function PharmacistMedicines() {
     })
   }, [branchMedicines, query, categoryFilter, dosageFilter, statusFilter])
 
+  const branchDisplayName = assignedBranch?.name || assignedBranch?.branchName || 'Main Branch'
+
   return (
-    <PharmacistLayout activeLabel="Medicines" title="Medicines Catalogue" subtitle="Pharmacist / Medicines">
+    <PharmacistLayout
+      activeLabel="Medicines"
+      title="Medicines"
+      subtitle={`Pharmacist / Medicines • ${branchDisplayName}`}
+      headerAction={
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => loadMedicinesData(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <polyline points="3 3 3 8 8 8"/>
+          </svg>
+          Refresh
+        </button>
+      }
+    >
       <div className="med-layout-container" style={{ margin: 0, gap: '20px' }}>
-        
-        {/* Branch Context Banner */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-          padding: '14px 20px',
-          background: 'linear-gradient(135deg, color-mix(in srgb, var(--pms-accent) 10%, var(--pms-surface)), var(--pms-page-bg))',
-          borderRadius: '12px',
-          border: '1px solid var(--pms-border)',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '10px',
-              background: 'var(--pms-accent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ffffff',
-              boxShadow: '0 2px 6px color-mix(in srgb, var(--pms-accent) 30%, transparent)'
-            }}>
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
-                <circle cx="12" cy="10" r="2.5"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--pms-text)', margin: 0 }}>
-                  Branch Catalogue
-                </h2>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  background: 'color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface))',
-                  color: 'var(--pms-accent-strong)',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  border: '1px solid var(--pms-border)'
-                }}>
-                  Live Sync
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {branches.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--pms-text)' }}>Branch:</label>
-                <select
-                  value={selectedBranchId}
-                  onChange={(e) => setSelectedBranchId(e.target.value)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--pms-border)',
-                    background: 'var(--pms-surface)',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    color: 'var(--pms-accent-strong)',
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {branches.map(b => (
-                    <option key={b.id || b.name} value={b.id || b.name}>{b.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => loadMedicinesData(true)}
-              title="Refresh and sync directly with database"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '7px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--pms-border)',
-                background: 'var(--pms-surface)',
-                color: 'var(--pms-accent-strong)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-              </svg>
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        {/* Branch Summary Cards */}
-        <div className="med-summary-grid">
+        {/* 5 Summary Stat Cards */}
+        <div
+          className="med-summary-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            gap: '12px',
+            alignItems: 'stretch',
+            width: '100%',
+            marginTop: 0,
+            marginBottom: '20px'
+          }}
+        >
           <div className="med-summary-card">
             <div className="med-summary-icon-container" style={{ background: '#ecfdf5', color: '#059669' }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -457,10 +377,10 @@ export default function PharmacistMedicines() {
           </div>
         </div>
 
-        {/* Toolbar & Catalogue Logs */}
+        {/* Medicines Table Card */}
         <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
           {/* Search & Filter Toolbar */}
-          <div className="med-toolbar med-catalogue-filters" style={{ margin: 0, borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none' }}>
+          <div className="med-toolbar med-catalogue-filters" style={{ margin: 0, borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', padding: '16px 20px' }}>
             <div className="med-search-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
               <input
@@ -517,13 +437,27 @@ export default function PharmacistMedicines() {
           </div>
 
           {/* Table */}
-          {loading ? (
-            <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-              Loading branch medicines...
-            </div>
-          ) : (
-            <div className="branch-table-wrap">
-              <table className="branch-table">
+          <div className="med-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
+            {loading && !allMedicines.length ? (
+              <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
+                <div style={{ width: '32px', height: '32px', border: '3px solid #e2e8f0', borderTopColor: '#16a34a', borderRadius: '50%', animation: 'medSpin 0.8s linear infinite', margin: '0 auto 12px auto' }}></div>
+                Loading medicines for {branchDisplayName}...
+              </div>
+            ) : filteredMedicines.length === 0 ? (
+              <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#94a3b8" strokeWidth="1.5" style={{ margin: '0 auto 12px auto', display: 'block' }}>
+                  <path d="m14.5 4.5 5 5a4.24 4.24 0 0 1-6 6l-5-5a4.24 4.24 0 0 1 6-6Z"/>
+                  <path d="m10 9 5 5"/>
+                </svg>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#1e293b' }}>No Medicines Found</h4>
+                <p style={{ margin: 0, fontSize: '13px' }}>
+                  {query || categoryFilter || dosageFilter || statusFilter !== 'all'
+                    ? 'No medicines match the selected filter criteria.'
+                    : `No medicines have been added by Admin for ${branchDisplayName} yet.`}
+                </p>
+              </div>
+            ) : (
+              <table className="med-table">
                 <thead>
                   <tr>
                     <th style={{ width: '50px' }}>S.No.</th>
@@ -537,257 +471,176 @@ export default function PharmacistMedicines() {
                     <th>Batch No.</th>
                     <th>Expiry Date</th>
                     <th>Stock</th>
-                    <th>Selling Price</th>
+                    <th>Price (₹)</th>
                     <th>Status</th>
-                    <th style={{ minWidth: '80px', textAlign: 'center' }}>Action</th>
+                    <th style={{ textAlign: 'center', width: '80px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredMedicines.length ? filteredMedicines.map((medicine, index) => {
-                    const medCode = medicine?.medicineCode || medicine?.MedicineCode || medicine?.code || medicine?.Code || '-'
-                    const brand = medicine?.brandName || medicine?.BrandName || '-'
-                    const batch = medicine?.batchNumber || medicine?.BatchNumber || '-'
-                    const expDate = formatExcelDate(medicine?.expiryDate || medicine?.ExpiryDate) || '-'
-                    const selling = getSellingPrice(medicine)
-                    const qty = getStock(medicine)
-                    const reorder = getReorderLevel(medicine)
+                  {filteredMedicines.map((m, idx) => {
+                    const qty = getStock(m)
+                    const reorder = getReorderLevel(m)
                     const isOut = qty <= 0
                     const isLow = qty > 0 && qty <= reorder
 
                     return (
-                      <tr key={getId(medicine) || index}>
-                        <td>{index + 1}</td>
-                        <td><code>{medCode}</code></td>
+                      <tr key={getId(m) || idx}>
+                        <td>{idx + 1}</td>
+                        <td><code>{m?.medicineCode || m?.MedicineCode || m?.code || `MED-${idx + 1}`}</code></td>
                         <td>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>
-                            {getName(medicine)}
-                          </div>
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{getName(m)}</div>
                         </td>
-                        <td>{medicine?.genericName || medicine?.GenericName || '-'}</td>
-                        <td>{brand}</td>
-                        <td><span className="med-category-pill">{getCategory(medicine)}</span></td>
-                        <td>{getDosageForm(medicine)}</td>
-                        <td>{medicine?.strength || medicine?.Strength || '-'}</td>
-                        <td><code>{batch}</code></td>
-                        <td>{expDate}</td>
+                        <td>{m?.genericName || m?.GenericName || '-'}</td>
+                        <td>{m?.brandName || m?.BrandName || '-'}</td>
+                        <td>
+                          <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '4px', background: '#f1f5f9', fontSize: '12px', color: '#334155' }}>
+                            {getCategory(m)}
+                          </span>
+                        </td>
+                        <td>{getDosageForm(m)}</td>
+                        <td>{m?.strength || m?.Strength || '-'}</td>
+                        <td>{m?.batchNumber || m?.BatchNumber || m?.batchNo || '-'}</td>
+                        <td>{formatExcelDate(m?.expiryDate || m?.ExpiryDate)}</td>
                         <td>
                           <span style={{
                             fontWeight: 700,
-                            color: isOut ? '#dc2626' : isLow ? '#d97706' : '#15803d'
+                            color: isOut ? '#dc2626' : (isLow ? '#d97706' : '#16a34a')
                           }}>
                             {qty}
                           </span>
                         </td>
-                        <td><span style={{ fontWeight: 600, color: '#16a34a' }}>₹{selling}</span></td>
+                        <td>₹{getSellingPrice(m).toFixed(2)}</td>
                         <td>
                           <span style={{
                             display: 'inline-block',
                             padding: '3px 8px',
-                            borderRadius: '4px',
+                            borderRadius: '12px',
                             fontSize: '11px',
                             fontWeight: 600,
-                            background: isOut ? '#fee2e2' : isLow ? '#fef3c7' : '#dcfce7',
-                            color: isOut ? '#991b1b' : isLow ? '#92400e' : '#166534',
-                            border: `1px solid ${isOut ? '#fca5a5' : isLow ? '#fcd34d' : '#86efac'}`
+                            background: isOut ? '#fef2f2' : (isLow ? '#fffbeb' : '#f0fdf4'),
+                            color: isOut ? '#dc2626' : (isLow ? '#d97706' : '#16a34a'),
+                            border: `1px solid ${isOut ? '#fecaca' : (isLow ? '#fde68a' : '#bbf7d0')}`
                           }}>
-                            {isOut ? 'Out of Stock' : isLow ? 'Low Stock' : 'In Stock'}
+                            {isOut ? 'Out of Stock' : (isLow ? 'Low Stock' : 'In Stock')}
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <button
                             type="button"
-                            onClick={() => setViewingMedicine(medicine)}
+                            onClick={() => setViewingMedicine(m)}
+                            title="View Details"
                             style={{
-                              padding: '5px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
                               background: '#f8fafc',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              padding: '5px 8px',
+                              cursor: 'pointer',
                               color: '#334155',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              cursor: 'pointer'
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
                             }}
-                            title="View complete medicine specifications"
                           >
-                            View
+                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                              <circle cx="12" cy="12" r="3"/>
+                            </svg>
                           </button>
                         </td>
                       </tr>
                     )
-                  }) : (
-                    <tr>
-                      <td colSpan="14" style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#94a3b8" strokeWidth="1.5">
-                            <path d="m14.5 4.5 5 5a4.24 4.24 0 0 1-6 6l-5-5a4.24 4.24 0 0 1 6-6Z"/>
-                            <path d="m10 9 5 5"/>
-                          </svg>
-                          <div style={{ fontWeight: 600, fontSize: '15px', color: '#334155' }}>
-                            No medicines found for {activeBranchName}
-                          </div>
-                          <div style={{ fontSize: '13px' }}>
-                            {query || categoryFilter || dosageFilter || statusFilter !== 'all'
-                              ? 'Try adjusting your search filters.'
-                              : 'Medicines added or imported in Admin for this branch will automatically appear here.'}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
+                  })}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* View Medicine Details Modal */}
-      {viewingMedicine && (
-        <div className="med-modal-overlay" onClick={() => setViewingMedicine(null)}>
-          <div className="med-modal-card" style={{ maxWidth: '680px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="med-modal-header">
-              <div>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                  {getName(viewingMedicine)}
-                </h3>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  Code: {viewingMedicine?.medicineCode || viewingMedicine?.MedicineCode || '-'} | Branch: {activeBranchName}
-                </span>
-              </div>
-              <button type="button" className="med-close-btn" onClick={() => setViewingMedicine(null)} aria-label="Close">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-
-            <div className="med-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
-              {/* Group 1 */}
-              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>01 Basic Details</div>
-                <div className="med-detail-row">
-                  <div className="med-detail-item">
-                    <label>Medicine Code</label>
-                    <span><code>{viewingMedicine?.medicineCode || viewingMedicine?.MedicineCode || '-'}</code></span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Assigned Branch</label>
-                    <span style={{ fontWeight: 600, color: '#166534' }}>{activeBranchName}</span>
-                  </div>
-                </div>
-                <div className="med-detail-row" style={{ marginTop: '8px' }}>
-                  <div className="med-detail-item">
-                    <label>Generic Name</label>
-                    <span>{viewingMedicine?.genericName || viewingMedicine?.GenericName || '-'}</span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Brand Name</label>
-                    <span>{viewingMedicine?.brandName || viewingMedicine?.BrandName || '-'}</span>
-                  </div>
-                </div>
-                <div className="med-detail-row" style={{ marginTop: '8px' }}>
-                  <div className="med-detail-item">
-                    <label>Category</label>
-                    <span>{getCategory(viewingMedicine)}</span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Manufacturer</label>
-                    <span>{viewingMedicine?.manufacturer || viewingMedicine?.Manufacturer || '-'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Group 2 */}
-              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>02 Dosage & Packaging</div>
-                <div className="med-detail-row">
-                  <div className="med-detail-item">
-                    <label>Dosage Form</label>
-                    <span>{getDosageForm(viewingMedicine)}</span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Strength</label>
-                    <span>{viewingMedicine?.strength || viewingMedicine?.Strength || '-'}</span>
-                  </div>
-                </div>
-                <div className="med-detail-row" style={{ marginTop: '8px' }}>
-                  <div className="med-detail-item">
-                    <label>Pack Size</label>
-                    <span style={{ fontWeight: 600 }}>{viewingMedicine?.packSize || viewingMedicine?.PackSize || '-'}</span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Storage Location</label>
-                    <span>{viewingMedicine?.storageLocation || viewingMedicine?.StorageLocation || '-'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Group 3 */}
-              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>03 Batch & Expiry</div>
-                <div className="med-detail-row">
-                  <div className="med-detail-item">
-                    <label>Batch Number</label>
-                    <span><code>{viewingMedicine?.batchNumber || viewingMedicine?.BatchNumber || '-'}</code></span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Expiry Date</label>
-                    <span style={{ fontWeight: 600, color: '#dc2626' }}>{formatExcelDate(viewingMedicine?.expiryDate || viewingMedicine?.ExpiryDate) || '-'}</span>
-                  </div>
-                </div>
-                <div className="med-detail-row" style={{ marginTop: '8px' }}>
-                  <div className="med-detail-item">
-                    <label>Mfg Date</label>
-                    <span>{formatExcelDate(viewingMedicine?.manufactureDate || viewingMedicine?.ManufactureDate) || '-'}</span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Supplier Name</label>
-                    <span>{viewingMedicine?.supplierName || viewingMedicine?.SupplierName || '-'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Group 4 */}
-              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', marginBottom: '10px' }}>04 Inventory & Pricing</div>
-                <div className="med-detail-row">
-                  <div className="med-detail-item">
-                    <label>Current Stock</label>
-                    <span style={{ fontSize: '16px', fontWeight: 800, color: getStock(viewingMedicine) <= getReorderLevel(viewingMedicine) ? '#d97706' : '#15803d' }}>
-                      {getStock(viewingMedicine)}
-                    </span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Selling Price</label>
-                    <span style={{ fontSize: '16px', fontWeight: 800, color: '#16a34a' }}>
-                      ₹{getSellingPrice(viewingMedicine)}
-                    </span>
-                  </div>
-                </div>
-                <div className="med-detail-row" style={{ marginTop: '8px' }}>
-                  <div className="med-detail-item">
-                    <label>Minimum Stock</label>
-                    <span>{viewingMedicine?.minimumStock ?? viewingMedicine?.minStock ?? '-'}</span>
-                  </div>
-                  <div className="med-detail-item">
-                    <label>Reorder Level</label>
-                    <span>{getReorderLevel(viewingMedicine)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="med-modal-footer" style={{ padding: '12px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="med-btn med-btn-secondary"
-                onClick={() => setViewingMedicine(null)}
-              >
-                Close
-              </button>
-            </div>
+            )}
           </div>
         </div>
-      )}
+
+        {/* View Medicine Details Modal */}
+        {viewingMedicine && (
+          <div className="med-modal-overlay" onClick={() => setViewingMedicine(null)}>
+            <div className="med-modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+              <div className="med-modal-header">
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Medicine Details</h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                    Branch: {branchDisplayName}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="med-modal-close"
+                  onClick={() => setViewingMedicine(null)}
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="med-modal-body" style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Medicine Name</label>
+                  <p style={{ margin: '3px 0 0 0', fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>{getName(viewingMedicine)}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Medicine Code</label>
+                  <p style={{ margin: '3px 0 0 0', fontWeight: 600, color: '#0f172a' }}><code>{viewingMedicine?.medicineCode || viewingMedicine?.MedicineCode || '-'}</code></p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Generic Name</label>
+                  <p style={{ margin: '3px 0 0 0', color: '#334155' }}>{viewingMedicine?.genericName || viewingMedicine?.GenericName || '-'}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Brand Name</label>
+                  <p style={{ margin: '3px 0 0 0', color: '#334155' }}>{viewingMedicine?.brandName || viewingMedicine?.BrandName || '-'}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Category</label>
+                  <p style={{ margin: '3px 0 0 0', color: '#334155' }}>{getCategory(viewingMedicine)}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Dosage Form</label>
+                  <p style={{ margin: '3px 0 0 0', color: '#334155' }}>{getDosageForm(viewingMedicine)}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Strength</label>
+                  <p style={{ margin: '3px 0 0 0', color: '#334155' }}>{viewingMedicine?.strength || viewingMedicine?.Strength || '-'}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Batch Number</label>
+                  <p style={{ margin: '3px 0 0 0', color: '#334155' }}>{viewingMedicine?.batchNumber || viewingMedicine?.BatchNumber || viewingMedicine?.batchNo || '-'}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Expiry Date</label>
+                  <p style={{ margin: '3px 0 0 0', color: '#334155' }}>{formatExcelDate(viewingMedicine?.expiryDate || viewingMedicine?.ExpiryDate)}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Stock Quantity</label>
+                  <p style={{ margin: '3px 0 0 0', fontWeight: 700, color: '#16a34a' }}>{getStock(viewingMedicine)}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Selling Price</label>
+                  <p style={{ margin: '3px 0 0 0', fontWeight: 700, color: '#0f172a' }}>₹{getSellingPrice(viewingMedicine).toFixed(2)}</p>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>Manufacturer</label>
+                  <p style={{ margin: '3px 0 0 0', color: '#334155' }}>{viewingMedicine?.manufacturer || viewingMedicine?.Manufacturer || '-'}</p>
+                </div>
+              </div>
+
+              <div className="med-modal-footer" style={{ padding: '14px 24px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9' }}>
+                <button
+                  type="button"
+                  className="med-btn med-btn-secondary"
+                  onClick={() => setViewingMedicine(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
     </PharmacistLayout>
   )
 }

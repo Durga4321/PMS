@@ -610,6 +610,7 @@ function Users({ initialAdd = false }) {
       showToast(response?.message || `Pharmacist ${editing ? 'updated' : 'created'} successfully.`)
       closeForm()
       await loadPharmacists()
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('pms:pharmacists-updated'))
     } catch (error) {
       showToast(error.message, 'error')
     } finally {

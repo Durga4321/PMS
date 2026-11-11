@@ -1,6 +1,6 @@
 export const PERMISSION_ACTIONS = ['view', 'create', 'edit', 'delete']
 
-export const ADMIN_MODULES = ['Dashboard', 'Pharmacies', 'Users', 'Medicines', 'Branches', 'Stock', 'Suppliers', 'Purchase Orders', 'Stock Transfers', 'Prescriptions', 'Dispensing', 'Expiry Alerts', 'Reports', 'Settings']
+export const ADMIN_MODULES = ['Dashboard', 'Pharmacies', 'Users', 'Roles & Permissions', 'Medicines', 'Branches', 'Stock', 'Suppliers', 'Purchase Orders', 'Stock Transfers', 'Prescriptions', 'Dispensing', 'Expiry Alerts', 'Reports', 'Settings']
 
 export const MODULE_ALIASES = {
   Dashboard: ['dashboard'],
@@ -44,7 +44,8 @@ export function emptyPermissions(modules = ADMIN_MODULES) {
 
 export function canonicalModule(rawModule, modules = ADMIN_MODULES) {
   const key = normalizePermissionKey(rawModule)
-  return modules.find((module) => [module, ...(MODULE_ALIASES[module] || [])].some((alias) => normalizePermissionKey(alias) === key))
+  const allAliases = { ...MODULE_ALIASES, ...(typeof PHARMACIST_MODULE_ALIASES !== 'undefined' ? PHARMACIST_MODULE_ALIASES : {}) }
+  return modules.find((module) => [module, ...(allAliases[module] || [])].some((alias) => normalizePermissionKey(alias) === key))
 }
 
 export function normalizePermissions(source, modules = ADMIN_MODULES) {
@@ -159,4 +160,68 @@ export function readAdminPermissions() {
   } catch {
     return null
   }
+}
+
+
+export const PHARMACIST_MODULES = [
+  'Dashboard',
+  'Pending',
+  'Dispensing',
+  'Medicines',
+  'Bills',
+  'Returns',
+  'Reports'
+]
+
+export const PHARMACIST_MODULE_ALIASES = {
+  Dashboard: ['dashboard'],
+  Pending: ['pending', 'prescriptions', 'pending prescriptions'],
+  Dispensing: ['dispensing', 'sales', 'billing'],
+  Medicines: ['medicines', 'medicine', 'catalogue'],
+  Bills: ['bills', 'billing', 'invoices'],
+  Returns: ['returns', 'return'],
+  Reports: ['reports', 'report'],
+}
+
+export function readPharmacistPermissions() {
+  const rawUser = sessionStorage.getItem('pharmacistUser') || localStorage.getItem('pharmacistUser')
+  const rawAssignment = sessionStorage.getItem('pharmacistAssignment') || localStorage.getItem('pharmacistAssignment')
+  try {
+    const user = rawUser ? JSON.parse(rawUser) : {}
+    const assignment = rawAssignment ? JSON.parse(rawAssignment) : {}
+    const pharmacistId = user?.id || user?.userId || user?._id || assignment?.pharmacistId || assignment?.userId
+    const email = String(user?.email || assignment?.email || '').trim().toLowerCase()
+
+    if (pharmacistId) {
+      const stored = localStorage.getItem(`pms_pharmacist_permissions_${pharmacistId}`) || sessionStorage.getItem(`pms_pharmacist_permissions_${pharmacistId}`)
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed && typeof parsed === 'object') return normalizePermissions(parsed, PHARMACIST_MODULES)
+        } catch {}
+      }
+    }
+    if (email) {
+      const stored = localStorage.getItem(`pms_pharmacist_permissions_${email}`) || sessionStorage.getItem(`pms_pharmacist_permissions_${email}`)
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed && typeof parsed === 'object') return normalizePermissions(parsed, PHARMACIST_MODULES)
+        } catch {}
+      }
+    }
+
+    const source = permissionSource(user) || permissionSource(assignment)
+    return source ? normalizePermissions(source, PHARMACIST_MODULES) : null
+  } catch {
+    return null
+  }
+}
+
+export function hasPharmacistPermission(permissions, moduleName, action = 'view') {
+  if (!permissions) return true
+  const canonical = canonicalModule(moduleName, PHARMACIST_MODULES)
+  if (!canonical) return true
+  const normalized = normalizePermissions(permissions, PHARMACIST_MODULES)
+  return Boolean(normalized[canonical]?.[action])
 }

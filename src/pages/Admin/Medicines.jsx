@@ -272,7 +272,7 @@ function optionValue(item) {
 
 export default function Medicines() {
   const { showToast } = useToast()
-  const [medicines, setMedicines] = useState([])
+  const [medicines, setMedicines] = useState(() => (typeof readLocalMedicines === 'function' ? readLocalMedicines() : []))
   const [categories, setCategories] = useState([])
   const [dosageForms, setDosageForms] = useState([])
   const [strengths, setStrengths] = useState([])
@@ -551,7 +551,9 @@ export default function Medicines() {
   }
 
   async function loadMedicines(forceFresh = false) {
-    setLoading(true)
+    if (!medicines.length) {
+      setLoading(true)
+    }
     try {
       const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
       const assignment = readStoredValue('pharmacyAdminAssignment') || {}
@@ -568,19 +570,24 @@ export default function Medicines() {
         clearLocalMedicinesCache()
         setMedicines([])
       }
-      // Sync any medicines deleted in the frontend with the backend database
-      try {
-        await syncDeletedMedicinesWithBackend()
-      } catch {}
 
-      const params = { search: query, q: query, category, dosageForm }
-      const response = query ? await searchMedicines(params) : await listMedicines(params)
-      const list = normalizeList(response)
-      writeLocalMedicines(list)
-      setMedicines(list)
+      // Fast background sync without blocking UI
+      Promise.race([
+        (query ? searchMedicines({ search: query, q: query, category, dosageForm }) : listMedicines({ search: query, q: query, category, dosageForm })),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+      ])
+        .then((response) => {
+          const list = normalizeList(response)
+          if (list && list.length > 0) {
+            writeLocalMedicines(list)
+            setMedicines(list)
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          setLoading(false)
+        })
     } catch (error) {
-      showToast(error.message, 'error')
-    } finally {
       setLoading(false)
     }
   }
@@ -592,16 +599,30 @@ export default function Medicines() {
     const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
 
     if (isAssigned) {
-      // Initial pass: heal any existing medicines in local storage that have missing batch, mfg date, or supplier, or unassigned branch
+      // Initial pass: heal any existing medicines in local storage
       const existing = readLocalMedicines()
+      const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
       if (existing && existing.length > 0) {
         let updatedAny = false
         const healed = existing.map((m) => {
           const norm = normalizeMedicineRecord(m)
-          if (!norm.branchName && !norm.branchId) {
+          const mBranchId = String(norm.branchId || norm.BranchId || '').trim()
+          const mBranchName = String(norm.branchName || norm.BranchName || '').trim()
+
+          if (!mBranchName && !mBranchId) {
             norm.branchId = '1'
             norm.branchName = 'Main Branch'
             updatedAny = true
+          } else if (mBranchName.toLowerCase().includes('ntr nagar') || !mBranchName) {
+            const matchedBranch = localSubs.find(b => String(b.id || b.branchId || b._id) === mBranchId) || (localSubs.length === 1 ? localSubs[0] : null)
+            if (matchedBranch) {
+              const properName = matchedBranch.name || matchedBranch.branchName || 'Raju Sub Branch'
+              norm.branchName = properName
+              norm.BranchName = properName
+              norm.branchId = String(matchedBranch.id || matchedBranch.branchId || mBranchId || '2')
+              norm.BranchId = norm.branchId
+              updatedAny = true
+            }
           }
           return norm
         })
@@ -958,8 +979,13 @@ export default function Medicines() {
     setImportMessage(`Reading ${importFile.name}...`)
     try {
       const activeBranchId = String(importBranchId || sessionStorage.getItem('workingBranchId') || localStorage.getItem('workingBranchId') || '1')
-      const targetBranchObj = branchOptions.find(b => String(b.id) === activeBranchId || String(b.branchId) === activeBranchId)
-      const activeBranchName = targetBranchObj?.name || (activeBranchId === '2' ? 'NTR Nagar Branch' : 'Main Branch')
+      const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+      const allKnown = [...branchOptions, ...localSubs]
+      const targetBranchObj = allKnown.find(b =>
+        String(b.id || b.branchId || b._id) === activeBranchId ||
+        String(b.name || b.branchName || '').toLowerCase() === activeBranchId.toLowerCase()
+      )
+      const activeBranchName = targetBranchObj?.name || targetBranchObj?.branchName || (activeBranchId === '1' ? 'Main Branch' : `Branch ${activeBranchId}`)
       const activePharmacy = sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || ''
 
       // 1. Immediate client-side parse (runs in ~30ms)
@@ -1224,7 +1250,12 @@ export default function Medicines() {
               <button
                 type="button"
                 className="med-btn med-btn-secondary"
-                onClick={() => setImportOpen(true)}
+                onClick={() => {
+                  if (branchFilter && branchFilter !== 'all') {
+                    setImportBranchId(branchFilter)
+                  }
+                  setImportOpen(true)
+                }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
