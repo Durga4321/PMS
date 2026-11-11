@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
@@ -12,7 +12,9 @@ import {
   updateStockTransferDraft,
   listPharmacyBranches,
   readLocalStockTransfers,
-  writeLocalStockTransfers
+  writeLocalStockTransfers,
+  listMedicines,
+  readLocalMedicines
 } from '../../config/api'
 import './StockTransfers.css'
 
@@ -50,9 +52,45 @@ export default function StockTransfers() {
   const [branches, setBranches] = useState([])
   const [signedInBranch, setSignedInBranch] = useState('Main Branch')
 
+  // Medicine selection state (sourced directly as per Medicine Management)
+  const [medicines, setMedicines] = useState(() => {
+    try {
+      const local = readLocalMedicines()
+      return Array.isArray(local) ? local : []
+    } catch {
+      return []
+    }
+  })
+  const [createMedDropdownOpen, setCreateMedDropdownOpen] = useState(false)
+  const [editMedDropdownOpen, setEditMedDropdownOpen] = useState(false)
+  const createMedRef = useRef(null)
+  const editMedRef = useRef(null)
+
+  // Derived medicine options with batch, strength, and stock from Medicine Management
+  const medicineOptions = useMemo(() => {
+    const map = new Map()
+    medicines.forEach(m => {
+      const name = String(m?.name || m?.medicineName || m?.brandName || '').trim()
+      if (!name) return
+      const key = name.toLowerCase()
+      if (!map.has(key)) {
+        map.set(key, {
+          name,
+          code: m?.medicineCode || m?.code || '',
+          category: m?.category || m?.categoryName || '',
+          dosageForm: m?.dosageForm || '',
+          strength: m?.strength || '',
+          batchNo: m?.batchNumber || m?.batchNo || m?.batch || '',
+          stock: m?.stock ?? m?.quantity ?? m?.currentStock ?? null
+        })
+      }
+    })
+    return Array.from(map.values())
+  }, [medicines])
+
   useEffect(() => {
     let active = true
-    async function loadBranchData() {
+    async function loadInitialData() {
       try {
         const res = await listPharmacyBranches()
         const list = res?.branches || res?.data || []
@@ -60,6 +98,7 @@ export default function StockTransfers() {
           setBranches(list)
         }
       } catch {}
+
       try {
         const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
         const name = assignment?.branch?.name || assignment?.branchName || assignment?.branchLocation || 'Main Branch'
@@ -68,9 +107,46 @@ export default function StockTransfers() {
           setSignedInBranch(cleanName)
         }
       } catch {}
+
+      try {
+        const medRes = await listMedicines()
+        const medList = normalizeList(medRes)
+        if (active && Array.isArray(medList) && medList.length > 0) {
+          setMedicines(medList)
+        }
+      } catch {}
     }
-    loadBranchData()
-    return () => { active = false }
+
+    loadInitialData()
+
+    function handleMedicineSync() {
+      const fresh = readLocalMedicines()
+      if (active && Array.isArray(fresh) && fresh.length > 0) {
+        setMedicines(fresh)
+      }
+    }
+
+    window.addEventListener('pms:medicines-updated', handleMedicineSync)
+    window.addEventListener('pms:stock-updated', handleMedicineSync)
+    window.addEventListener('storage', handleMedicineSync)
+
+    function handleClickOutside(event) {
+      if (createMedRef.current && !createMedRef.current.contains(event.target)) {
+        setCreateMedDropdownOpen(false)
+      }
+      if (editMedRef.current && !editMedRef.current.contains(event.target)) {
+        setEditMedDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      active = false
+      window.removeEventListener('pms:medicines-updated', handleMedicineSync)
+      window.removeEventListener('pms:stock-updated', handleMedicineSync)
+      window.removeEventListener('storage', handleMedicineSync)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
   }, [])
 
   function openCreateModal() {
@@ -80,6 +156,13 @@ export default function StockTransfers() {
       const name = assignment?.branch?.name || assignment?.branchName || assignment?.branchLocation
       if (name) currentBranch = name.includes('•') ? name.split('•')[0].trim() : name.trim()
     } catch {}
+
+    const fresh = readLocalMedicines()
+    if (Array.isArray(fresh) && fresh.length > 0) {
+      setMedicines(fresh)
+    }
+
+    setCreateMedDropdownOpen(false)
     setCreateForm(prev => ({
       ...prev,
       fromLocation: prev.fromLocation || currentBranch || 'Main Branch'
@@ -108,6 +191,32 @@ export default function StockTransfers() {
     requestedBy: '',
     approvedBy: ''
   })
+
+  // Filtered medicine options for Create Form
+  const filteredCreateMedOptions = useMemo(() => {
+    const searchVal = String(createForm.medicineName || '').trim().toLowerCase()
+    if (!searchVal) return medicineOptions
+    return medicineOptions.filter(m =>
+      m.name.toLowerCase().includes(searchVal) ||
+      (m.code && m.code.toLowerCase().includes(searchVal)) ||
+      (m.category && m.category.toLowerCase().includes(searchVal)) ||
+      (m.strength && m.strength.toLowerCase().includes(searchVal)) ||
+      (m.batchNo && m.batchNo.toLowerCase().includes(searchVal))
+    )
+  }, [medicineOptions, createForm.medicineName])
+
+  // Filtered medicine options for Edit Form
+  const filteredEditMedOptions = useMemo(() => {
+    const searchVal = String(editForm.medicineName || '').trim().toLowerCase()
+    if (!searchVal) return medicineOptions
+    return medicineOptions.filter(m =>
+      m.name.toLowerCase().includes(searchVal) ||
+      (m.code && m.code.toLowerCase().includes(searchVal)) ||
+      (m.category && m.category.toLowerCase().includes(searchVal)) ||
+      (m.strength && m.strength.toLowerCase().includes(searchVal)) ||
+      (m.batchNo && m.batchNo.toLowerCase().includes(searchVal))
+    )
+  }, [medicineOptions, editForm.medicineName])
 
   // Edit Form State
   const [editForm, setEditForm] = useState({
@@ -300,6 +409,23 @@ export default function StockTransfers() {
       if (fromLocClean.includes('•')) fromLocClean = fromLocClean.split('•')[0].trim()
       let toLocClean = createForm.toLocation.trim()
       if (toLocClean.includes('•')) toLocClean = toLocClean.split('•')[0].trim()
+
+      // Match destination and source branches against registered active branches
+      const matchedTo = branches.find(b => {
+        const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
+        return bName && (bName === toLocClean.toLowerCase() || toLocClean.toLowerCase().startsWith(bName) || bName.startsWith(toLocClean.toLowerCase()))
+      })
+      if (matchedTo) {
+        toLocClean = String(matchedTo.name || matchedTo.branchName || matchedTo.BranchName).trim()
+      }
+
+      const matchedFrom = branches.find(b => {
+        const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
+        return bName && (bName === fromLocClean.toLowerCase() || fromLocClean.toLowerCase().startsWith(bName) || bName.startsWith(fromLocClean.toLowerCase()))
+      })
+      if (matchedFrom) {
+        fromLocClean = String(matchedFrom.name || matchedFrom.branchName || matchedFrom.BranchName).trim()
+      }
 
       const body = {
         fromLocation: fromLocClean,
@@ -737,17 +863,103 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Medicine Name *</label>
-                      <input
-                        type="text"
-                        id="create-medicineName"
-                        value={createForm.medicineName}
-                        onChange={(e) => {
-                          setCreateForm({...createForm, medicineName: e.target.value})
-                          if (createErrors.medicineName) setCreateErrors({...createErrors, medicineName: ''})
-                        }}
-                        style={createErrors.medicineName ? { borderColor: '#ef4444' } : {}}
-                        required
-                      />
+                      <div className="transfer-combobox-wrap" ref={createMedRef}>
+                        <input
+                          type="text"
+                          id="create-medicineName"
+                          className="transfer-combobox-input"
+                          value={createForm.medicineName}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setCreateForm(prev => ({ ...prev, medicineName: val }))
+                            if (createErrors.medicineName) setCreateErrors(prev => ({ ...prev, medicineName: '' }))
+                            setCreateMedDropdownOpen(true)
+                          }}
+                          onFocus={() => setCreateMedDropdownOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setCreateMedDropdownOpen(false)
+                          }}
+                          placeholder="Select or type medicine name..."
+                          style={createErrors.medicineName ? { borderColor: '#ef4444' } : {}}
+                          autoComplete="off"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="transfer-combobox-toggle"
+                          onClick={() => setCreateMedDropdownOpen(prev => !prev)}
+                          tabIndex={-1}
+                          aria-label="Toggle medicine dropdown"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: createMedDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        {createMedDropdownOpen && (
+                          <div className="transfer-combobox-menu">
+                            {filteredCreateMedOptions.length > 0 ? (
+                              filteredCreateMedOptions.map((med, idx) => {
+                                const isSelected = createForm.medicineName.trim().toLowerCase() === med.name.toLowerCase()
+                                return (
+                                  <div
+                                    key={med.code || `${med.name}-${idx}`}
+                                    className={`transfer-combobox-option ${isSelected ? 'is-selected' : ''}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setCreateForm(prev => ({
+                                        ...prev,
+                                        medicineName: med.name,
+                                        batchNo: med.batchNo || prev.batchNo
+                                      }))
+                                      if (createErrors.medicineName) {
+                                        setCreateErrors(prev => ({ ...prev, medicineName: '' }))
+                                      }
+                                      if (med.batchNo && createErrors.batchNo) {
+                                        setCreateErrors(prev => ({ ...prev, batchNo: '' }))
+                                      }
+                                      setCreateMedDropdownOpen(false)
+                                    }}
+                                  >
+                                    <div className="transfer-combobox-option-title">
+                                      {med.name}
+                                    </div>
+                                    <div className="transfer-combobox-option-meta">
+                                      {med.batchNo && <span>Batch: <strong>{med.batchNo}</strong></span>}
+                                      {med.strength && <span>• {med.strength}</span>}
+                                      {med.category && <span>• {med.category}</span>}
+                                      {med.stock !== null && (
+                                        <span style={{ marginLeft: 'auto', color: med.stock > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                                          Stock: {med.stock}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <div className="transfer-combobox-empty">
+                                {createForm.medicineName.trim()
+                                  ? `No existing medicines matching "${createForm.medicineName}". You can keep typing to use this name.`
+                                  : 'No medicines available in catalogue.'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {createErrors.medicineName && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.medicineName}</span>
                       )}
@@ -870,17 +1082,103 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Medicine Name *</label>
-                      <input
-                        type="text"
-                        id="edit-medicineName"
-                        value={editForm.medicineName}
-                        onChange={(e) => {
-                          setEditForm({...editForm, medicineName: e.target.value})
-                          if (editErrors.medicineName) setEditErrors({...editErrors, medicineName: ''})
-                        }}
-                        style={editErrors.medicineName ? { borderColor: '#ef4444' } : {}}
-                        required
-                      />
+                      <div className="transfer-combobox-wrap" ref={editMedRef}>
+                        <input
+                          type="text"
+                          id="edit-medicineName"
+                          className="transfer-combobox-input"
+                          value={editForm.medicineName}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setEditForm(prev => ({ ...prev, medicineName: val }))
+                            if (editErrors.medicineName) setEditErrors(prev => ({ ...prev, medicineName: '' }))
+                            setEditMedDropdownOpen(true)
+                          }}
+                          onFocus={() => setEditMedDropdownOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setEditMedDropdownOpen(false)
+                          }}
+                          placeholder="Select or type medicine name..."
+                          style={editErrors.medicineName ? { borderColor: '#ef4444' } : {}}
+                          autoComplete="off"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="transfer-combobox-toggle"
+                          onClick={() => setEditMedDropdownOpen(prev => !prev)}
+                          tabIndex={-1}
+                          aria-label="Toggle medicine dropdown"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: editMedDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        {editMedDropdownOpen && (
+                          <div className="transfer-combobox-menu">
+                            {filteredEditMedOptions.length > 0 ? (
+                              filteredEditMedOptions.map((med, idx) => {
+                                const isSelected = editForm.medicineName.trim().toLowerCase() === med.name.toLowerCase()
+                                return (
+                                  <div
+                                    key={med.code || `${med.name}-${idx}`}
+                                    className={`transfer-combobox-option ${isSelected ? 'is-selected' : ''}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setEditForm(prev => ({
+                                        ...prev,
+                                        medicineName: med.name,
+                                        batchNo: med.batchNo || prev.batchNo
+                                      }))
+                                      if (editErrors.medicineName) {
+                                        setEditErrors(prev => ({ ...prev, medicineName: '' }))
+                                      }
+                                      if (med.batchNo && editErrors.batchNo) {
+                                        setEditErrors(prev => ({ ...prev, batchNo: '' }))
+                                      }
+                                      setEditMedDropdownOpen(false)
+                                    }}
+                                  >
+                                    <div className="transfer-combobox-option-title">
+                                      {med.name}
+                                    </div>
+                                    <div className="transfer-combobox-option-meta">
+                                      {med.batchNo && <span>Batch: <strong>{med.batchNo}</strong></span>}
+                                      {med.strength && <span>• {med.strength}</span>}
+                                      {med.category && <span>• {med.category}</span>}
+                                      {med.stock !== null && (
+                                        <span style={{ marginLeft: 'auto', color: med.stock > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                                          Stock: {med.stock}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <div className="transfer-combobox-empty">
+                                {editForm.medicineName.trim()
+                                  ? `No existing medicines matching "${editForm.medicineName}". You can keep typing to use this name.`
+                                  : 'No medicines available in catalogue.'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {editErrors.medicineName && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.medicineName}</span>
                       )}
