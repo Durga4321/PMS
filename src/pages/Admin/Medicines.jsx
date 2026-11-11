@@ -983,8 +983,15 @@ export default function Medicines() {
         if (codeKey) updatedMap.set(`${branchKey}__${codeKey}`, m)
       })
       rows.forEach((row) => {
+        const batchNum = row.batchNumber || row.BatchNumber || row.batchNo || row.BatchNo || ''
         const taggedRow = {
           ...row,
+          isImported: true,
+          _isPendingSync: true,
+          batchNumber: batchNum,
+          BatchNumber: batchNum,
+          batchNo: batchNum,
+          BatchNo: batchNum,
           branchId: row.branchId || activeBranchId,
           BranchId: row.BranchId || activeBranchId,
           branchName: row.branchName || activeBranchName,
@@ -1001,6 +1008,12 @@ export default function Medicines() {
         const merged = normalizeMedicineRecord({
           ...existing,
           ...taggedRow,
+          isImported: true,
+          _isPendingSync: true,
+          batchNumber: batchNum || existing.batchNumber || existing.BatchNumber || '',
+          BatchNumber: batchNum || existing.BatchNumber || existing.batchNumber || '',
+          batchNo: batchNum || existing.batchNo || '',
+          BatchNo: batchNum || existing.BatchNo || '',
           branchId: activeBranchId,
           BranchId: activeBranchId,
           branchName: activeBranchName,
@@ -1011,6 +1024,9 @@ export default function Medicines() {
         saveMedicineToCache(merged, merged)
       })
       const fullMergedList = Array.from(updatedMap.values())
+      try {
+        localStorage.setItem('pms_imported_medicines', JSON.stringify(fullMergedList))
+      } catch {}
       writeLocalMedicines(fullMergedList)
       setMedicines(fullMergedList)
 

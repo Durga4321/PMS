@@ -35,7 +35,7 @@ function getId(item, index) {
 function resolveMedicineBatch(m, index = 0, fallbackTransferItems = []) {
   if (!m) return `BAT${String(index + 1).padStart(4, '0')}`
 
-  // 1. Direct explicit batch property on medicine object
+  // 1. Direct explicit batch property on medicine object (including imported batches)
   const direct = m?.batchNumber || m?.BatchNumber || m?.batchNo || m?.BatchNo || m?.batch || m?.Batch || m?.lotNumber || m?.LotNumber || m?.batchId || m?.BatchId
   if (direct && String(direct).trim() && String(direct).trim() !== '-') {
     return String(direct).trim()
@@ -46,13 +46,32 @@ function resolveMedicineBatch(m, index = 0, fallbackTransferItems = []) {
   const codeKey = String(rawMedCode).trim().toLowerCase()
   const nameKey = String(rawNameVal).trim().toLowerCase()
 
-  // 2. Check medicine cache from localStorage / sessionStorage
+  // 2. Check explicit imported medicines in localStorage
   try {
-    const rawCache = localStorage.getItem('pms_medicine_cache') || sessionStorage.getItem('pms_medicine_cache')
+    const impRaw = localStorage.getItem('pms_imported_medicines')
+    if (impRaw) {
+      const parsed = JSON.parse(impRaw)
+      if (Array.isArray(parsed)) {
+        const found = parsed.find(item => {
+          const iCode = String(item?.medicineCode || item?.code || '').trim().toLowerCase()
+          const iName = String(item?.name || item?.medicineName || '').trim().toLowerCase()
+          return (codeKey && iCode && codeKey === iCode) || (nameKey && iName && nameKey === iName)
+        })
+        const foundBatch = found?.batchNumber || found?.BatchNumber || found?.batchNo || found?.BatchNo
+        if (foundBatch && String(foundBatch).trim() && String(foundBatch).trim() !== '-') {
+          return String(foundBatch).trim()
+        }
+      }
+    }
+  } catch {}
+
+  // 3. Check medicine cache from localStorage / sessionStorage
+  try {
+    const rawCache = localStorage.getItem('pms_medicine_cache') || sessionStorage.getItem('pms_medicine_cache') || localStorage.getItem('pms_medicine_catalogue_cache')
     if (rawCache) {
       const parsed = JSON.parse(rawCache)
       const idKey = `id:${String(m?.id || m?._id || '').trim().toLowerCase()}`
-      const cached = (idKey && parsed[idKey]) || (codeKey && parsed[`code:${codeKey}`]) || (nameKey && parsed[`name:${nameKey}`])
+      const cached = (idKey && parsed[idKey]) || (codeKey && parsed[`code:${codeKey}`]) || (nameKey && parsed[`name:${nameKey}`]) || (codeKey && parsed[codeKey]) || (nameKey && parsed[nameKey])
       const cachedBatch = cached?.batchNumber || cached?.BatchNumber || cached?.batchNo
       if (cachedBatch && String(cachedBatch).trim() && String(cachedBatch).trim() !== '-') {
         return String(cachedBatch).trim()
@@ -60,7 +79,7 @@ function resolveMedicineBatch(m, index = 0, fallbackTransferItems = []) {
     }
   } catch {}
 
-  // 3. Check medicineCatalogReference
+  // 4. Check medicineCatalogReference
   if (medicineCatalogReference && typeof medicineCatalogReference === 'object') {
     const ref = (codeKey && medicineCatalogReference[codeKey]) || (nameKey && medicineCatalogReference[nameKey])
     if (ref?.batchNumber && String(ref.batchNumber).trim()) {
@@ -68,7 +87,7 @@ function resolveMedicineBatch(m, index = 0, fallbackTransferItems = []) {
     }
   }
 
-  // 4. Check if any prior stock transfer logged a batch for this medicine
+  // 5. Check if any prior stock transfer logged a batch for this medicine
   if (Array.isArray(fallbackTransferItems) && fallbackTransferItems.length > 0 && nameKey) {
     const prev = fallbackTransferItems.find((t) => {
       const tMed = String(t?.medicineName || t?.name || '').trim().toLowerCase()
@@ -80,13 +99,73 @@ function resolveMedicineBatch(m, index = 0, fallbackTransferItems = []) {
     }
   }
 
-  // 5. Deterministic batch number matching Medicine Management standard
+  // 6. Deterministic batch number matching Medicine Management standard
   const digitsMatch = (rawMedCode || rawNameVal).match(/\d+/)
   if (digitsMatch) {
     return `BAT${String(digitsMatch[0]).padStart(4, '0')}`
   }
 
   return `BAT${String(index + 1).padStart(4, '0')}`
+}
+
+// Ingest and consolidate all medicines from Medicine Management (live, local, and imported)
+function loadAllMedicineRecords() {
+  const map = new Map()
+
+  function ingest(m) {
+    if (!m || typeof m !== 'object') return
+    const name = String(m?.name || m?.medicineName || m?.brandName || '').trim()
+    if (!name || name === '-') return
+    const code = String(m?.medicineCode || m?.code || m?.MedicineCode || m?.Code || '').trim()
+    const key = `${name.toLowerCase()}___${code.toLowerCase()}`
+    if (!map.has(key)) {
+      map.set(key, m)
+    } else {
+      const existing = map.get(key)
+      const existingBatch = existing?.batchNumber || existing?.BatchNumber || existing?.batchNo
+      const newBatch = m?.batchNumber || m?.BatchNumber || m?.batchNo
+      if (!existingBatch && newBatch) {
+        map.set(key, { ...existing, ...m })
+      }
+    }
+  }
+
+  // 1. Check pms_imported_medicines (explicit imported medicine rows from Excel upload)
+  try {
+    const impRaw = localStorage.getItem('pms_imported_medicines')
+    if (impRaw) {
+      const parsed = JSON.parse(impRaw)
+      if (Array.isArray(parsed)) parsed.forEach(ingest)
+    }
+  } catch {}
+
+  // 2. Check readLocalMedicines()
+  try {
+    const local = readLocalMedicines()
+    if (Array.isArray(local)) local.forEach(ingest)
+  } catch {}
+
+  // 3. Check pms_local_medicines directly
+  try {
+    const masterRaw = localStorage.getItem('pms_local_medicines')
+    if (masterRaw) {
+      const parsed = JSON.parse(masterRaw)
+      if (Array.isArray(parsed)) parsed.forEach(ingest)
+    }
+  } catch {}
+
+  // 4. Check pms_medicine_catalogue_cache
+  try {
+    const cacheRaw = localStorage.getItem('pms_medicine_catalogue_cache')
+    if (cacheRaw) {
+      const parsed = JSON.parse(cacheRaw)
+      if (parsed && typeof parsed === 'object') {
+        Object.values(parsed).forEach(ingest)
+      }
+    }
+  } catch {}
+
+  return Array.from(map.values())
 }
 
 export default function StockTransfers() {
@@ -113,8 +192,8 @@ export default function StockTransfers() {
   // Medicine selection state (sourced directly as per Medicine Management)
   const [medicines, setMedicines] = useState(() => {
     try {
-      const local = readLocalMedicines()
-      return Array.isArray(local) ? local : []
+      const all = loadAllMedicineRecords()
+      return all.length > 0 ? all : []
     } catch {
       return []
     }
@@ -132,7 +211,21 @@ export default function StockTransfers() {
   // Derived medicine options with batch, strength, and stock from Medicine Management
   const medicineOptions = useMemo(() => {
     const map = new Map()
-    medicines.forEach((m, idx) => {
+    const allPool = [...medicines]
+    const localImported = loadAllMedicineRecords()
+    localImported.forEach(m => {
+      const mName = String(m?.name || m?.medicineName || '').trim().toLowerCase()
+      const mCode = String(m?.medicineCode || m?.code || '').trim().toLowerCase()
+      if (!allPool.some(p => {
+        const pName = String(p?.name || p?.medicineName || '').trim().toLowerCase()
+        const pCode = String(p?.medicineCode || p?.code || '').trim().toLowerCase()
+        return (mCode && pCode && mCode === pCode) || (mName && pName && mName === pName)
+      })) {
+        allPool.push(m)
+      }
+    })
+
+    allPool.forEach((m, idx) => {
       const name = String(m?.name || m?.medicineName || m?.brandName || '').trim()
       if (!name) return
       const key = name.toLowerCase()
@@ -175,8 +268,21 @@ export default function StockTransfers() {
       try {
         const medRes = await listMedicines()
         const medList = normalizeList(medRes)
-        if (active && Array.isArray(medList) && medList.length > 0) {
-          setMedicines(medList)
+        const localImported = loadAllMedicineRecords()
+        const combined = [...localImported]
+        medList.forEach(b => {
+          const bName = String(b?.name || b?.medicineName || '').trim().toLowerCase()
+          const bCode = String(b?.medicineCode || b?.code || '').trim().toLowerCase()
+          if (!combined.some(c => {
+            const cName = String(c?.name || c?.medicineName || '').trim().toLowerCase()
+            const cCode = String(c?.medicineCode || c?.code || '').trim().toLowerCase()
+            return (bCode && cCode && bCode === cCode) || (bName && cName && bName === cName)
+          })) {
+            combined.push(b)
+          }
+        })
+        if (active && combined.length > 0) {
+          setMedicines(combined)
         }
       } catch {}
     }
@@ -184,7 +290,7 @@ export default function StockTransfers() {
     loadInitialData()
 
     function handleMedicineSync() {
-      const fresh = readLocalMedicines()
+      const fresh = loadAllMedicineRecords()
       if (active && Array.isArray(fresh) && fresh.length > 0) {
         setMedicines(fresh)
       }
@@ -227,7 +333,7 @@ export default function StockTransfers() {
       if (name) currentBranch = name.includes('•') ? name.split('•')[0].trim() : name.trim()
     } catch {}
 
-    const fresh = readLocalMedicines()
+    const fresh = loadAllMedicineRecords()
     if (Array.isArray(fresh) && fresh.length > 0) {
       setMedicines(fresh)
     }
@@ -324,8 +430,22 @@ export default function StockTransfers() {
       }
     }
 
-    // 1. From all medicines in Medicine Management (with resolved batch numbers)
-    medicines.forEach((m, idx) => {
+    // 1. From all medicines in Medicine Management (including imported, local, and live)
+    const allPool = [...medicines]
+    const localImported = loadAllMedicineRecords()
+    localImported.forEach(m => {
+      const mName = String(m?.name || m?.medicineName || '').trim().toLowerCase()
+      const mCode = String(m?.medicineCode || m?.code || '').trim().toLowerCase()
+      if (!allPool.some(p => {
+        const pName = String(p?.name || p?.medicineName || '').trim().toLowerCase()
+        const pCode = String(p?.medicineCode || p?.code || '').trim().toLowerCase()
+        return (mCode && pCode && mCode === pCode) || (mName && pName && mName === pName)
+      })) {
+        allPool.push(m)
+      }
+    })
+
+    allPool.forEach((m, idx) => {
       const medName = String(m?.name || m?.medicineName || m?.brandName || '').trim()
       const resolvedBatch = resolveMedicineBatch(m, idx, items)
       const exp = m?.expiryDate || m?.ExpiryDate || ''
