@@ -16,6 +16,7 @@ import {
   listMedicines,
   readLocalMedicines
 } from '../../config/api'
+import medicineCatalogReference from '../../data/medicineCatalogReference.json'
 import './StockTransfers.css'
 
 const normalizeList = (response) => {
@@ -29,6 +30,63 @@ const normalizeList = (response) => {
 
 function getId(item, index) {
   return item?._id || item?.id || item?.transferId || `${index}`
+}
+
+function resolveMedicineBatch(m, index = 0, fallbackTransferItems = []) {
+  if (!m) return `BAT${String(index + 1).padStart(4, '0')}`
+
+  // 1. Direct explicit batch property on medicine object
+  const direct = m?.batchNumber || m?.BatchNumber || m?.batchNo || m?.BatchNo || m?.batch || m?.Batch || m?.lotNumber || m?.LotNumber || m?.batchId || m?.BatchId
+  if (direct && String(direct).trim() && String(direct).trim() !== '-') {
+    return String(direct).trim()
+  }
+
+  const rawMedCode = m?.medicineCode || m?.code || m?.MedicineCode || m?.Code || ''
+  const rawNameVal = m?.name || m?.medicineName || m?.brandName || ''
+  const codeKey = String(rawMedCode).trim().toLowerCase()
+  const nameKey = String(rawNameVal).trim().toLowerCase()
+
+  // 2. Check medicine cache from localStorage / sessionStorage
+  try {
+    const rawCache = localStorage.getItem('pms_medicine_cache') || sessionStorage.getItem('pms_medicine_cache')
+    if (rawCache) {
+      const parsed = JSON.parse(rawCache)
+      const idKey = `id:${String(m?.id || m?._id || '').trim().toLowerCase()}`
+      const cached = (idKey && parsed[idKey]) || (codeKey && parsed[`code:${codeKey}`]) || (nameKey && parsed[`name:${nameKey}`])
+      const cachedBatch = cached?.batchNumber || cached?.BatchNumber || cached?.batchNo
+      if (cachedBatch && String(cachedBatch).trim() && String(cachedBatch).trim() !== '-') {
+        return String(cachedBatch).trim()
+      }
+    }
+  } catch {}
+
+  // 3. Check medicineCatalogReference
+  if (medicineCatalogReference && typeof medicineCatalogReference === 'object') {
+    const ref = (codeKey && medicineCatalogReference[codeKey]) || (nameKey && medicineCatalogReference[nameKey])
+    if (ref?.batchNumber && String(ref.batchNumber).trim()) {
+      return String(ref.batchNumber).trim()
+    }
+  }
+
+  // 4. Check if any prior stock transfer logged a batch for this medicine
+  if (Array.isArray(fallbackTransferItems) && fallbackTransferItems.length > 0 && nameKey) {
+    const prev = fallbackTransferItems.find((t) => {
+      const tMed = String(t?.medicineName || t?.name || '').trim().toLowerCase()
+      return tMed && (tMed === nameKey || nameKey.includes(tMed) || tMed.includes(nameKey))
+    })
+    const prevBatch = prev?.batchNumber || prev?.batchNo || prev?.BatchNumber
+    if (prevBatch && String(prevBatch).trim() && String(prevBatch).trim() !== '-') {
+      return String(prevBatch).trim()
+    }
+  }
+
+  // 5. Deterministic batch number matching Medicine Management standard
+  const digitsMatch = (rawMedCode || rawNameVal).match(/\d+/)
+  if (digitsMatch) {
+    return `BAT${String(digitsMatch[0]).padStart(4, '0')}`
+  }
+
+  return `BAT${String(index + 1).padStart(4, '0')}`
 }
 
 export default function StockTransfers() {
@@ -74,24 +132,25 @@ export default function StockTransfers() {
   // Derived medicine options with batch, strength, and stock from Medicine Management
   const medicineOptions = useMemo(() => {
     const map = new Map()
-    medicines.forEach(m => {
+    medicines.forEach((m, idx) => {
       const name = String(m?.name || m?.medicineName || m?.brandName || '').trim()
       if (!name) return
       const key = name.toLowerCase()
       if (!map.has(key)) {
+        const batchNo = resolveMedicineBatch(m, idx, items)
         map.set(key, {
           name,
           code: m?.medicineCode || m?.code || '',
           category: m?.category || m?.categoryName || '',
           dosageForm: m?.dosageForm || '',
           strength: m?.strength || '',
-          batchNo: m?.batchNumber || m?.batchNo || m?.batch || '',
+          batchNo: batchNo,
           stock: m?.stock ?? m?.quantity ?? m?.currentStock ?? null
         })
       }
     })
     return Array.from(map.values())
-  }, [medicines])
+  }, [medicines, items])
 
   useEffect(() => {
     let active = true
@@ -138,13 +197,12 @@ export default function StockTransfers() {
     function handleClickOutside(event) {
       if (createMedRef.current && !createMedRef.current.contains(event.target)) {
         setCreateMedDropdownOpen(false)
-    setCreateBatchDropdownOpen(false)
-      }
-      if (editMedRef.current && !editMedRef.current.contains(event.target)) {
-        setEditMedDropdownOpen(false)
       }
       if (createBatchRef.current && !createBatchRef.current.contains(event.target)) {
         setCreateBatchDropdownOpen(false)
+      }
+      if (editMedRef.current && !editMedRef.current.contains(event.target)) {
+        setEditMedDropdownOpen(false)
       }
       if (editBatchRef.current && !editBatchRef.current.contains(event.target)) {
         setEditBatchDropdownOpen(false)
@@ -244,69 +302,150 @@ export default function StockTransfers() {
     )
   }, [medicineOptions, editForm?.medicineName])
 
-  // Batch number options from Medicine Management
+  // Comprehensive batch number options sourced directly as per Medicine Management
   const batchOptions = useMemo(() => {
     const list = []
     const seen = new Set()
 
-    medicines.forEach(m => {
-      const batch = String(m?.batchNumber || m?.batchNo || m?.batch || m?.BatchNumber || m?.BatchNo || '').trim()
-      if (!batch) return
-      const medName = String(m?.name || m?.medicineName || m?.brandName || '').trim()
-      const key = `${batch.toLowerCase()}___${medName.toLowerCase()}`
+    function addBatch(batchNo, medicineName, expiryDate = '', stock = null, source = '') {
+      const cleanBatch = String(batchNo || '').trim()
+      if (!cleanBatch || cleanBatch === '-') return
+      const cleanMed = String(medicineName || '').trim()
+      const key = `${cleanBatch.toLowerCase()}___${cleanMed.toLowerCase()}`
       if (!seen.has(key)) {
         seen.add(key)
         list.push({
-          batchNo: batch,
-          medicineName: medName,
-          expiryDate: m?.expiryDate || m?.ExpiryDate || '',
-          stock: m?.stock ?? m?.quantity ?? m?.currentStock ?? null
+          batchNo: cleanBatch,
+          medicineName: cleanMed,
+          expiryDate: expiryDate || '',
+          stock: stock !== null && !isNaN(Number(stock)) ? Number(stock) : null,
+          source
         })
       }
-    })
-    return list
-  }, [medicines])
+    }
 
-  // Filtered batch options for Create Form
+    // 1. From all medicines in Medicine Management (with resolved batch numbers)
+    medicines.forEach((m, idx) => {
+      const medName = String(m?.name || m?.medicineName || m?.brandName || '').trim()
+      const resolvedBatch = resolveMedicineBatch(m, idx, items)
+      const exp = m?.expiryDate || m?.ExpiryDate || ''
+      const stk = m?.stock ?? m?.quantity ?? m?.currentStock ?? null
+      addBatch(resolvedBatch, medName, exp, stk, 'medicine')
+    })
+
+    // 2. From existing stock transfer records
+    items.forEach((t) => {
+      const b = t?.batchNumber || t?.batchNo || t?.BatchNumber
+      const mName = t?.medicineName || t?.medicine || t?.name
+      if (b && mName) {
+        addBatch(b, mName, '', t?.quantity, 'transfer')
+      }
+    })
+
+    // 3. From local inventory / stock if present in storage
+    try {
+      const rawStock = localStorage.getItem('pms_stock') || localStorage.getItem('pms_inventory')
+      if (rawStock) {
+        const parsedStock = JSON.parse(rawStock)
+        if (Array.isArray(parsedStock)) {
+          parsedStock.forEach((stk) => {
+            const b = stk?.batchNo || stk?.batchNumber || stk?.batchId
+            const mName = stk?.name || stk?.medicineName
+            if (b) addBatch(b, mName, stk?.expiryDate, stk?.quantity || stk?.stock, 'inventory')
+          })
+        }
+      }
+    } catch {}
+
+    // 4. From medicineCatalogReference (standard catalog batches)
+    if (medicineCatalogReference && typeof medicineCatalogReference === 'object') {
+      Object.values(medicineCatalogReference).forEach((ref) => {
+        if (ref?.batchNumber && ref?.name) {
+          addBatch(ref.batchNumber, ref.name, ref.expiryDate, ref.quantity, 'catalog')
+        }
+      })
+    }
+
+    return list
+  }, [medicines, items])
+
+  // Filtered batch options for Create Form - shows medicine's matching batches first, then all catalogue batches
   const filteredCreateBatchOptions = useMemo(() => {
     const searchVal = String(createForm.batchNo || '').trim().toLowerCase()
     const selectedMed = String(createForm.medicineName || '').trim().toLowerCase()
 
-    let filtered = batchOptions
-    if (selectedMed) {
-      const medSpecific = batchOptions.filter(b => b.medicineName.toLowerCase() === selectedMed)
-      if (medSpecific.length > 0) {
-        filtered = medSpecific
+    const matchingBatches = []
+    const otherBatches = []
+
+    batchOptions.forEach((opt) => {
+      const optMed = String(opt.medicineName || '').trim().toLowerCase()
+      const isDirectMatch = Boolean(
+        selectedMed && (
+          optMed === selectedMed ||
+          (selectedMed.length > 3 && optMed.includes(selectedMed)) ||
+          (optMed.length > 3 && selectedMed.includes(optMed))
+        )
+      )
+
+      if (isDirectMatch) {
+        matchingBatches.push({ ...opt, isDirectMatch: true })
+      } else {
+        otherBatches.push(opt)
       }
+    })
+
+    // Matching batches for selected medicine appear at the top, followed by other available batches
+    let combined = selectedMed
+      ? [...matchingBatches, ...otherBatches]
+      : batchOptions
+
+    if (searchVal) {
+      combined = combined.filter((b) =>
+        b.batchNo.toLowerCase().includes(searchVal) ||
+        (b.medicineName && b.medicineName.toLowerCase().includes(searchVal))
+      )
     }
 
-    if (!searchVal) return filtered
-
-    return filtered.filter(b =>
-      b.batchNo.toLowerCase().includes(searchVal) ||
-      (b.medicineName && b.medicineName.toLowerCase().includes(searchVal))
-    )
+    return combined
   }, [batchOptions, createForm.batchNo, createForm.medicineName])
 
-  // Filtered batch options for Edit Form
+  // Filtered batch options for Edit Form - shows medicine's matching batches first, then all catalogue batches
   const filteredEditBatchOptions = useMemo(() => {
     const searchVal = String(editForm?.batchNo || '').trim().toLowerCase()
     const selectedMed = String(editForm?.medicineName || '').trim().toLowerCase()
 
-    let filtered = batchOptions
-    if (selectedMed) {
-      const medSpecific = batchOptions.filter(b => b.medicineName.toLowerCase() === selectedMed)
-      if (medSpecific.length > 0) {
-        filtered = medSpecific
+    const matchingBatches = []
+    const otherBatches = []
+
+    batchOptions.forEach((opt) => {
+      const optMed = String(opt.medicineName || '').trim().toLowerCase()
+      const isDirectMatch = Boolean(
+        selectedMed && (
+          optMed === selectedMed ||
+          (selectedMed.length > 3 && optMed.includes(selectedMed)) ||
+          (optMed.length > 3 && selectedMed.includes(optMed))
+        )
+      )
+
+      if (isDirectMatch) {
+        matchingBatches.push({ ...opt, isDirectMatch: true })
+      } else {
+        otherBatches.push(opt)
       }
+    })
+
+    let combined = selectedMed
+      ? [...matchingBatches, ...otherBatches]
+      : batchOptions
+
+    if (searchVal) {
+      combined = combined.filter((b) =>
+        b.batchNo.toLowerCase().includes(searchVal) ||
+        (b.medicineName && b.medicineName.toLowerCase().includes(searchVal))
+      )
     }
 
-    if (!searchVal) return filtered
-
-    return filtered.filter(b =>
-      b.batchNo.toLowerCase().includes(searchVal) ||
-      (b.medicineName && b.medicineName.toLowerCase().includes(searchVal))
-    )
+    return combined
   }, [batchOptions, editForm?.batchNo, editForm?.medicineName])
 
   // Validation Error States
@@ -1058,6 +1197,7 @@ export default function StockTransfers() {
                             setCreateBatchDropdownOpen(true)
                           }}
                           onFocus={() => setCreateBatchDropdownOpen(true)}
+                          onClick={() => setCreateBatchDropdownOpen(true)}
                           onKeyDown={(e) => {
                             if (e.key === 'Escape') setCreateBatchDropdownOpen(false)
                           }}
@@ -1116,8 +1256,21 @@ export default function StockTransfers() {
                                       setCreateBatchDropdownOpen(false)
                                     }}
                                   >
-                                    <div className="transfer-combobox-option-title">
-                                      {opt.batchNo}
+                                    <div className="transfer-combobox-option-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                      <span>{opt.batchNo}</span>
+                                      {opt.isDirectMatch && (
+                                        <span style={{
+                                          fontSize: '10px',
+                                          fontWeight: 700,
+                                          padding: '2px 6px',
+                                          borderRadius: '999px',
+                                          background: '#ecfdf5',
+                                          color: '#059669',
+                                          border: '1px solid #a7f3d0'
+                                        }}>
+                                          Matches Selected Medicine
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="transfer-combobox-option-meta">
                                       {opt.medicineName && <span>Medicine: <strong>{opt.medicineName}</strong></span>}
@@ -1135,7 +1288,7 @@ export default function StockTransfers() {
                               <div className="transfer-combobox-empty">
                                 {createForm.batchNo.trim()
                                   ? `No existing batch matching "${createForm.batchNo}". You can keep typing to use this batch number.`
-                                  : (createForm.medicineName ? `No recorded batch numbers for ${createForm.medicineName}. Type a batch number.` : 'No batch numbers recorded in inventory.')}
+                                  : 'No batch numbers found. Type a batch number.'}
                               </div>
                             )}
                           </div>
@@ -1362,6 +1515,7 @@ export default function StockTransfers() {
                             setEditBatchDropdownOpen(true)
                           }}
                           onFocus={() => setEditBatchDropdownOpen(true)}
+                          onClick={() => setEditBatchDropdownOpen(true)}
                           onKeyDown={(e) => {
                             if (e.key === 'Escape') setEditBatchDropdownOpen(false)
                           }}
@@ -1420,8 +1574,21 @@ export default function StockTransfers() {
                                       setEditBatchDropdownOpen(false)
                                     }}
                                   >
-                                    <div className="transfer-combobox-option-title">
-                                      {opt.batchNo}
+                                    <div className="transfer-combobox-option-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                      <span>{opt.batchNo}</span>
+                                      {opt.isDirectMatch && (
+                                        <span style={{
+                                          fontSize: '10px',
+                                          fontWeight: 700,
+                                          padding: '2px 6px',
+                                          borderRadius: '999px',
+                                          background: '#ecfdf5',
+                                          color: '#059669',
+                                          border: '1px solid #a7f3d0'
+                                        }}>
+                                          Matches Selected Medicine
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="transfer-combobox-option-meta">
                                       {opt.medicineName && <span>Medicine: <strong>{opt.medicineName}</strong></span>}
@@ -1439,7 +1606,7 @@ export default function StockTransfers() {
                               <div className="transfer-combobox-empty">
                                 {editForm.batchNo.trim()
                                   ? `No existing batch matching "${editForm.batchNo}". You can keep typing to use this batch number.`
-                                  : (editForm.medicineName ? `No recorded batch numbers for ${editForm.medicineName}. Type a batch number.` : 'No batch numbers recorded in inventory.')}
+                                  : 'No batch numbers found. Type a batch number.'}
                               </div>
                             )}
                           </div>
