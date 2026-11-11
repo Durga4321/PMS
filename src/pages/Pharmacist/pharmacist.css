@@ -739,3 +739,69 @@
   display: inline-block;
 }
 
+/* Compact filters for the Pharmacist medicine catalogue. */
+.pharmacist-page .med-catalogue-filters {
+  padding: 10px 14px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pharmacist-page .med-catalogue-filters .med-search-wrap {
+  flex: 0 1 270px;
+  max-width: 270px;
+  min-width: 0;
+}
+.pharmacist-page .med-catalogue-filters .med-search-wrap input {
+  height: 32px;
+  padding: 0 10px 0 32px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.pharmacist-page .med-catalogue-filters .search-icon { left: 10px; width: 14px; height: 14px; }
+.pharmacist-page .med-catalogue-filters .med-filters { flex-wrap: wrap; gap: 6px; }
+.pharmacist-page .med-catalogue-filters .med-filters select {
+  height: 32px;
+  max-width: 155px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.pharmacist-page .med-catalogue-filters .med-btn {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+@media (max-width: 640px) {
+  .pharmacist-page .med-catalogue-filters .med-search-wrap { flex-basis: 100%; max-width: 100%; }
+}
+
+/* Dispensing keeps search and actions in one toolbar, matching the reference. */
+@media (min-width: 1100px) {
+  .pharmacist-panel[data-module="Dispensing"] .pharmacist-toolbar-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(0, 1.85fr);
+    gap: 12px;
+    align-items: center;
+  }
+  .pharmacist-panel[data-module="Dispensing"] .pharmacist-search-group {
+    min-width: 0;
+    max-width: none;
+  }
+  .pharmacist-panel[data-module="Dispensing"] .pharmacist-toolbar-actions-wrap {
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+  .pharmacist-panel[data-module="Dispensing"] .module-action-tabs {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .pharmacist-panel[data-module="Dispensing"] .module-action-tab {
+    flex: 1 0 auto;
+    justify-content: center;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .pharmacist-panel[data-module="Dispensing"] .pharmacist-search > button {
+    flex-shrink: 0;
+  }
+}

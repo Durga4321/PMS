@@ -121,7 +121,17 @@ function pickValidBranchId(...candidates) {
   return ''
 }
 
-export function pharmacyTenantContext() {
+export function pharmacyTenantContext(authRole = '') {
+  const pharmacistSession = authRole === 'pharmacist' || (!authRole && typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))
+  if (pharmacistSession) {
+    const assignment = readStoredJson('pharmacistAssignment') || {}
+    const user = readStoredJson('pharmacistUser') || {}
+    return {
+      pharmacyId: pickValidPharmacyId(assignment.pharmacyId, assignment.PharmacyId, assignment.pharmacy?.id, user.pharmacyId, user.PharmacyId, user.pharmacy?.id),
+      branchId: pickValidBranchId(assignment.branchId, assignment.BranchId, assignment.mainBranchId, assignment.branch?.id, user.branchId, user.BranchId, user.mainBranchId),
+      hospitalId: '', cmsBranchId: '',
+    }
+  }
   const assignment = readStoredJson('pharmacyAdminAssignment') || {}
   const user = readStoredJson('pharmacyAdminUser') || {}
   const pharmAssignment = readStoredJson('pharmacistAssignment') || {}
@@ -335,7 +345,7 @@ function pharmacyTenantHeaders(path = '', authRole = '', branchOverride) {
     return {}
   }
 
-  const context = pharmacyTenantContext()
+  const context = pharmacyTenantContext(authRole)
   const pharmacyId = context.pharmacyId
   const branchId = branchOverride === undefined ? context.branchId : branchOverride
   return {
@@ -357,8 +367,7 @@ function authTokenFor(path = '', authRole = '') {
   const route = typeof window !== 'undefined' ? window.location.pathname : ''
 
   if (authRole && tokenKeysByRole[authRole]) {
-    const roleToken = readStoredToken(tokenKeysByRole[authRole])
-    if (roleToken) return roleToken
+    return readStoredToken(tokenKeysByRole[authRole])
   }
   if (cleanPath.startsWith('pharmacy-super-admin')) {
     return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
@@ -374,6 +383,7 @@ function authTokenFor(path = '', authRole = '') {
     if (route.startsWith('/admin')) return readStoredToken('pharmacyAdminToken')
     return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
   }
+  if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken')
   const isInventoryRoute = [
     '/admin',
     '/inventory',
@@ -461,6 +471,9 @@ async function request(path, options = {}) {
   } catch (error) {
     if (error?.name === 'AbortError') {
       throw new Error('API request timed out. Please check that the backend server or ngrok tunnel is running.')
+    }
+    if (error?.name === 'TypeError') {
+      throw new Error('Cannot connect to the server. Check your connection and try again.')
     }
     throw error
   } finally {
@@ -561,6 +574,14 @@ async function request(path, options = {}) {
         },
       })
     }
+    if (response.status === 401 && !publicRequest && token) {
+      errorMsg = 'Your session has expired or is no longer valid. Please log in again.'
+    } else if (publicRequest && path === 'auth/login' && response.status === 401) {
+      errorMsg = errorMsg || 'Login rejected. Check your email and password.'
+    }
+    if (response.status === 403 && (authRole === 'pharmacist' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist')))) {
+      errorMsg = 'Access denied for this pharmacist account. Ask your pharmacy administrator to verify your role permissions and pharmacy/branch assignment.'
+    }
     const error = new Error(errorMsg)
     error.status = response.status
     error.data = data
@@ -612,8 +633,8 @@ export function logoutSuperAdmin(token) {
 
 function cleanChangePasswordPayload(payload = {}) {
   return {
-    currentPassword: String(payload.currentPassword ?? payload.CurrentPassword ?? '').trim(),
-    newPassword: String(payload.newPassword ?? payload.NewPassword ?? '').trim(),
+    currentPassword: String(payload.currentPassword ?? payload.CurrentPassword ?? ''),
+    newPassword: String(payload.newPassword ?? payload.NewPassword ?? ''),
   }
 }
 
@@ -2846,7 +2867,7 @@ export function cleanBranchPayload(payload = {}) {
 
 export function cleanPharmacistPayload(payload = {}) {
   const name = String(payload.name || '').trim()
-  const email = String(payload.email || '').trim()
+  const email = String(payload.email || '').trim().toLowerCase()
   const mobileNumber = String(payload.mobileNumber || payload.phone || payload.phoneNumber || payload.mobile || '').trim()
   const rawBranch = payload.branchId ?? payload.BranchId
   const branchId = parsePositiveInt(rawBranch)
@@ -2869,7 +2890,7 @@ export async function createPharmacist(payload = {}) {
 
   const cleanPayload = {
     name: String(payload.name || '').trim(),
-    email: String(payload.email || '').trim(),
+    email: String(payload.email || '').trim().toLowerCase(),
     ...(payload.mobileNumber || payload.phone ? { mobileNumber: String(payload.mobileNumber || payload.phone).trim() } : {}),
     branchId: fallbackBranchId,
     BranchId: fallbackBranchId,
@@ -2879,24 +2900,6 @@ export async function createPharmacist(payload = {}) {
     PharmacyName: pharmacyName,
   }
 
-  // Pre-seed local cache optimistically
-  const tempId = `ph_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
-  const localRecord = {
-    id: tempId,
-    _id: tempId,
-    pharmacistId: tempId,
-    name: cleanPayload.name,
-    email: cleanPayload.email,
-    phone: cleanPayload.mobileNumber || '',
-    mobileNumber: cleanPayload.mobileNumber || '',
-    branchId: fallbackBranchId,
-    status: 'Active',
-    isActive: true,
-  }
-  const current = readLocalPharmacists()
-  writeLocalPharmacists([localRecord, ...current.filter((p) => p.email !== cleanPayload.email)])
-
-  try {
     const response = await request('pharmacy-admin/pharmacists', {
       authRole: 'pharmacyAdmin',
       method: 'POST',
@@ -2927,15 +2930,11 @@ export async function createPharmacist(payload = {}) {
         isActive: true,
         ...created,
       }
-      const updatedList = readLocalPharmacists().filter((p) => p.id !== tempId && String(p?.id || p?.pharmacistId) !== String(id))
+      const updatedList = readLocalPharmacists().filter((p) => String(p?.id || p?.pharmacistId) !== String(id) && p.email !== cleanPayload.email)
       writeLocalPharmacists([record, ...updatedList])
     }
 
     return response
-  } catch (err) {
-    console.warn('Backend createPharmacist notice (stored to local cache):', err.message)
-    return { data: localRecord, pharmacist: localRecord, message: 'Pharmacist created successfully (offline cache mode).' }
-  }
 }
 
 export async function getPharmacist(id) {
@@ -2953,7 +2952,7 @@ export async function updatePharmacist(id, payload = {}) {
   const numericBranchId = parsePositiveInt(rawBranch)
   const cleanPayload = {
     name: String(payload.name || '').trim(),
-    email: String(payload.email || '').trim(),
+    email: String(payload.email || '').trim().toLowerCase(),
     ...(payload.mobileNumber || payload.phone ? { mobileNumber: String(payload.mobileNumber || payload.phone).trim() } : {}),
     ...(numericBranchId ? { branchId: numericBranchId } : {}),
   }
@@ -3130,10 +3129,21 @@ export function listPharmacyAdmins(params = {}) {
   return request(`pharmacy-super-admin/admins${query.toString() ? `?${query}` : ''}`)
 }
 
+function cleanAdminAccountPayload(payload = {}) {
+  // Account/profile endpoints never receive password fields. Use reset/change-password instead.
+  return {
+    name: String(payload.name ?? '').trim(),
+    email: String(payload.email ?? '').trim().toLowerCase(),
+    ...(payload.mobileNumber !== undefined ? { mobileNumber: payload.mobileNumber } : {}),
+    ...(payload.pharmacyPermissionRoleId !== undefined ? { pharmacyPermissionRoleId: payload.pharmacyPermissionRoleId } : {}),
+    ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}),
+  }
+}
+
 export function createPharmacyAdmin(payload) {
   return request('pharmacy-super-admin/admins', {
     method: 'POST',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(apiPayload(cleanAdminAccountPayload(payload))),
   })
 }
 
@@ -3151,7 +3161,7 @@ export function getPharmacyAdmin(id) {
 export function updatePharmacyAdmin(id, payload) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), {
     method: 'PUT',
-    body: JSON.stringify(apiPayload(payload)),
+    body: JSON.stringify(apiPayload(cleanAdminAccountPayload(payload))),
   })
 }
 

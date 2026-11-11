@@ -11,7 +11,7 @@ import {
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
-import DashboardGreeting from '../../components/DashboardGreeting'
+import DashboardGreetingCard from '../../components/DashboardGreetingCard'
 
 function parseFlexibleDate(raw) {
   if (!raw) return null
@@ -484,12 +484,7 @@ function AdminDashboard() {
   return (
     <AdminLayout activeLabel="Dashboard" title="Admin Dashboard" subtitle="Admin / Dashboard">
       {/* Dashboard Page Header */}
-      <section className="branch-dashboard-header-redesign reference-heading-card">
-        <div className="reference-heading-accent" />
-        <div className="admin-heading-text-wrap">
-          <DashboardGreeting role="Admin" subtitle="Branch-wise operations management for sales, stock, and alerts." live />
-        </div>
-      </section>
+      <DashboardGreetingCard role="Admin" subtitle="Branch-wise operations management for sales, stock, and alerts." />
 
       {/* Top 3 Equal-Sized Statistic Cards */}
       <section className="branch-summary-4grid">

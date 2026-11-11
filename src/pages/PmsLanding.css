@@ -51,3 +51,82 @@ body:has(.pms-landing) #root { height:auto; min-height:100vh; overflow:visible; 
 .pms-module-card,.pms-role-grid article,.pms-testimonial-grid article { transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease; }
 .pms-module-card:hover,.pms-role-grid article:hover,.pms-testimonial-grid article:hover { transform:translateY(-5px); border-color:#9ce5df; box-shadow:0 16px 28px rgba(0,99,105,.12); }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; transition-duration:.01ms!important; scroll-behavior:auto!important; } }
+
+/* Keep all landing-page accents in sync with the selected palette. */
+[data-pms-theme] .pms-landing {
+  --mint: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+}
+
+[data-pms-theme] .pms-landing .pms-cta,
+[data-pms-theme] .pms-landing .pms-avatar,
+[data-pms-theme] .pms-landing .pms-shield {
+  background: var(--pms-gradient);
+  color: #fff;
+}
+
+[data-pms-theme] .pms-landing .pms-cta .pms-eyebrow {
+  color: #fff;
+}
+
+[data-pms-theme] .pms-landing .pms-cta .pms-primary {
+  background: var(--pms-surface);
+  color: var(--pms-accent-strong) !important;
+}
+
+[data-pms-theme] .pms-landing .pms-cta .pms-secondary {
+  color: #fff !important;
+  border-color: #fff;
+}
+
+[data-pms-theme] .pms-landing .pms-role-grid article > span,
+[data-pms-theme] .pms-landing .pms-testimonial-grid b,
+[data-pms-theme] .pms-landing .pms-insights em {
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .pms-landing .pms-steps article > span,
+[data-pms-theme] .pms-landing .pms-insights article > b {
+  color: var(--pms-accent-strong);
+  background: var(--mint);
+}
+
+[data-pms-theme] .pms-landing .pms-insights article {
+  background: var(--pms-surface);
+  border-color: var(--pms-border);
+}
+
+[data-pms-theme] .pms-landing .pms-module-card:hover,
+[data-pms-theme] .pms-landing .pms-role-grid article:hover,
+[data-pms-theme] .pms-landing .pms-testimonial-grid article:hover {
+  border-color: var(--pms-accent);
+  box-shadow: 0 16px 28px color-mix(in srgb, var(--pms-accent) 16%, transparent);
+}
+
+[data-pms-theme] .pms-landing .pms-footer {
+  color: #fff;
+}
+
+[data-pms-theme] .pms-landing .pms-footer p,
+[data-pms-theme] .pms-landing .pms-footer small,
+[data-pms-theme] .pms-landing .pms-footer-links a,
+[data-pms-theme] .pms-landing .pms-footer .pms-logo small {
+  color: color-mix(in srgb, var(--pms-accent) 12%, white);
+}
+
+[data-pms-theme] .pms-landing .pms-footer-links a:hover,
+[data-pms-theme] .pms-landing .pms-footer-links a:focus-visible {
+  color: #fff;
+  text-decoration: underline;
+}
+
+[data-pms-theme] .pms-landing .pms-bottle::after {
+  background: var(--pms-accent);
+}
+
+[data-pms-theme] .pms-landing .pms-bottle small {
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .pms-landing .pms-capsule {
+  background: linear-gradient(90deg, var(--pms-accent) 50%, white 50%);
+}

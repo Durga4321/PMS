@@ -54,14 +54,21 @@
   display: none;
 }
 
+/* Keep the brand fixed and let navigation use the space freed by the footer. */
+.pharmacist-sidebar .branch-admin-brand { flex-shrink: 0; }
+.pharmacist-sidebar .branch-admin-nav {
+  min-height: 0;
+  padding-bottom: 8px;
+  justify-content: flex-start;
+}
+
 .pharmacist-page.sidebar-collapsed .pharmacist-sidebar {
   width: 72px !important;
   padding: 16px 8px !important;
 }
 
 .pharmacist-page.sidebar-collapsed .branch-admin-brand-copy,
-.pharmacist-page.sidebar-collapsed .nav-label,
-.pharmacist-page.sidebar-collapsed .branch-admin-collapse-btn span {
+.pharmacist-page.sidebar-collapsed .nav-label {
   display: none !important;
 }
 

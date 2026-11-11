@@ -48,7 +48,7 @@ function PharmacistLayout({ activeLabel, title, subtitle, headerAction, children
 
   return (
     <div className={`branch-admin-page pharmacist-page${open ? ' branch-admin-sidebar-open' : ''}`}>
-      <PharmacistSidebar activeLabel={activeLabel} />
+      <PharmacistSidebar activeLabel={activeLabel} onNavigate={() => setOpen(false)} />
 
       <main className="branch-admin-main pharmacist-main">
         <header className="branch-admin-header pharmacist-header">

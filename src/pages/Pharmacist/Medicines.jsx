@@ -294,9 +294,9 @@ export default function PharmacistMedicines() {
           flexWrap: 'wrap',
           gap: '12px',
           padding: '14px 20px',
-          background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+          background: 'linear-gradient(135deg, color-mix(in srgb, var(--pms-accent) 10%, var(--pms-surface)), var(--pms-page-bg))',
           borderRadius: '12px',
-          border: '1px solid #bbf7d0',
+          border: '1px solid var(--pms-border)',
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -304,12 +304,12 @@ export default function PharmacistMedicines() {
               width: '42px',
               height: '42px',
               borderRadius: '10px',
-              background: '#22c55e',
+              background: 'var(--pms-accent)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#ffffff',
-              boxShadow: '0 2px 6px rgba(34,197,94,0.3)'
+              boxShadow: '0 2px 6px color-mix(in srgb, var(--pms-accent) 30%, transparent)'
             }}>
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
@@ -318,17 +318,17 @@ export default function PharmacistMedicines() {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--pms-text)', margin: 0 }}>
                   Branch Catalogue
                 </h2>
                 <span style={{
                   fontSize: '11px',
                   fontWeight: 600,
-                  background: '#dcfce7',
-                  color: '#166534',
+                  background: 'color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface))',
+                  color: 'var(--pms-accent-strong)',
                   padding: '2px 8px',
                   borderRadius: '12px',
-                  border: '1px solid #86efac'
+                  border: '1px solid var(--pms-border)'
                 }}>
                   Live Sync
                 </span>
@@ -339,18 +339,18 @@ export default function PharmacistMedicines() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {branches.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151' }}>Branch:</label>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--pms-text)' }}>Branch:</label>
                 <select
                   value={selectedBranchId}
                   onChange={(e) => setSelectedBranchId(e.target.value)}
                   style={{
                     padding: '6px 12px',
                     borderRadius: '8px',
-                    border: '1px solid #86efac',
-                    background: '#ffffff',
+                    border: '1px solid var(--pms-border)',
+                    background: 'var(--pms-surface)',
                     fontWeight: 600,
                     fontSize: '13px',
-                    color: '#166534',
+                    color: 'var(--pms-accent-strong)',
                     outline: 'none',
                     cursor: 'pointer'
                   }}
@@ -371,9 +371,9 @@ export default function PharmacistMedicines() {
                 gap: '6px',
                 padding: '7px 14px',
                 borderRadius: '8px',
-                border: '1px solid #cbd5e1',
-                background: '#ffffff',
-                color: '#334155',
+                border: '1px solid var(--pms-border)',
+                background: 'var(--pms-surface)',
+                color: 'var(--pms-accent-strong)',
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -459,17 +459,6 @@ export default function PharmacistMedicines() {
 
         {/* Toolbar & Catalogue Logs */}
         <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                Branch Medicine Catalogue
-              </h3>
-              <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748b' }}>
-                Showing medicines added by Admin for {activeBranchName} ({filteredMedicines.length} items)
-              </p>
-            </div>
-          </div>
-
           {/* Search & Filter Toolbar */}
           <div className="med-toolbar med-catalogue-filters" style={{ margin: 0, borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none' }}>
             <div className="med-search-wrap">

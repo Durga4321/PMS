@@ -81,32 +81,6 @@ const dashboardCards = [
   ['returns', 'Returns', ['todayReturns', 'returnsCount', 'returns', 'summary.todayReturns', 'summary.returnsCount'], '#ef4444', '#fee2e2', 'expiryAlerts'],
 ]
 
-const panelMeta = {
-  Dashboard: {
-    title: 'Live Overview & Activity',
-    desc: 'Review live dashboard metrics and status from pharmacist APIs.',
-  },
-  Pending: {
-    title: 'Prescription Queue',
-    desc: 'Review and process pending prescriptions awaiting fulfillment.',
-  },
-  Dispensing: {
-    title: 'Dispensing & Invoicing',
-    desc: 'Fulfill prescriptions, generate bills, and record payments.',
-  },
-  Bills: {
-    title: 'Billing Management',
-    desc: 'Review invoices, process bill cancellations, and manage refunds.',
-  },
-  Returns: {
-    title: 'Returns Management',
-    desc: 'Process medicine returns, inspect batch items, and track statuses.',
-  },
-  Reports: {
-    title: 'Analytics & Audit Logs',
-    desc: 'Review sales reports, expiry tracking, audit logs, and stock movements.',
-  },
-}
 
 
 function getByPath(source, path) {
@@ -230,6 +204,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
     } catch (error) {
       setItems([])
       setRawResponse(null)
+      setMessage(error.message)
       showToast(error.message, 'error')
     } finally {
       setLoading(false)
@@ -268,8 +243,8 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
 
   const columns = moduleColumns[activeLabel] || moduleColumns.Dashboard
   const payload = unwrapPayload(rawResponse)
-  const stats = useMemo(() => dashboardCards.map(([key, label, paths, color, bgColor, colorClass]) => ({ key, label, value: metricValue(payload, paths), color, bgColor, colorClass })), [payload])
-  const emptyStateTitle = loading ? 'Loading data...' : activeLabel === 'Pending' ? 'No pending prescriptions found' : 'No data found'
+  const stats = useMemo(() => dashboardCards.map(([key, label, paths, color, bgColor, colorClass]) => ({ key, label, value: rawResponse === null ? '—' : metricValue(payload, paths), color, bgColor, colorClass })), [payload, rawResponse])
+  const emptyStateTitle = message ? 'Unable to load data' : loading ? 'Loading data...' : activeLabel === 'Pending' ? 'No pending prescriptions found' : 'No data found'
   const emptyStateDesc = loading ? 'Please wait while latest API data loads.' : 'No records were returned by the API for this module.'
   const isDashboard = activeLabel === 'Dashboard'
   const selectedAction = actions.find((action) => action.label === activeTabLabel)
@@ -331,15 +306,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
           </section>
         ) : null}
 
-        <section className="branch-panel pharmacist-panel">
-          <div className="branch-panel-heading">
-            <div>
-              <h2>{panelMeta[activeLabel]?.title || title}</h2>
-              <p>{panelMeta[activeLabel]?.desc || 'Use module actions to fetch or update records.'}</p>
-            </div>
-
-          </div>
-
+        <section className="branch-panel pharmacist-panel" data-module={activeLabel}>
           <div className="pharmacist-toolbar-row">
             <div className="pharmacist-search-group">
               <div className="pharmacist-search">
@@ -358,9 +325,6 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
                     ✕
                   </button>
                 ) : null}
-                <button type="button" onClick={refresh} disabled={loading}>
-                  {loading ? 'Searching...' : 'Search'}
-                </button>
               </div>
             </div>
 
@@ -385,7 +349,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
                 </div>
               ) : null}
 
-              {items.length > 0 ? (
+              {items.length > 0 && activeLabel !== 'Dispensing' ? (
                 <span className="table-status-badge status-success pharmacist-records-badge">
                   <span className="live-status-dot" />
                   {items.length} Records
@@ -449,7 +413,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
                           <line x1="16.5" y1="19.5" x2="12.2" y2="15.2" />
                         </svg>
                         <strong style={{ fontSize: '14px', color: '#334155', marginBottom: '3px' }}>{emptyStateTitle}</strong>
-                        <p style={{ margin: 0, color: '#64748b', fontSize: '12.5px' }}>{emptyStateDesc}</p>
+                        <p style={{ margin: 0, color: '#64748b', fontSize: '12.5px' }}>{message || emptyStateDesc}</p>
                       </div>
                     </td>
                   </tr>
