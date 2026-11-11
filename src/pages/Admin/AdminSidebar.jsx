@@ -82,7 +82,11 @@ function AdminSidebar({ activeLabel, hospitalName = 'PMS', branchName = 'Admin C
     }
   }, [])
 
-  const visibleNavigation = adminNavigation.filter((item) => item.label === 'Dashboard' || hasPermission(permissions, item.label, 'view'))
+  const visibleNavigation = adminNavigation.filter((item) =>
+    item.label === 'Dashboard' ||
+    item.label === 'Roles & Permissions' ||
+    hasPermission(permissions, item.label, 'view')
+  )
 
   return (
     <aside className="branch-admin-sidebar" aria-label="Admin navigation">

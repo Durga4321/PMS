@@ -15,6 +15,7 @@ import Admins from './pages/Super Admin/Admins'
 import SuperAdminProfile from './pages/Super Admin/SuperAdminProfile'
 import AdminDashboard from './pages/Admin/AdminDashboard'
 import AdminUsers from './pages/Admin/Users'
+import AdminRolesPermissions from './pages/Admin/RolesPermissions'
 import AdminMedicines from './pages/Admin/Medicines'
 import AdminPharmacies from './pages/Admin/Pharmacies'
 import AdminBranches from './pages/Admin/Branches'
@@ -81,6 +82,8 @@ function App() {
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<AdminPermissionRoute module="Users"><AdminUsers /></AdminPermissionRoute>} />
             <Route path="/admin/users/add" element={<AdminPermissionRoute module="Users"><AdminUsers initialAdd={true} /></AdminPermissionRoute>} />
+            <Route path="/admin/roles-permissions" element={<AdminRolesPermissions />} />
+            <Route path="/admin/roles" element={<AdminRolesPermissions />} />
             <Route path="/admin/medicines" element={<AdminPermissionRoute module="Medicines"><AdminMedicines /></AdminPermissionRoute>} />
             <Route path="/admin/pharmacies" element={<AdminPermissionRoute module="Pharmacies"><AdminPharmacies /></AdminPermissionRoute>} />
             <Route path="/admin/branches" element={<AdminPermissionRoute module="Branches"><AdminBranches /></AdminPermissionRoute>} />

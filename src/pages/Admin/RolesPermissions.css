@@ -1,0 +1,465 @@
+/* Admin Roles & Permissions Page */
+.admin-permissions-page {
+  padding: 4px 0 40px;
+}
+
+.admin-permissions-error {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-permissions-success {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-permissions-panel {
+  margin-bottom: 16px;
+  padding: 18px 20px 22px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  box-sizing: border-box;
+}
+
+.admin-permissions-panel-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 16px;
+}
+
+.admin-permissions-panel-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.admin-permissions-panel-header p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+/* Summary Table */
+.admin-permissions-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+}
+
+.admin-permissions-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.admin-permissions-table th {
+  height: 36px;
+  padding: 0 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: left;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-permissions-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  font-size: 13px;
+  vertical-align: top;
+}
+
+.admin-permissions-table tbody tr.is-selected {
+  background: #f0fdf4 !important;
+}
+
+.admin-permissions-table tbody tr:hover:not(.admin-permissions-detail-row) {
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.admin-role-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-role-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-role-copy strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.admin-role-badge {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-user-cell strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-user-cell small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+/* Detail Row */
+.admin-permissions-detail-row td {
+  padding: 10px 14px 14px;
+  background: #fbfcfe;
+}
+
+.admin-permissions-detail-row.is-selected td {
+  background: #f7fee7 !important;
+}
+
+.admin-permissions-detail strong {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.admin-permission-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-permission-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-permission-tag-none {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+/* Assign Permissions Controls */
+.admin-select-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.admin-select-control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 300px;
+  max-width: 420px;
+}
+
+.admin-select-control span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-select-control select {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.admin-select-control select:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+}
+
+/* Permissions Grid */
+.admin-grid-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  margin-bottom: 16px;
+}
+
+.admin-grid {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+}
+
+.admin-grid th {
+  height: 38px;
+  padding: 0 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.admin-grid th:first-child {
+  text-align: left;
+}
+
+.admin-grid td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.admin-grid td:first-child {
+  text-align: left;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.admin-grid-module {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-grid-module-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-grid-module-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.admin-module-head-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-select-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-select-all-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.admin-select-all-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-column-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  color: #334155;
+  user-select: none;
+}
+
+.admin-column-toggle input {
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  accent-color: #16a34a;
+}
+
+/* Custom Styled Checkbox - Positioned strictly inside parent to eliminate any scroll jump */
+.admin-perm-checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  padding: 3px 6px;
+  border-radius: 5px;
+  transition: background-color 0.15s ease;
+}
+
+.admin-perm-checkbox:hover {
+  background-color: #f1f5f9;
+}
+
+/* The native input is bounded strictly inside the label so focus causes 0px scroll */
+.admin-perm-checkbox input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.admin-perm-checkbox-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.admin-perm-checkbox input:checked + .admin-perm-checkbox-mark {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+.admin-perm-checkbox input:disabled + .admin-perm-checkbox-mark {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+.admin-perm-checkbox-label {
+  pointer-events: none;
+}
+
+/* Bottom Save Row - Comfortable padding inside panel */
+.admin-permissions-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.admin-permissions-save-btn {
+  height: 40px;
+  min-width: 210px;
+  padding: 0 24px;
+  border-radius: 8px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 3px 10px rgba(22, 163, 74, 0.25);
+  transition: all 0.15s ease;
+}
+
+.admin-permissions-save-btn:hover:not(:disabled) {
+  background: #15803d;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35);
+  transform: translateY(-1px);
+}
+
+.admin-permissions-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}

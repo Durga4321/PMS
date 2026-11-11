@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { pharmacistNavigation } from './pharmacistNavigation'
+import { hasPharmacistPermission, readPharmacistPermissions } from '../../config/permissions'
 import '../Admin/AdminSidebar.css'
 import './PharmacistSidebar.css'
 
@@ -21,6 +22,7 @@ function PharmacistSidebar({ activeLabel, onNavigate }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [appName, setAppName] = useState(getStoredAppName)
+  const [permissions, setPermissions] = useState(readPharmacistPermissions)
 
   function goTo(path) {
     navigate(path)
@@ -38,11 +40,24 @@ function PharmacistSidebar({ activeLabel, onNavigate }) {
     }
     window.addEventListener('pms:settings-updated', handleSettings)
     window.addEventListener('pms:appname-changed', handleSettings)
+
+    function handlePermissionsUpdate() {
+      setPermissions(readPharmacistPermissions())
+    }
+    window.addEventListener('pms:permissions-updated', handlePermissionsUpdate)
+    window.addEventListener('storage', handlePermissionsUpdate)
+
     return () => {
       window.removeEventListener('pms:settings-updated', handleSettings)
       window.removeEventListener('pms:appname-changed', handleSettings)
+      window.removeEventListener('pms:permissions-updated', handlePermissionsUpdate)
+      window.removeEventListener('storage', handlePermissionsUpdate)
     }
   }, [])
+
+  const visibleNavigation = pharmacistNavigation.filter((item) =>
+    item.label === 'Dashboard' || hasPharmacistPermission(permissions, item.label, 'view')
+  )
 
   return (
     <aside className="branch-admin-sidebar pharmacist-sidebar" aria-label="Pharmacist navigation">
@@ -61,7 +76,7 @@ function PharmacistSidebar({ activeLabel, onNavigate }) {
 
       {/* Main Navigation */}
       <nav className="branch-admin-nav">
-        {pharmacistNavigation.map(({ label, path, icon, color }) => {
+        {visibleNavigation.map(({ label, path, icon, color }) => {
           const isActive = activeLabel === label || location.pathname === path
           return (
             <button
