@@ -1,0 +1,103 @@
+.dashboard-greeting-card.dashboard-hero-card {
+  margin: 6px 0 10px;
+  background: linear-gradient(135deg, #e0f2fe 0%, #ebf5ff 50%, #dbeafe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.05);
+}
+
+.dashboard-greeting-card .dashboard-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-greeting-card .dashboard-hero-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
+}
+
+.dashboard-greeting-card .dashboard-hero-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.dashboard-greeting-card .dashboard-hero-left h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.dashboard-greeting-card .dashboard-hero-left p {
+  margin: 1px 0 0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dashboard-greeting-card .dashboard-hero-illustration {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-greeting-card .hero-clinic-illustration {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-greeting-card .hero-script-tag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-family: 'Comic Sans MS', 'Caveat', cursive, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #1d4ed8;
+  transform: rotate(-3deg);
+  white-space: nowrap;
+}
+
+
+.dashboard-greeting-card.dashboard-hero-card { margin:20px 0 16px; border-radius:13px; min-width:0; }
+.dashboard-greeting-card .dashboard-hero-left { min-width:0; }
+.dashboard-greeting-card .hero-clinic-illustration > svg { width:160px; height:80px; flex:none; }
+@media(max-width:700px) { .dashboard-greeting-card.dashboard-hero-card { padding:10px 12px; flex-wrap:wrap; } .dashboard-greeting-card .dashboard-hero-illustration { margin-left:auto; } .dashboard-greeting-card .hero-clinic-illustration > svg { width:96px; height:48px; } }
+
+/* Match Super Admin's compact greeting at the same viewport size. */
+@media (min-width: 901px) and (min-height: 480px) {
+  .dashboard-greeting-card.dashboard-hero-card {
+    margin: 4px 16px 0;
+    min-height: 0;
+    padding: 4px 12px;
+  }
+
+  .dashboard-greeting-card .hero-clinic-illustration > svg {
+    width: 96px;
+    height: 48px;
+  }
+
+  .dashboard-greeting-card .dashboard-greeting-logo {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+  }
+}

@@ -39,6 +39,7 @@ import FormValidationGuard from './components/FormValidationGuard'
 import ErrorBoundary from './components/ErrorBoundary'
 import { hasPermission, readAdminPermissions } from './config/permissions'
 import './App.css'
+import './components/RoleScreenStyles.css'
 
 function AdminPermissionRoute({ module, children }) {
   const permissions = readAdminPermissions()

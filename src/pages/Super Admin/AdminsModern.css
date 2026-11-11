@@ -428,7 +428,7 @@
   width: 100%;
   font-weight: 600;
   text-align: left;
-  overflow: visible !important;
+  min-width: 0;
 }
 
 .admins-page-shell .admins-table td:nth-child(2) {
@@ -436,10 +436,11 @@
 }
 
 .admin-name-text {
+  flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .admin-avatar {
@@ -1222,5 +1223,70 @@
     min-width: 24px;
     height: 24px;
     flex: 0 0 24px;
+  }
+}
+
+/* Fit the admin list to the page without a nested scroll container. */
+.admins-page-shell .admins-table-card {
+  min-width: 0;
+  overflow: visible !important;
+}
+
+.admins-page-shell .admins-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.admins-page-shell .admins-table :is(th, td) {
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admins-page-shell .admins-table :is(th, td):nth-child(1) { width: 5%; }
+.admins-page-shell .admins-table :is(th, td):nth-child(2) { width: 16%; }
+.admins-page-shell .admins-table :is(th, td):nth-child(3) { width: 15%; }
+.admins-page-shell .admins-table :is(th, td):nth-child(4) { width: 22%; }
+.admins-page-shell .admins-table :is(th, td):nth-child(5) { width: 13%; }
+.admins-page-shell .admins-table :is(th, td):nth-child(6) { width: 10%; }
+.admins-page-shell .admins-table :is(th, td):nth-child(7) { width: 19%; padding: 8px 4px !important; }
+
+.admins-page-shell .admins-table td:nth-child(3),
+.admins-page-shell .admins-table td:nth-child(4),
+.admins-page-shell .admins-table td:nth-child(5) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admins-page-shell .admins-table .row-actions,
+.admins-page-shell .admins-table .row-actions > .row-actions {
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.admins-page-shell .admins-table .row-actions > .row-action-button {
+  width: auto;
+  min-width: 0;
+  flex: 0 1 auto;
+  padding: 0 6px;
+}
+
+@media (max-width: 640px) {
+  .admins-page-shell .admins-table :is(th, td) {
+    padding: 8px 3px;
+    font-size: 10px;
+  }
+
+  .admins-page-shell .admin-name-cell {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .admins-page-shell .admin-status {
+    max-width: 100%;
+    padding: 3px;
+    white-space: normal;
   }
 }

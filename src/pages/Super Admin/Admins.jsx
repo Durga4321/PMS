@@ -455,9 +455,11 @@ function Admins() {
                 ) : visibleAdmins.length ? visibleAdmins.map((admin, index) => (
                   <tr key={getId(admin)}>
                     <td>{(page - 1) * pageSize + index + 1}</td>
-                    <td className="admin-name-cell">
+                    <td>
+                      <span className="admin-name-cell">
                       <span className="admin-avatar">{getName(admin).split(' ').slice(0,2).map((part) => part.charAt(0)).join('').slice(0,2).toUpperCase() || 'A'}</span>
-                      {getName(admin)}
+                      <span className="admin-name-text">{getName(admin)}</span>
+                      </span>
                     </td>
                     <td>{getAssignedPharmacyName(admin)}</td>
                     <td>{admin?.email || '-'}</td>

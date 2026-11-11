@@ -183,7 +183,7 @@ function SuperAdminDashboard() {
   const chartLine = plottedPoints.map((point, index) => (index ? 'L' : 'M') + ' ' + point.x + ' ' + point.y).join(' ')
   const recentActivities = [...auditActivities]
     .sort((a, b) => (Date.parse(b.timestamp || b.createdAt || b.created_at) || 0) - (Date.parse(a.timestamp || a.createdAt || a.created_at) || 0))
-    .slice(0, 3).map((a) => {
+    .map((a) => {
       const timestamp = pick(a, ['timestamp', 'createdAt', 'created_at', 'date', 'loggedAt', 'updatedAt'], '')
       const rawTime = String(timestamp).trim()
       const date = new Date(/^\d+$/.test(rawTime) ? Number(rawTime) * (Number(rawTime) < 1e11 ? 1000 : 1) : rawTime && !/(Z|[+-]\d{2}:?\d{2})$/i.test(rawTime) ? rawTime.replace(' ', 'T') + 'Z' : rawTime)

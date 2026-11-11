@@ -13,14 +13,19 @@ function getStoredAppName() {
       const parsed = JSON.parse(raw)
       if (parsed.appName) return parsed.appName
     }
-  } catch {}
+  } catch { /* Use the default name when stored settings cannot be read. */ }
   return 'PMS'
 }
 
-function PharmacistSidebar({ activeLabel }) {
+function PharmacistSidebar({ activeLabel, onNavigate }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [appName, setAppName] = useState(getStoredAppName)
+
+  function goTo(path) {
+    navigate(path)
+    onNavigate?.()
+  }
 
   useEffect(() => {
     function handleSettings(e) {
@@ -42,7 +47,7 @@ function PharmacistSidebar({ activeLabel }) {
   return (
     <aside className="branch-admin-sidebar pharmacist-sidebar" aria-label="Pharmacist navigation">
       {/* Brand Header */}
-      <div className="branch-admin-brand" onClick={() => navigate('/pharmacist/dashboard')} role="button" tabIndex={0}>
+      <div className="branch-admin-brand" onClick={() => goTo('/pharmacist/dashboard')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); goTo('/pharmacist/dashboard') } }} role="button" tabIndex={0}>
         <span className="branch-admin-brand-mark">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
@@ -62,7 +67,8 @@ function PharmacistSidebar({ activeLabel }) {
             <button
               type="button"
               className={`branch-admin-nav-link nav-color-${color || 'blue'}${isActive ? ' is-active' : ''}`}
-              onClick={() => navigate(path)}
+              onClick={() => goTo(path)}
+              aria-current={isActive ? 'page' : undefined}
               key={label}
             >
               <span className={`nav-icon-badge badge-${color || 'blue'}`}>
@@ -74,25 +80,6 @@ function PharmacistSidebar({ activeLabel }) {
         })}
       </nav>
 
-      {/* Collapse Menu Button at Bottom */}
-      <div className="branch-admin-sidebar-bottom">
-        <button
-          type="button"
-          className="branch-admin-collapse-btn"
-          onClick={() => {
-            const sidebar = document.querySelector('.pharmacist-sidebar')
-            if (sidebar) sidebar.classList.toggle('collapsed')
-          }}
-          title="Collapse Sidebar"
-        >
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-          <span className="collapse-label">Collapse Menu</span>
-        </button>
-      </div>
     </aside>
   )
 }

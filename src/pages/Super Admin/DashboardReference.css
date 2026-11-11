@@ -825,3 +825,29 @@ body.dashboard-scroll-page #root {
 .reference-dashboard .dashboard-card-state { margin: auto; padding: 16px; text-align: center; color: var(--pms-muted, #64748b); font-size: 12px; }
 .reference-dashboard :is(.charts-header-icon.blue, .activity-badge) { color: var(--pms-accent, #2563eb); background: color-mix(in srgb, var(--pms-accent, #2563eb) 12%, var(--pms-surface, #fff)); }
 .reference-dashboard .activities-list { min-height: 0; overflow-y: auto; }
+
+/* Use the activity panel's available space for every returned event. */
+.reference-dashboard .activities-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.reference-dashboard .activity-item-card {
+  flex-shrink: 0;
+}
+
+@media (min-width: 901px) and (min-height: 480px) {
+  .reference-dashboard .super-admin-main {
+    padding-bottom: 8px !important;
+  }
+
+  .reference-dashboard .reference-main-grid {
+    margin-bottom: 0;
+  }
+
+  .reference-dashboard .reference-card-activities {
+    padding-bottom: 8px;
+    overflow: hidden;
+  }
+}

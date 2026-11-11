@@ -1,0 +1,245 @@
+/* Shared list density and palette, based on the Super Admin and Admin lists.
+   Keep column widths and status/error colors in each module's own stylesheet. */
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) {
+  --pms-table-heading-size: 10px;
+  --pms-table-cell-size: 12px;
+  --pms-table-cell-padding: 10px 8px;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) table th {
+  padding: var(--pms-table-cell-padding) !important;
+  font-size: var(--pms-table-heading-size) !important;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) table td {
+  padding: var(--pms-table-cell-padding) !important;
+  font-size: var(--pms-table-cell-size) !important;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .branch-table-wrap, .pd-table-wrap, .audit-table-wrap, .reports-table-wrap,
+  .medicines-table-wrap, .super-admin-module-table, .admins-table-wrap,
+  .reference-table-wrap, .clinics-table-wrap
+) {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Page titles share one scale; greeting cards retain their illustration layout. */
+/* Search fields blend into their surrounding card in every role and theme. */
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) :is(
+  .pharmacist-search, .med-search-wrap, .admins-table-search,
+  .branch-admin-top-search, .super-admin-topbar-search, .profile-search,
+  .pharmacist-filter-search, .sa-search-wrap
+),
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) :is(
+  .pharmacist-search, .med-search-wrap, .admins-table-search,
+  .branch-admin-top-search, .super-admin-topbar-search, .profile-search,
+  .pharmacist-filter-search, .sa-search-wrap
+) input,
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) input[placeholder^="Search" i] {
+  background: transparent !important;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) :is(
+  .admin-heading-card, .admins-section-header, .super-admin-module-heading,
+  .audit-heading, .reports-heading, .notifications-heading, .permissions-heading,
+  .settings-heading, .medicines-heading, .pharmacist-main-header
+) {
+  margin-inline: 16px !important;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.branch-admin-page .admin-heading-card {
+  flex-wrap: wrap;
+}
+
+.branch-admin-page .admin-heading-card .admin-heading-text-wrap {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) :is(
+  .admin-heading-card, .admins-section-header, .super-admin-module-heading,
+  .audit-heading, .reports-heading, .notifications-heading, .permissions-heading,
+  .settings-heading, .medicines-heading, .pharmacist-main-header
+) h1 {
+  margin: 0;
+  color: var(--pms-text);
+  font-size: 22px !important;
+  font-weight: 800;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) :is(
+  .admin-heading-card, .admins-section-header, .super-admin-module-heading,
+  .audit-heading, .reports-heading, .notifications-heading, .permissions-heading,
+  .settings-heading, .medicines-heading, .pharmacist-main-header
+) p {
+  margin: 4px 0 0;
+  color: var(--pms-muted);
+  font-size: 12px !important;
+  line-height: 1.5;
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) table th {
+  background: color-mix(in srgb, var(--pms-accent) 8%, var(--pms-surface)) !important;
+  color: var(--pms-accent-strong) !important;
+  border-color: var(--pms-border) !important;
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) table td {
+  color: var(--pms-text);
+  border-color: var(--pms-border) !important;
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) table tbody tr:hover > td {
+  background: color-mix(in srgb, var(--pms-accent) 5%, var(--pms-surface)) !important;
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .branch-panel, .dispense-table-panel, .med-section-card, .pharmacist-action-card,
+  .pharmacist-metric-card, .pharmacist-json-input-card, .pharmacist-json-wrapper,
+  .reports-panel, .notifications-panel, .super-admin-module-panel, .pd-panel,
+  .pd-metric, .pd-quick
+) {
+  background: var(--pms-surface) !important;
+  border-color: var(--pms-border) !important;
+  border-radius: 13px;
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .branch-panel-heading, .results-panel-header, .reports-table-heading,
+  .med-section-card-header, .pharmacist-segmented-tabs-bar
+) { border-color: var(--pms-border) !important; }
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .branch-panel-heading, .reports-table-heading, .med-section-card-header,
+  .super-admin-module-header, .dispense-table-panel, .pd-panel-heading
+) > h2,
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .branch-panel-heading, .reports-table-heading, .super-admin-module-header
+) > div > h2 {
+  color: var(--pms-text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+[data-pms-theme] .pharmacist-page :is(
+  .metric-icon-circle, .pd-icon, .empty-state-hint
+) {
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface)) !important;
+  color: var(--pms-accent-strong) !important;
+  border-color: var(--pms-border) !important;
+}
+
+[data-pms-theme] .pharmacist-page :is(
+  .metric-header-text h2, .action-card-header h3, .results-panel-title,
+  .pharmacist-empty-state strong, .pharmacist-main-header h1
+) { color: var(--pms-text); }
+
+[data-pms-theme] .pharmacist-page :is(
+  .metric-header-text span, .action-card-header p, .pharmacist-empty-state p,
+  .trend-subtext, .json-input-header, .json-input-desc
+) { color: var(--pms-muted); }
+
+[data-pms-theme] .pharmacist-page :is(
+  .pharmacist-search, .module-action-tabs, .json-heading
+) {
+  background: color-mix(in srgb, var(--pms-accent) 6%, var(--pms-surface));
+  border-color: var(--pms-border);
+  color: var(--pms-muted);
+}
+
+[data-pms-theme] .pharmacist-page :is(
+  .pharmacist-input-wrapper input, .pharmacist-json-input-card textarea,
+  .pharmacist-json, .pharmacist-search input
+) { background: var(--pms-surface); color: var(--pms-text); border-color: var(--pms-border); }
+
+[data-pms-theme] .pharmacist-page :is(.pharmacist-btn-primary, .pd-primary) {
+  background: var(--pms-gradient) !important;
+  border-color: var(--pms-accent) !important;
+  color: #fff !important;
+}
+
+[data-pms-theme] .pharmacist-page :is(
+  .pharmacist-action-btn, .pharmacist-search > button:not(.search-clear-btn),
+  .module-action-tab, .pharmacist-tab-btn
+) {
+  background: var(--pms-surface);
+  border-color: var(--pms-border);
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] .pharmacist-page :is(
+  .pharmacist-action-btn.active, .module-action-tab.active, .pharmacist-tab-btn.active
+),
+[data-pms-theme] .pharmacist-page :is(
+  .pharmacist-action-btn, .module-action-tab, .pharmacist-tab-btn
+):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pms-accent) 12%, var(--pms-surface));
+  border-color: var(--pms-accent);
+  color: var(--pms-accent-strong);
+}
+
+:is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .admins-pagination, .pagination-controls, .pagination-buttons, .pagination,
+  .audit-footer, .medicines-footer, .notifications-footer
+) button {
+  min-width: 30px;
+  min-height: 30px;
+  font-size: 11px;
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .admins-pagination, .pagination-controls, .pagination-buttons, .pagination,
+  .audit-footer, .medicines-footer, .notifications-footer
+) button {
+  background: var(--pms-surface);
+  border-color: var(--pms-border);
+  color: var(--pms-accent-strong);
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .admins-pagination, .pagination-controls, .pagination-buttons, .pagination,
+  .audit-footer, .medicines-footer, .notifications-footer
+) button:is(.active, .is-current, [aria-current="page"]) {
+  background: var(--pms-gradient);
+  color: #fff;
+}
+
+[data-pms-theme] :is(.super-admin-shell, .admins-page-shell, .branch-admin-page) :is(
+  .admins-pagination, .pagination-controls, .pagination-buttons, .pagination,
+  .audit-footer, .medicines-footer, .notifications-footer
+) button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+[data-pms-theme] .pharmacist-page :is(input, textarea, select, button, a):focus-visible {
+  outline: 2px solid var(--pms-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 700px) {
+  :is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) {
+    --pms-table-cell-padding: 10px 6px;
+  }
+  :is(.super-admin-shell, .admins-page-shell, .branch-admin-page, .profile-page) :is(
+    .admin-heading-card, .admins-section-header, .super-admin-module-heading,
+    .audit-heading, .reports-heading, .notifications-heading, .permissions-heading,
+    .settings-heading, .medicines-heading, .pharmacist-main-header
+  ) h1 { font-size: 20px !important; }
+}
