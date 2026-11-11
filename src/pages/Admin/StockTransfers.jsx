@@ -192,6 +192,19 @@ export default function StockTransfers() {
     approvedBy: ''
   })
 
+  // Edit Form State
+  const [editForm, setEditForm] = useState({
+    id: '',
+    fromLocation: '',
+    toLocation: '',
+    medicineName: '',
+    batchNo: '',
+    quantity: '',
+    requestedBy: '',
+    approvedBy: '',
+    status: 'Pending'
+  })
+
   // Filtered medicine options for Create Form
   const filteredCreateMedOptions = useMemo(() => {
     const searchVal = String(createForm.medicineName || '').trim().toLowerCase()
@@ -207,7 +220,7 @@ export default function StockTransfers() {
 
   // Filtered medicine options for Edit Form
   const filteredEditMedOptions = useMemo(() => {
-    const searchVal = String(editForm.medicineName || '').trim().toLowerCase()
+    const searchVal = String(editForm?.medicineName || '').trim().toLowerCase()
     if (!searchVal) return medicineOptions
     return medicineOptions.filter(m =>
       m.name.toLowerCase().includes(searchVal) ||
@@ -216,20 +229,7 @@ export default function StockTransfers() {
       (m.strength && m.strength.toLowerCase().includes(searchVal)) ||
       (m.batchNo && m.batchNo.toLowerCase().includes(searchVal))
     )
-  }, [medicineOptions, editForm.medicineName])
-
-  // Edit Form State
-  const [editForm, setEditForm] = useState({
-    id: '',
-    fromLocation: '',
-    toLocation: '',
-    medicineName: '',
-    batchNo: '',
-    quantity: '',
-    requestedBy: '',
-    approvedBy: '',
-    status: 'Pending'
-  })
+  }, [medicineOptions, editForm?.medicineName])
 
   // Validation Error States
   const [createErrors, setCreateErrors] = useState({})

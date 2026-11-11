@@ -59,7 +59,7 @@ class ErrorBoundary extends React.Component {
               Temporary Rendering Error
             </h2>
             <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px', lineHeight: 1.5 }}>
-              The application encountered a problem displaying this section. You can return to Purchase Orders or refresh the page.
+              The application encountered a problem displaying this section. You can return to the Dashboard or refresh the page.
             </p>
             {this.state.error?.message && (
               <div style={{
@@ -83,7 +83,7 @@ class ErrorBoundary extends React.Component {
                 type="button"
                 onClick={() => {
                   this.handleReset()
-                  window.location.href = '/admin/purchase-orders'
+                  window.location.href = '/admin/dashboard'
                 }}
                 style={{
                   background: '#0878e8',
@@ -96,13 +96,13 @@ class ErrorBoundary extends React.Component {
                   cursor: 'pointer'
                 }}
               >
-                Purchase Orders
+                Dashboard
               </button>
               <button
                 type="button"
                 onClick={() => {
                   this.handleReset()
-                  window.location.href = '/admin/dashboard'
+                  window.location.reload()
                 }}
                 style={{
                   background: '#f1f5f9',
@@ -112,22 +112,6 @@ class ErrorBoundary extends React.Component {
                   padding: '10px 18px',
                   fontSize: '14px',
                   fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Dashboard
-              </button>
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                style={{
-                  background: '#ffffff',
-                  color: '#64748b',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  padding: '10px 18px',
-                  fontSize: '14px',
-                  fontWeight: 500,
                   cursor: 'pointer'
                 }}
               >
