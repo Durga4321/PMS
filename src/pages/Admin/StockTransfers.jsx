@@ -66,6 +66,11 @@ export default function StockTransfers() {
   const createMedRef = useRef(null)
   const editMedRef = useRef(null)
 
+  const [createBatchDropdownOpen, setCreateBatchDropdownOpen] = useState(false)
+  const [editBatchDropdownOpen, setEditBatchDropdownOpen] = useState(false)
+  const createBatchRef = useRef(null)
+  const editBatchRef = useRef(null)
+
   // Derived medicine options with batch, strength, and stock from Medicine Management
   const medicineOptions = useMemo(() => {
     const map = new Map()
@@ -133,9 +138,16 @@ export default function StockTransfers() {
     function handleClickOutside(event) {
       if (createMedRef.current && !createMedRef.current.contains(event.target)) {
         setCreateMedDropdownOpen(false)
+    setCreateBatchDropdownOpen(false)
       }
       if (editMedRef.current && !editMedRef.current.contains(event.target)) {
         setEditMedDropdownOpen(false)
+      }
+      if (createBatchRef.current && !createBatchRef.current.contains(event.target)) {
+        setCreateBatchDropdownOpen(false)
+      }
+      if (editBatchRef.current && !editBatchRef.current.contains(event.target)) {
+        setEditBatchDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -163,6 +175,7 @@ export default function StockTransfers() {
     }
 
     setCreateMedDropdownOpen(false)
+    setCreateBatchDropdownOpen(false)
     setCreateForm(prev => ({
       ...prev,
       fromLocation: prev.fromLocation || currentBranch || 'Main Branch'
@@ -230,6 +243,71 @@ export default function StockTransfers() {
       (m.batchNo && m.batchNo.toLowerCase().includes(searchVal))
     )
   }, [medicineOptions, editForm?.medicineName])
+
+  // Batch number options from Medicine Management
+  const batchOptions = useMemo(() => {
+    const list = []
+    const seen = new Set()
+
+    medicines.forEach(m => {
+      const batch = String(m?.batchNumber || m?.batchNo || m?.batch || m?.BatchNumber || m?.BatchNo || '').trim()
+      if (!batch) return
+      const medName = String(m?.name || m?.medicineName || m?.brandName || '').trim()
+      const key = `${batch.toLowerCase()}___${medName.toLowerCase()}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        list.push({
+          batchNo: batch,
+          medicineName: medName,
+          expiryDate: m?.expiryDate || m?.ExpiryDate || '',
+          stock: m?.stock ?? m?.quantity ?? m?.currentStock ?? null
+        })
+      }
+    })
+    return list
+  }, [medicines])
+
+  // Filtered batch options for Create Form
+  const filteredCreateBatchOptions = useMemo(() => {
+    const searchVal = String(createForm.batchNo || '').trim().toLowerCase()
+    const selectedMed = String(createForm.medicineName || '').trim().toLowerCase()
+
+    let filtered = batchOptions
+    if (selectedMed) {
+      const medSpecific = batchOptions.filter(b => b.medicineName.toLowerCase() === selectedMed)
+      if (medSpecific.length > 0) {
+        filtered = medSpecific
+      }
+    }
+
+    if (!searchVal) return filtered
+
+    return filtered.filter(b =>
+      b.batchNo.toLowerCase().includes(searchVal) ||
+      (b.medicineName && b.medicineName.toLowerCase().includes(searchVal))
+    )
+  }, [batchOptions, createForm.batchNo, createForm.medicineName])
+
+  // Filtered batch options for Edit Form
+  const filteredEditBatchOptions = useMemo(() => {
+    const searchVal = String(editForm?.batchNo || '').trim().toLowerCase()
+    const selectedMed = String(editForm?.medicineName || '').trim().toLowerCase()
+
+    let filtered = batchOptions
+    if (selectedMed) {
+      const medSpecific = batchOptions.filter(b => b.medicineName.toLowerCase() === selectedMed)
+      if (medSpecific.length > 0) {
+        filtered = medSpecific
+      }
+    }
+
+    if (!searchVal) return filtered
+
+    return filtered.filter(b =>
+      b.batchNo.toLowerCase().includes(searchVal) ||
+      (b.medicineName && b.medicineName.toLowerCase().includes(searchVal))
+    )
+  }, [batchOptions, editForm?.batchNo, editForm?.medicineName])
 
   // Validation Error States
   const [createErrors, setCreateErrors] = useState({})
@@ -932,6 +1010,7 @@ export default function StockTransfers() {
                                         setCreateErrors(prev => ({ ...prev, batchNo: '' }))
                                       }
                                       setCreateMedDropdownOpen(false)
+    setCreateBatchDropdownOpen(false)
                                     }}
                                   >
                                     <div className="transfer-combobox-option-title">
@@ -966,17 +1045,102 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Batch Number *</label>
-                      <input
-                        type="text"
-                        id="create-batchNo"
-                        value={createForm.batchNo}
-                        onChange={(e) => {
-                          setCreateForm({...createForm, batchNo: e.target.value})
-                          if (createErrors.batchNo) setCreateErrors({...createErrors, batchNo: ''})
-                        }}
-                        style={createErrors.batchNo ? { borderColor: '#ef4444' } : {}}
-                        required
-                      />
+                      <div className="transfer-combobox-wrap" ref={createBatchRef}>
+                        <input
+                          type="text"
+                          id="create-batchNo"
+                          className="transfer-combobox-input"
+                          value={createForm.batchNo}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setCreateForm(prev => ({ ...prev, batchNo: val }))
+                            if (createErrors.batchNo) setCreateErrors(prev => ({ ...prev, batchNo: '' }))
+                            setCreateBatchDropdownOpen(true)
+                          }}
+                          onFocus={() => setCreateBatchDropdownOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setCreateBatchDropdownOpen(false)
+                          }}
+                          placeholder="Select or type batch number..."
+                          style={createErrors.batchNo ? { borderColor: '#ef4444' } : {}}
+                          autoComplete="off"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="transfer-combobox-toggle"
+                          onClick={() => setCreateBatchDropdownOpen(prev => !prev)}
+                          tabIndex={-1}
+                          aria-label="Toggle batch dropdown"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: createBatchDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        {createBatchDropdownOpen && (
+                          <div className="transfer-combobox-menu">
+                            {filteredCreateBatchOptions.length > 0 ? (
+                              filteredCreateBatchOptions.map((opt, idx) => {
+                                const isSelected = createForm.batchNo.trim().toLowerCase() === opt.batchNo.toLowerCase()
+                                return (
+                                  <div
+                                    key={`${opt.batchNo}-${opt.medicineName}-${idx}`}
+                                    className={`transfer-combobox-option ${isSelected ? 'is-selected' : ''}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setCreateForm(prev => ({
+                                        ...prev,
+                                        batchNo: opt.batchNo,
+                                        medicineName: prev.medicineName || opt.medicineName
+                                      }))
+                                      if (createErrors.batchNo) {
+                                        setCreateErrors(prev => ({ ...prev, batchNo: '' }))
+                                      }
+                                      if (opt.medicineName && createErrors.medicineName) {
+                                        setCreateErrors(prev => ({ ...prev, medicineName: '' }))
+                                      }
+                                      setCreateBatchDropdownOpen(false)
+                                    }}
+                                  >
+                                    <div className="transfer-combobox-option-title">
+                                      {opt.batchNo}
+                                    </div>
+                                    <div className="transfer-combobox-option-meta">
+                                      {opt.medicineName && <span>Medicine: <strong>{opt.medicineName}</strong></span>}
+                                      {opt.expiryDate && <span>• Exp: {opt.expiryDate}</span>}
+                                      {opt.stock !== null && (
+                                        <span style={{ marginLeft: 'auto', color: opt.stock > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                                          Stock: {opt.stock}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <div className="transfer-combobox-empty">
+                                {createForm.batchNo.trim()
+                                  ? `No existing batch matching "${createForm.batchNo}". You can keep typing to use this batch number.`
+                                  : (createForm.medicineName ? `No recorded batch numbers for ${createForm.medicineName}. Type a batch number.` : 'No batch numbers recorded in inventory.')}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {createErrors.batchNo && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.batchNo}</span>
                       )}
@@ -1185,17 +1349,102 @@ export default function StockTransfers() {
                     </div>
                     <div className="transfer-form-group">
                       <label>Batch Number *</label>
-                      <input
-                        type="text"
-                        id="edit-batchNo"
-                        value={editForm.batchNo}
-                        onChange={(e) => {
-                          setEditForm({...editForm, batchNo: e.target.value})
-                          if (editErrors.batchNo) setEditErrors({...editErrors, batchNo: ''})
-                        }}
-                        style={editErrors.batchNo ? { borderColor: '#ef4444' } : {}}
-                        required
-                      />
+                      <div className="transfer-combobox-wrap" ref={editBatchRef}>
+                        <input
+                          type="text"
+                          id="edit-batchNo"
+                          className="transfer-combobox-input"
+                          value={editForm.batchNo}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setEditForm(prev => ({ ...prev, batchNo: val }))
+                            if (editErrors.batchNo) setEditErrors(prev => ({ ...prev, batchNo: '' }))
+                            setEditBatchDropdownOpen(true)
+                          }}
+                          onFocus={() => setEditBatchDropdownOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setEditBatchDropdownOpen(false)
+                          }}
+                          placeholder="Select or type batch number..."
+                          style={editErrors.batchNo ? { borderColor: '#ef4444' } : {}}
+                          autoComplete="off"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="transfer-combobox-toggle"
+                          onClick={() => setEditBatchDropdownOpen(prev => !prev)}
+                          tabIndex={-1}
+                          aria-label="Toggle batch dropdown"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: editBatchDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        {editBatchDropdownOpen && (
+                          <div className="transfer-combobox-menu">
+                            {filteredEditBatchOptions.length > 0 ? (
+                              filteredEditBatchOptions.map((opt, idx) => {
+                                const isSelected = editForm.batchNo.trim().toLowerCase() === opt.batchNo.toLowerCase()
+                                return (
+                                  <div
+                                    key={`${opt.batchNo}-${opt.medicineName}-${idx}`}
+                                    className={`transfer-combobox-option ${isSelected ? 'is-selected' : ''}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setEditForm(prev => ({
+                                        ...prev,
+                                        batchNo: opt.batchNo,
+                                        medicineName: prev.medicineName || opt.medicineName
+                                      }))
+                                      if (editErrors.batchNo) {
+                                        setEditErrors(prev => ({ ...prev, batchNo: '' }))
+                                      }
+                                      if (opt.medicineName && editErrors.medicineName) {
+                                        setEditErrors(prev => ({ ...prev, medicineName: '' }))
+                                      }
+                                      setEditBatchDropdownOpen(false)
+                                    }}
+                                  >
+                                    <div className="transfer-combobox-option-title">
+                                      {opt.batchNo}
+                                    </div>
+                                    <div className="transfer-combobox-option-meta">
+                                      {opt.medicineName && <span>Medicine: <strong>{opt.medicineName}</strong></span>}
+                                      {opt.expiryDate && <span>• Exp: {opt.expiryDate}</span>}
+                                      {opt.stock !== null && (
+                                        <span style={{ marginLeft: 'auto', color: opt.stock > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                                          Stock: {opt.stock}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <div className="transfer-combobox-empty">
+                                {editForm.batchNo.trim()
+                                  ? `No existing batch matching "${editForm.batchNo}". You can keep typing to use this batch number.`
+                                  : (editForm.medicineName ? `No recorded batch numbers for ${editForm.medicineName}. Type a batch number.` : 'No batch numbers recorded in inventory.')}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {editErrors.batchNo && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.batchNo}</span>
                       )}
