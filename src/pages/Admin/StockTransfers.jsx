@@ -457,7 +457,7 @@ export default function StockTransfers() {
     let fromLoc = (createForm.fromLocation || '').trim()
     if (fromLoc.includes('•')) fromLoc = fromLoc.split('•')[0].trim()
     if (!fromLoc) {
-      errs.fromLocation = 'From Location / Pharmacy is required.'
+      errs.fromLocation = 'From Location / Branch is required.'
     } else if (fromLoc.length < 2) {
       errs.fromLocation = 'From Location must be at least 2 characters.'
     }
@@ -465,7 +465,7 @@ export default function StockTransfers() {
     let toLoc = (createForm.toLocation || '').trim()
     if (toLoc.includes('•')) toLoc = toLoc.split('•')[0].trim()
     if (!toLoc) {
-      errs.toLocation = 'To Location / Pharmacy is required.'
+      errs.toLocation = 'To Location / Branch is required.'
     } else if (toLoc.length < 2) {
       errs.toLocation = 'To Location must be at least 2 characters.'
     } else if (fromLoc && toLoc && fromLoc.toLowerCase() === toLoc.toLowerCase()) {
@@ -516,14 +516,14 @@ export default function StockTransfers() {
     const errs = {}
     const fromLoc = (editForm.fromLocation || '').trim()
     if (!fromLoc) {
-      errs.fromLocation = 'From Location / Pharmacy is required.'
+      errs.fromLocation = 'From Location / Branch is required.'
     } else if (fromLoc.length < 2) {
       errs.fromLocation = 'From Location must be at least 2 characters.'
     }
 
     const toLoc = (editForm.toLocation || '').trim()
     if (!toLoc) {
-      errs.toLocation = 'To Location / Pharmacy is required.'
+      errs.toLocation = 'To Location / Branch is required.'
     } else if (toLoc.length < 2) {
       errs.toLocation = 'To Location must be at least 2 characters.'
     } else if (fromLoc && toLoc && fromLoc.toLowerCase() === toLoc.toLowerCase()) {
@@ -1030,7 +1030,7 @@ export default function StockTransfers() {
                 <div className="transfer-modal-body">
                   <div className="transfer-form-grid">
                     <div className="transfer-form-group">
-                      <label>From Location / Pharmacy *</label>
+                      <label>From Location / Branch *</label>
                       <input
                         type="text"
                         id="create-fromLocation"
@@ -1055,7 +1055,7 @@ export default function StockTransfers() {
                       )}
                     </div>
                     <div className="transfer-form-group">
-                      <label>To Location / Pharmacy *</label>
+                      <label>To Location / Branch *</label>
                       <input
                         type="text"
                         id="create-toLocation"
@@ -1364,7 +1364,7 @@ export default function StockTransfers() {
                 <div className="transfer-modal-body">
                   <div className="transfer-form-grid">
                     <div className="transfer-form-group">
-                      <label>From Location / Pharmacy *</label>
+                      <label>From Location / Branch *</label>
                       <input
                         type="text"
                         id="edit-fromLocation"
@@ -1381,7 +1381,7 @@ export default function StockTransfers() {
                       )}
                     </div>
                     <div className="transfer-form-group">
-                      <label>To Location / Pharmacy *</label>
+                      <label>To Location / Branch *</label>
                       <input
                         type="text"
                         id="edit-toLocation"
