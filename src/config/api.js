@@ -1579,18 +1579,72 @@ export async function listMedicines(params = {}) {
     console.warn('Backend listMedicines failed, using local medicines:', error.message)
   }
 
-  // When backend responds successfully (HTTP 200), the backend DB is authoritative
+  // When backend responds successfully (HTTP 200), merge backend DB with local & imported catalogue details
   if (backendResponded) {
-    const normalizedBackend = backendList.map(b => normalizeMedicineRecord(b))
-
-    // Only keep locally pending offline drafts if flagged with _isPendingSync
     const localItems = readLocalMedicines()
-    const pendingDrafts = localItems.filter(item => item && item._isPendingSync === true)
+    let importedMeds = []
+    try {
+      const impRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('pms_imported_medicines') : null
+      if (impRaw) {
+        const parsed = JSON.parse(impRaw)
+        if (Array.isArray(parsed)) importedMeds = parsed
+      }
+    } catch {}
 
-    const combined = [...normalizedBackend, ...pendingDrafts]
+    const allLocalPool = [...localItems, ...importedMeds]
 
-    // Synchronize local cache with the authoritative DB state.
-    // If backend database is empty (cleared by user/friend), this clears the local cache!
+    // Merge backend items with local and imported metadata to preserve batch numbers, expiry dates, and stock
+    const normalizedBackend = backendList.map((b) => {
+      const norm = normalizeMedicineRecord(b)
+      const bName = String(norm?.name || norm?.medicineName || '').trim().toLowerCase()
+      const bCode = String(norm?.medicineCode || norm?.code || '').trim().toLowerCase()
+
+      const match = allLocalPool.find((loc) => {
+        const lName = String(loc?.name || loc?.medicineName || '').trim().toLowerCase()
+        const lCode = String(loc?.medicineCode || loc?.code || '').trim().toLowerCase()
+        return (bCode && lCode && bCode === lCode) || (bName && lName && bName === lName)
+      })
+
+      if (match) {
+        const resolvedBatch = norm.batchNumber || match.batchNumber || match.BatchNumber || match.batchNo || match.BatchNo || ''
+        const resolvedExp = norm.expiryDate || match.expiryDate || match.ExpiryDate || ''
+        const resolvedStock = (norm.stock !== null && norm.stock !== undefined && norm.stock > 0)
+          ? norm.stock
+          : (match.stock ?? match.quantity ?? match.currentStock ?? 0)
+
+        return {
+          ...match,
+          ...norm,
+          batchNumber: resolvedBatch,
+          BatchNumber: resolvedBatch,
+          batchNo: resolvedBatch,
+          BatchNo: resolvedBatch,
+          expiryDate: resolvedExp,
+          ExpiryDate: resolvedExp,
+          stock: resolvedStock,
+          quantity: resolvedStock,
+          isImported: Boolean(match.isImported || match._isPendingSync)
+        }
+      }
+      return norm
+    })
+
+    // Retain any imported medicines and offline drafts not yet populated in the backend list
+    const backendCodes = new Set(normalizedBackend.map((b) => String(b?.medicineCode || b?.code || '').trim().toLowerCase()).filter(Boolean))
+    const backendNames = new Set(normalizedBackend.map((b) => String(b?.name || b?.medicineName || '').trim().toLowerCase()).filter(Boolean))
+
+    const extraImportedOrPending = allLocalPool.filter((item) => {
+      if (!item) return false
+      const isImportOrDraft = item.isImported === true || item._isPendingSync === true
+      const code = String(item?.medicineCode || item?.code || '').trim().toLowerCase()
+      const name = String(item?.name || item?.medicineName || '').trim().toLowerCase()
+      const inBackend = (code && backendCodes.has(code)) || (name && backendNames.has(name))
+      return isImportOrDraft && !inBackend
+    })
+
+    const combined = [...normalizedBackend, ...extraImportedOrPending]
+
+    // Synchronize local cache with combined authoritative list
     writeLocalMedicines(combined)
     return combined
   }
