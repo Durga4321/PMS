@@ -168,6 +168,67 @@ function loadAllMedicineRecords() {
   return Array.from(map.values())
 }
 
+// First-letter and prefix matching filter for Medicine Name
+function filterMedicinesByInput(medicinesList, searchVal) {
+  const query = String(searchVal || '').trim().toLowerCase()
+  if (!query) {
+    return [...medicinesList].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+  }
+
+  // When user types a single letter: strictly return medicines whose name or word starts with that letter
+  if (query.length === 1) {
+    const startsDirectly = []
+    const startsWord = []
+
+    medicinesList.forEach((m) => {
+      const name = String(m?.name || m?.medicineName || '').trim().toLowerCase()
+      if (!name) return
+
+      if (name.startsWith(query)) {
+        startsDirectly.push(m)
+      } else {
+        const words = name.split(/[\s\-_\/()]+/)
+        if (words.some((w) => w.startsWith(query))) {
+          startsWord.push(m)
+        }
+      }
+    })
+
+    startsDirectly.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+    startsWord.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+
+    return [...startsDirectly, ...startsWord]
+  }
+
+  // When user types 2 or more characters: rank prefix matches first, then word-prefix, then general substring
+  const startsDirectly = []
+  const startsWord = []
+  const generalMatches = []
+
+  medicinesList.forEach((m) => {
+    const name = String(m?.name || m?.medicineName || '').trim().toLowerCase()
+    const code = String(m?.code || m?.medicineCode || '').trim().toLowerCase()
+    if (!name && !code) return
+
+    if (name.startsWith(query)) {
+      startsDirectly.push(m)
+    } else {
+      const words = name.split(/[\s\-_\/()]+/)
+      if (words.some((w) => w.startsWith(query))) {
+        startsWord.push(m)
+      } else if (name.includes(query) || (code && code.includes(query))) {
+        generalMatches.push(m)
+      }
+    }
+  })
+
+  startsDirectly.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+  startsWord.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+  generalMatches.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+
+  return [...startsDirectly, ...startsWord, ...generalMatches]
+}
+
 export default function StockTransfers() {
   const { showToast } = useToast()
   const [items, setItems] = useState(() => {
@@ -382,30 +443,14 @@ export default function StockTransfers() {
     status: 'Pending'
   })
 
-  // Filtered medicine options for Create Form
+  // Filtered medicine options for Create Form - strictly matches first-letter related medicines when 1 letter is typed
   const filteredCreateMedOptions = useMemo(() => {
-    const searchVal = String(createForm.medicineName || '').trim().toLowerCase()
-    if (!searchVal) return medicineOptions
-    return medicineOptions.filter(m =>
-      m.name.toLowerCase().includes(searchVal) ||
-      (m.code && m.code.toLowerCase().includes(searchVal)) ||
-      (m.category && m.category.toLowerCase().includes(searchVal)) ||
-      (m.strength && m.strength.toLowerCase().includes(searchVal)) ||
-      (m.batchNo && m.batchNo.toLowerCase().includes(searchVal))
-    )
+    return filterMedicinesByInput(medicineOptions, createForm.medicineName)
   }, [medicineOptions, createForm.medicineName])
 
-  // Filtered medicine options for Edit Form
+  // Filtered medicine options for Edit Form - strictly matches first-letter related medicines when 1 letter is typed
   const filteredEditMedOptions = useMemo(() => {
-    const searchVal = String(editForm?.medicineName || '').trim().toLowerCase()
-    if (!searchVal) return medicineOptions
-    return medicineOptions.filter(m =>
-      m.name.toLowerCase().includes(searchVal) ||
-      (m.code && m.code.toLowerCase().includes(searchVal)) ||
-      (m.category && m.category.toLowerCase().includes(searchVal)) ||
-      (m.strength && m.strength.toLowerCase().includes(searchVal)) ||
-      (m.batchNo && m.batchNo.toLowerCase().includes(searchVal))
-    )
+    return filterMedicinesByInput(medicineOptions, editForm?.medicineName)
   }, [medicineOptions, editForm?.medicineName])
 
   // Comprehensive batch number options sourced directly as per Medicine Management
