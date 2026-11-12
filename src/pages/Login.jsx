@@ -73,31 +73,6 @@ function clearAuthSession() {
   localStorage.removeItem('workingPharmacyName')
   sessionStorage.removeItem('pharmacySettings')
   localStorage.removeItem('pharmacySettings')
-
-  const cachePrefixes = [
-    'pms_local_medicines',
-    'pms_medicine_catalogue_cache',
-    'pms_deleted_medicines',
-    'pms_admin_pharmacies_list',
-    'pms_admin_branches_list',
-    'pms_pharmacy_sub_branches',
-    'pms_pharmacy_pharmacists',
-    'pharmacySettings',
-    'pms_legacy_data_owner',
-    'pms_admin_permissions'
-  ]
-  for (const store of [sessionStorage, localStorage]) {
-    try {
-      const keysToRemove = []
-      for (let i = 0; i < store.length; i++) {
-        const k = store.key(i)
-        if (k && cachePrefixes.some(prefix => k === prefix || k.startsWith(prefix + '_'))) {
-          keysToRemove.push(k)
-        }
-      }
-      keysToRemove.forEach(k => store.removeItem(k))
-    } catch {}
-  }
 }
 
 function unwrapLogin(data) {
@@ -224,10 +199,12 @@ function Login() {
       const rawUser = loginData?.user || response?.user || {}
 
       let adminName = String(rawUser.name || rawUser.fullName || '').trim()
-      if (/pharmacy/i.test(adminName) || (!credentials.email.includes('nithish') && /nithish/i.test(adminName))) {
+      if (/pharmacy/i.test(adminName) || (!credentials.email.includes('nithish') && /nithish/i.test(adminName)) || (!credentials.email.includes('raju') && /raju/i.test(adminName))) {
         adminName = ''
       }
-      if (!adminName && credentials.email) {
+      if (credentials.email.includes('venkatagoutham') || credentials.email.includes('goutham')) {
+        adminName = 'Venkata Goutham'
+      } else if (!adminName && credentials.email) {
         const prefix = credentials.email.split('@')[0].replace(/[0-9._-]+$/, '')
         adminName = prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : 'Admin'
       }

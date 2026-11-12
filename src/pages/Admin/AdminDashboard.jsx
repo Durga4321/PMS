@@ -7,7 +7,8 @@ import {
   listBills, 
   getDailySalesReport, 
   getPharmacyPayments,
-  readLocalMedicines
+  readLocalMedicines,
+  readLocalSubBranches
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
@@ -28,6 +29,11 @@ function parseFlexibleDate(raw) {
   const my = s.match(/^(\d{1,2})[/-](\d{4})$/)
   if (my) {
     d = new Date(`${my[2]}-${my[1].padStart(2, '0')}-01`)
+    if (!isNaN(d.getTime())) return d
+  }
+  if (/^\d{5}$/.test(s)) {
+    const excelEpoch = new Date(1899, 11, 30)
+    d = new Date(excelEpoch.getTime() + Number(s) * 86400000)
     if (!isNaN(d.getTime())) return d
   }
   return null
@@ -159,7 +165,7 @@ function AdminDashboard() {
   const [billsList, setBillsList] = useState([])
   const [dailySalesData, setDailySalesData] = useState(null)
   const [paymentsList, setPaymentsList] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [salesFilter, setSalesFilter] = useState('7d')
 
   function loadDashboardData() {
@@ -178,21 +184,26 @@ function AdminDashboard() {
       return
     }
 
+    const fast = (p) => Promise.race([
+      p,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+    ])
+
     Promise.allSettled([
-      getPharmacyAdminDashboard(),
-      listMedicines(),
-      getInventory(),
-      listBills(),
-      getDailySalesReport(),
-      getPharmacyPayments(),
+      fast(getPharmacyAdminDashboard()),
+      fast(listMedicines()),
+      fast(getInventory()),
+      fast(listBills()),
+      fast(getDailySalesReport()),
+      fast(getPharmacyPayments()),
     ])
       .then(([dashRes, medRes, invRes, billsRes, dailyRes, payRes]) => {
-        setDashboard(dashRes.status === 'fulfilled' ? unwrap(dashRes.value) : {})
-        setMedicinesList(medRes.status === 'fulfilled' ? unwrapArray(medRes.value) : [])
-        setInventoryList(invRes.status === 'fulfilled' ? unwrapArray(invRes.value) : [])
-        setBillsList(billsRes.status === 'fulfilled' ? unwrapArray(billsRes.value) : [])
-        setDailySalesData(dailyRes.status === 'fulfilled' ? unwrap(dailyRes.value) : null)
-        setPaymentsList(payRes.status === 'fulfilled' ? unwrapArray(payRes.value) : [])
+        if (dashRes.status === 'fulfilled') setDashboard(unwrap(dashRes.value))
+        if (medRes.status === 'fulfilled') setMedicinesList(unwrapArray(medRes.value))
+        if (invRes.status === 'fulfilled') setInventoryList(unwrapArray(invRes.value))
+        if (billsRes.status === 'fulfilled') setBillsList(unwrapArray(billsRes.value))
+        if (dailyRes.status === 'fulfilled') setDailySalesData(unwrap(dailyRes.value))
+        if (payRes.status === 'fulfilled') setPaymentsList(unwrapArray(payRes.value))
       })
       .finally(() => setLoading(false))
   }
@@ -417,6 +428,15 @@ function AdminDashboard() {
     const lowStock = Math.max(rawLowStock, computedLowStock)
     const expiryAlerts = Math.max(rawExpiryAlerts, computedExpiryAlerts)
 
+    // Compute total unique branches (Main Branch + all created sub-branches)
+    const localSub = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+    const branchNames = new Set(['main branch'])
+    localSub.forEach(b => {
+      const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
+      if (bName && !bName.includes('main branch')) branchNames.add(bName)
+    })
+    const totalBranchesCount = Math.max(branchNames.size, 1 + localSub.length)
+
     return {
       source,
       totalSalesValue,
@@ -440,12 +460,50 @@ function AdminDashboard() {
           )
         },
         {
+          id: 'branches',
+          label: 'Total Branches',
+          val: totalBranchesCount,
+          subText: 'Active branches',
+          badgeText: 'Live',
+          route: '/admin/branches',
+          color: '#0d9488',
+          bgColor: '#f0fdfa',
+          borderColor: 'rgba(13, 148, 136, 0.2)',
+          icon: (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 21h18" />
+              <path d="M5 21V7l8-4v18" />
+              <path d="M19 21V11l-6-4" />
+              <path d="M9 9h1" />
+              <path d="M9 13h1" />
+              <path d="M9 17h1" />
+            </svg>
+          )
+        },
+        {
+          id: 'totalMedicines',
+          label: 'Total Medicines',
+          val: effectiveMedicines.length,
+          subText: 'All branches combined',
+          badgeText: 'In Stock',
+          route: '/admin/medicines',
+          color: '#16a34a',
+          bgColor: '#f0fdf4',
+          borderColor: 'rgba(22, 163, 74, 0.2)',
+          icon: (
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" />
+              <path d="m8.5 8.5 7 7" />
+            </svg>
+          )
+        },
+        {
           id: 'lowStock',
           label: 'Low Stock',
           val: lowStock,
-          subText: 'Needs attention',
+          subText: 'All branches combined',
           badgeText: 'Alert',
-          route: '/low-stock',
+          route: '/admin/stock',
           color: '#f59e0b',
           bgColor: '#fff7e6',
           borderColor: 'rgba(245, 158, 11, 0.2)',
@@ -461,7 +519,7 @@ function AdminDashboard() {
           id: 'expiryAlerts',
           label: 'Expiry Alerts',
           val: expiryAlerts,
-          subText: 'Requires review',
+          subText: 'All branches combined',
           badgeText: 'Near Expiry',
           route: '/admin/expiry-alerts',
           color: '#ef4444',
@@ -486,8 +544,17 @@ function AdminDashboard() {
       {/* Dashboard Page Header */}
       <DashboardGreetingCard role="Admin" subtitle="Branch-wise operations management for sales, stock, and alerts." />
 
-      {/* Top 3 Equal-Sized Statistic Cards */}
-      <section className="branch-summary-4grid">
+      {/* Top 5 Equal-Sized Statistic Cards (Combined across all branches) */}
+      <section
+        className="branch-summary-4grid"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '12px',
+          marginBottom: '16px',
+          width: '100%'
+        }}
+      >
         {view.stats.map((card) => (
           <div
             key={card.id}
@@ -502,7 +569,7 @@ function AdminDashboard() {
               {card.icon}
             </div>
             <div className="stat-card-body">
-              <strong className="stat-card-val">{loading ? '...' : card.val}</strong>
+              <strong className="stat-card-val">{card.val}</strong>
               <label>{card.label}</label>
             </div>
           </div>

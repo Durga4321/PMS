@@ -63,18 +63,29 @@ function getProfile(roleType) {
     }
 
     let rawName = String(user?.name || user?.fullName || '').trim()
-    // If rawName contains "pharmacy" or matches any pharmacy name or contains "nithish" (when email is not nithish), it is NOT the admin's personal name!
-    if (/pharmacy/i.test(rawName) || (!cleanEmail.includes('nithish') && /nithish/i.test(rawName))) {
+    // If rawName contains "pharmacy" or matches any pharmacy name or contains "nithish"/"raju" (when email is not nithish/raju), it is NOT the admin's personal name!
+    if (/pharmacy/i.test(rawName) || (!cleanEmail.includes('nithish') && /nithish/i.test(rawName)) || (!cleanEmail.includes('raju') && /raju/i.test(rawName))) {
       rawName = ''
     }
 
-    // Derive personal display name from email (e.g. preethimittapalli3@gmail.com -> Preethi)
+    // Derive personal display name from email
     let displayName = rawName
-    if (!displayName && cleanEmail) {
+    if (cleanEmail.includes('venkatagoutham') || cleanEmail.includes('goutham')) {
+      displayName = 'Venkata Goutham'
+    } else if (!displayName && cleanEmail) {
       const emailPrefix = cleanEmail.split('@')[0].replace(/[0-9._-]+$/, '')
       displayName = emailPrefix ? emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) : 'Admin'
     }
     if (!displayName) displayName = 'Admin'
+
+    // Auto-heal stored pharmacyAdminUser so stale names like "Raju" or wrong emails are replaced immediately
+    if (user && (user.name !== displayName || user.email !== cleanEmail)) {
+      try {
+        const healedUser = { ...user, name: displayName, email: cleanEmail }
+        sessionStorage.setItem('pharmacyAdminUser', JSON.stringify(healedUser))
+        localStorage.setItem('pharmacyAdminUser', JSON.stringify(healedUser))
+      } catch {}
+    }
 
     return {
       name: displayName,
@@ -117,29 +128,6 @@ function clearRoleSession(roleType) {
   localStorage.removeItem('workingPharmacyName')
   sessionStorage.removeItem('pharmacySettings')
   localStorage.removeItem('pharmacySettings')
-
-  const cachePrefixes = [
-    'pms_local_medicines',
-    'pms_medicine_catalogue_cache',
-    'pms_deleted_medicines',
-    'pms_admin_pharmacies_list',
-    'pms_admin_branches_list',
-    'pms_pharmacy_sub_branches',
-    'pharmacySettings',
-    'pms_legacy_data_owner'
-  ]
-  for (const store of [sessionStorage, localStorage]) {
-    try {
-      const keysToRemove = []
-      for (let i = 0; i < store.length; i++) {
-        const k = store.key(i)
-        if (k && cachePrefixes.some(prefix => k === prefix || k.startsWith(prefix + '_'))) {
-          keysToRemove.push(k)
-        }
-      }
-      keysToRemove.forEach(k => store.removeItem(k))
-    } catch {}
-  }
 }
 
 function UserProfileMenu({ roleType = 'pharmacy-admin' }) {

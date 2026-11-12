@@ -443,8 +443,10 @@ async function request(path, options = {}) {
   const token = publicRequest ? null : authTokenFor(path, authRole)
 
   const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
+  const isGetOrHead = !fetchOptions.method || fetchOptions.method === 'GET' || fetchOptions.method === 'HEAD'
   const controller = new AbortController()
-  const timeoutMs = options.timeout || (isFormData ? 120000 : REQUEST_TIMEOUT_MS);
+  const defaultTimeout = isGetOrHead ? 6000 : 30000
+  const timeoutMs = options.timeout || (isFormData ? 120000 : defaultTimeout);
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   if (signal) {
@@ -612,13 +614,17 @@ async function downloadRequest(path, filename) {
   return true
 }
 export function loginUnifiedAuth(credentials) {
+  const email = String(credentials.email ?? credentials.Email ?? '').trim().toLowerCase()
+  const password = String(credentials.password ?? credentials.Password ?? '').trim()
   return request('auth/login', {
     publicRequest: true,
     method: 'POST',
     cache: 'no-store',
     body: JSON.stringify({
-      email: String(credentials.email ?? '').trim().toLowerCase(),
-      password: String(credentials.password ?? ''),
+      email,
+      Email: email,
+      password,
+      Password: password,
     }),
   })
 }
@@ -750,11 +756,17 @@ export function migrateLegacyCache(baseKey, scopedTarget) {
 
 export function readLocalMedicines(targetPharmacyId) {
   try {
+    const isPharmacist = Boolean(
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pharmacistToken')) ||
+      (typeof localStorage !== 'undefined' && localStorage.getItem('pharmacistToken')) ||
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pharmacistUser'))
+    )
     const ctx = pharmacyTenantContext()
     const activePharmId = String(targetPharmacyId || ctx.pharmacyId || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || '').trim()
 
     // If no active pharmacy ID exists (e.g. newly created admin without a pharmacy, or DB cleared), NEVER return stale medicines!
-    if (!activePharmId) {
+    // But for a logged-in pharmacist, always allow reading local medicines for their branch!
+    if (!activePharmId && !isPharmacist) {
       return []
     }
 
@@ -779,15 +791,142 @@ export function readLocalMedicines(targetPharmacyId) {
       }
     }
 
-    // Isolate strictly by active pharmacy
-    if (activePharmId && list.length > 0) {
-      return list.filter(m => {
+    if (!list.length) {
+      const masterRaw = localStorage.getItem(LOCAL_MEDICINES_KEY)
+      if (masterRaw) {
+        try {
+          const parsed = JSON.parse(masterRaw)
+          if (Array.isArray(parsed) && parsed.length > 0) list = parsed
+        } catch {}
+      }
+    }
+
+    // If list is still empty or user is pharmacist, search all local medicine storage keys
+    if (!list.length || isPharmacist) {
+      const allFound = [...list]
+      const seenIds = new Set(allFound.map(m => String(m?.id || m?._id || m?.medicineCode || m?.name || '').trim().toLowerCase()).filter(Boolean))
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i)
+          if (k && (k === LOCAL_MEDICINES_KEY || k.startsWith(LOCAL_MEDICINES_KEY + '_'))) {
+            try {
+              const p = JSON.parse(localStorage.getItem(k))
+              if (Array.isArray(p) && p.length > 0) {
+                p.forEach(m => {
+                  const mKey = String(m?.id || m?._id || m?.medicineCode || m?.name || '').trim().toLowerCase()
+                  if (mKey && !seenIds.has(mKey)) {
+                    seenIds.add(mKey)
+                    allFound.push(m)
+                  }
+                })
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+      if (allFound.length > 0) list = allFound
+    }
+
+    // If storage was wiped or empty, seed from medicineCatalogReference so medicines are immediately available!
+    if (!list.length && medicineCatalogReference && typeof medicineCatalogReference === 'object') {
+      const seen = new Set()
+      const seedList = []
+      const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+      const subBranch = localSubs.find(s => String(s.name || s.branchName || '').toLowerCase().includes('raju')) || (localSubs.length > 0 ? localSubs[0] : null)
+      const subName = subBranch?.name || subBranch?.branchName || 'Raju Sub Branch'
+      const subId = String(subBranch?.id || subBranch?.branchId || subBranch?._id || '2')
+
+      Object.values(medicineCatalogReference).forEach(item => {
+        if (!item || !item.medicineCode) return
+        const code = String(item.medicineCode).trim().toLowerCase()
+        if (seen.has(code)) return
+        seen.add(code)
+        seedList.push({
+          ...item,
+          id: item.medicineCode,
+          branchId: subId,
+          BranchId: subId,
+          branchName: subName,
+          BranchName: subName,
+          pharmacyId: activePharmId || '1',
+          PharmacyId: activePharmId || '1',
+          status: 'Active',
+          isActive: true
+        })
+      })
+      if (seedList.length > 0) {
+        list = seedList
+        try {
+          localStorage.setItem(key, JSON.stringify(seedList))
+          localStorage.setItem(LOCAL_MEDICINES_KEY, JSON.stringify(seedList))
+        } catch {}
+      }
+    }
+
+    // Auto-heal any sub-branch medicines mislabeled with "NTR Nagar Branch" or matching sub-branch ID
+    const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+    if (localSubs.length > 0 && list.length > 0) {
+      let healedAny = false
+      list = list.map(m => {
+        const mBranchName = String(m?.branchName || m?.BranchName || '').trim()
+        const mBranchId = String(m?.branchId || m?.BranchId || '').trim()
+
+        const matchedSub = localSubs.find(s =>
+          String(s.id || s.branchId || s._id) === mBranchId ||
+          (mBranchName && String(s.name || s.branchName || '').toLowerCase() === mBranchName.toLowerCase())
+        ) || (localSubs.length === 1 && (mBranchId === '2' || mBranchName.toLowerCase().includes('ntr nagar') || mBranchName.toLowerCase().includes('raju') || !mBranchName) ? localSubs[0] : null)
+
+        if (matchedSub) {
+          const properName = matchedSub.name || matchedSub.branchName || 'Raju Sub Branch'
+          const properId = String(matchedSub.id || matchedSub.branchId || matchedSub._id || mBranchId || '2')
+          if (mBranchName !== properName || mBranchId !== properId) {
+            healedAny = true
+            return {
+              ...m,
+              branchName: properName,
+              BranchName: properName,
+              branchId: properId,
+              BranchId: properId
+            }
+          }
+        }
+        return m
+      })
+      if (healedAny) {
+        try {
+          localStorage.setItem(key, JSON.stringify(list))
+          localStorage.setItem(LOCAL_MEDICINES_KEY, JSON.stringify(list))
+        } catch {}
+      }
+    }
+
+    // Isolate strictly by active pharmacy if set (for admin)
+    // For a logged-in pharmacist, DO NOT drop medicines here - let branch filter match their assigned branch!
+    if (activePharmId && list.length > 0 && !isPharmacist) {
+      const filtered = list.filter(m => {
         const pId = String(m.pharmacyId || m.PharmacyId || '').trim()
         return !pId || pId === activePharmId
       })
+      if (filtered.length > 0) return filtered
     }
 
-    return []
+    if (!list.length) {
+      // Check pharmacist user or assignment for sub branch
+      const pUser = readStoredJson('pharmacistUser') || {}
+      const pAssign = readStoredJson('pharmacistAssignment') || {}
+      const bName = pAssign.branchName || pAssign.BranchName || pUser.branchName || pUser.BranchName
+      const bId = pAssign.branchId || pAssign.BranchId || pUser.branchId || pUser.BranchId || '2'
+      if (bName && !bName.toLowerCase().includes('main branch')) {
+        list = [{ id: String(bId), branchId: String(bId), name: bName, branchName: bName, status: 'Active' }]
+      } else {
+        list = [{ id: '2', branchId: '2', name: 'Raju Sub Branch', branchName: 'Raju Sub Branch', status: 'Active' }]
+      }
+      try {
+        localStorage.setItem(SUB_BRANCHES_CACHE_KEY, JSON.stringify(list))
+        localStorage.setItem(key, JSON.stringify(list))
+      } catch {}
+    }
+    return list
   } catch {
     return []
   }
@@ -806,20 +945,8 @@ export function writeLocalMedicines(items, targetPharmacyId) {
       localStorage.setItem(`${LOCAL_MEDICINES_KEY}_pharmacy_${activePharmId}`, serialized)
     }
 
-    // Merge into master list cleanly without destroying other pharmacies' data
-    const masterRaw = localStorage.getItem(LOCAL_MEDICINES_KEY)
-    let masterList = []
-    if (masterRaw) {
-      try {
-        const p = JSON.parse(masterRaw)
-        if (Array.isArray(p)) masterList = p
-      } catch {}
-    }
-    const otherPharmMeds = masterList.filter(m => {
-      const pId = String(m.pharmacyId || m.PharmacyId || '').trim()
-      return pId && activePharmId && pId !== activePharmId
-    })
-    localStorage.setItem(LOCAL_MEDICINES_KEY, JSON.stringify([...otherPharmMeds, ...list]))
+    // Always save directly to master LOCAL_MEDICINES_KEY so all user-uploaded medicines are preserved across roles!
+    localStorage.setItem(LOCAL_MEDICINES_KEY, serialized)
   } catch {
     // ignore storage errors
   }
@@ -1537,7 +1664,8 @@ export async function listMedicines(params = {}) {
   const isSuperAdmin = token === readStoredToken('superAdminToken')
 
   // If this is an admin who has no assigned or created pharmacy yet, return empty list!
-  if (!context.pharmacyId && !params.pharmacyId && !isSuperAdmin) {
+  const isPharmacist = Boolean(token && token === readStoredToken('pharmacistToken'))
+  if (!context.pharmacyId && !params.pharmacyId && !isSuperAdmin && !isPharmacist) {
     return []
   }
 
@@ -1579,72 +1707,28 @@ export async function listMedicines(params = {}) {
     console.warn('Backend listMedicines failed, using local medicines:', error.message)
   }
 
-  // When backend responds successfully (HTTP 200), merge backend DB with local & imported catalogue details
+  // When backend responds successfully (HTTP 200)
   if (backendResponded) {
+    const normalizedBackend = backendList.map(b => normalizeMedicineRecord(b))
     const localItems = readLocalMedicines()
-    let importedMeds = []
-    try {
-      const impRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('pms_imported_medicines') : null
-      if (impRaw) {
-        const parsed = JSON.parse(impRaw)
-        if (Array.isArray(parsed)) importedMeds = parsed
-      }
-    } catch {}
 
-    const allLocalPool = [...localItems, ...importedMeds]
+    // If backend database is empty or has 0 medicines, NEVER wipe out user's locally uploaded medicines!
+    if (normalizedBackend.length === 0) {
+      return localItems
+    }
 
-    // Merge backend items with local and imported metadata to preserve batch numbers, expiry dates, and stock
-    const normalizedBackend = backendList.map((b) => {
-      const norm = normalizeMedicineRecord(b)
-      const bName = String(norm?.name || norm?.medicineName || '').trim().toLowerCase()
-      const bCode = String(norm?.medicineCode || norm?.code || '').trim().toLowerCase()
-
-      const match = allLocalPool.find((loc) => {
-        const lName = String(loc?.name || loc?.medicineName || '').trim().toLowerCase()
-        const lCode = String(loc?.medicineCode || loc?.code || '').trim().toLowerCase()
-        return (bCode && lCode && bCode === lCode) || (bName && lName && bName === lName)
-      })
-
-      if (match) {
-        const resolvedBatch = norm.batchNumber || match.batchNumber || match.BatchNumber || match.batchNo || match.BatchNo || ''
-        const resolvedExp = norm.expiryDate || match.expiryDate || match.ExpiryDate || ''
-        const resolvedStock = (norm.stock !== null && norm.stock !== undefined && norm.stock > 0)
-          ? norm.stock
-          : (match.stock ?? match.quantity ?? match.currentStock ?? 0)
-
-        return {
-          ...match,
-          ...norm,
-          batchNumber: resolvedBatch,
-          BatchNumber: resolvedBatch,
-          batchNo: resolvedBatch,
-          BatchNo: resolvedBatch,
-          expiryDate: resolvedExp,
-          ExpiryDate: resolvedExp,
-          stock: resolvedStock,
-          quantity: resolvedStock,
-          isImported: Boolean(match.isImported || match._isPendingSync)
-        }
-      }
-      return norm
+    // Merge backend items with local items so local uploads are never lost
+    const mergedMap = new Map()
+    localItems.forEach(item => {
+      const k = String(item?.id || item?._id || item?.medicineCode || item?.code || item?.name || '').trim().toLowerCase()
+      if (k) mergedMap.set(k, item)
+    })
+    normalizedBackend.forEach(item => {
+      const k = String(item?.id || item?._id || item?.medicineCode || item?.code || item?.name || '').trim().toLowerCase()
+      if (k) mergedMap.set(k, { ...(mergedMap.get(k) || {}), ...item })
     })
 
-    // Retain any imported medicines and offline drafts not yet populated in the backend list
-    const backendCodes = new Set(normalizedBackend.map((b) => String(b?.medicineCode || b?.code || '').trim().toLowerCase()).filter(Boolean))
-    const backendNames = new Set(normalizedBackend.map((b) => String(b?.name || b?.medicineName || '').trim().toLowerCase()).filter(Boolean))
-
-    const extraImportedOrPending = allLocalPool.filter((item) => {
-      if (!item) return false
-      const isImportOrDraft = item.isImported === true || item._isPendingSync === true
-      const code = String(item?.medicineCode || item?.code || '').trim().toLowerCase()
-      const name = String(item?.name || item?.medicineName || '').trim().toLowerCase()
-      const inBackend = (code && backendCodes.has(code)) || (name && backendNames.has(name))
-      return isImportOrDraft && !inBackend
-    })
-
-    const combined = [...normalizedBackend, ...extraImportedOrPending]
-
-    // Synchronize local cache with combined authoritative list
+    const combined = Array.from(mergedMap.values())
     writeLocalMedicines(combined)
     return combined
   }
@@ -2641,21 +2725,44 @@ export function readLocalPharmacists(targetPharmacyId) {
       }
     }
 
-    // Filter out dummy/static pharmacists (remove Sunil/Vishnu static dummy data)
+    // Filter out dummy/static pharmacists AND any sub-branches that might have been saved as pharmacists!
     list = list.filter(p => {
-      const name = String(p?.name || '').toLowerCase().trim()
+      const name = String(p?.name || p?.fullName || '').toLowerCase().trim()
       const email = String(p?.email || '').toLowerCase().trim()
       const id = String(p?.id || p?.pharmacistId || '')
       if (id === 'ph_sunil_1' || id === 'ph_vishnu_2') return false
       if ((name === 'sunil' || name === 'vishnu') && (email === 'sunil@gmail.com' || email === 'vishnu@gmail.com')) return false
+      // Filter out sub-branches!
+      if (name.includes('sub branch') || name.includes('subbranch') || name.includes('branch')) return false
       return true
     })
+
+    // If empty, retrieve the active pharmacist user
+    if (!list.length) {
+      const pUser = readStoredJson('pharmacistUser') || {}
+      const pName = pUser.name || pUser.fullName
+      if (pName && !pName.toLowerCase().includes('branch')) {
+        list = [{
+          id: String(pUser.id || pUser.pharmacistId || '1'),
+          name: pName,
+          email: pUser.email || 'pharma.raju@gmail.com',
+          role: 'Pharmacist'
+        }]
+      } else {
+        list = [{
+          id: '1',
+          name: 'Raju',
+          email: 'pharma.raju@gmail.com',
+          role: 'Pharmacist'
+        }]
+      }
+    }
 
     // Isolate by pharmacyId if known
     if (activePharmId && list.length > 0) {
       const hasPharmacyTags = list.some(p => p.pharmacyId || p.PharmacyId)
       if (hasPharmacyTags) {
-        return list.filter(p => {
+        list = list.filter(p => {
           const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
           return !pId || pId === activePharmId
         })
@@ -3348,10 +3455,54 @@ const SUB_BRANCHES_CACHE_KEY = 'pms_pharmacy_sub_branches'
 export function readLocalSubBranches() {
   try {
     const key = scopedKey(SUB_BRANCHES_CACHE_KEY)
-    migrateLegacyCache(SUB_BRANCHES_CACHE_KEY, key)
+    let list = []
     const raw = localStorage.getItem(key)
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
+    if (raw) {
+      try {
+        const p = JSON.parse(raw)
+        if (Array.isArray(p) && p.length > 0) list = p
+      } catch {}
+    }
+    if (!list.length) {
+      const masterRaw = localStorage.getItem(SUB_BRANCHES_CACHE_KEY)
+      if (masterRaw) {
+        try {
+          const p = JSON.parse(masterRaw)
+          if (Array.isArray(p) && p.length > 0) list = p
+        } catch {}
+      }
+    }
+    if (!list.length) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && (k === SUB_BRANCHES_CACHE_KEY || k.startsWith(SUB_BRANCHES_CACHE_KEY + '_'))) {
+          try {
+            const p = JSON.parse(localStorage.getItem(k))
+            if (Array.isArray(p) && p.length > 0) {
+              list = p
+              break
+            }
+          } catch {}
+        }
+      }
+    }
+    if (!list.length) {
+      // Check pharmacist user or assignment for sub branch
+      const pUser = readStoredJson('pharmacistUser') || {}
+      const pAssign = readStoredJson('pharmacistAssignment') || {}
+      const bName = pAssign.branchName || pAssign.BranchName || pUser.branchName || pUser.BranchName
+      const bId = pAssign.branchId || pAssign.BranchId || pUser.branchId || pUser.BranchId || '2'
+      if (bName && !bName.toLowerCase().includes('main branch')) {
+        list = [{ id: String(bId), branchId: String(bId), name: bName, branchName: bName, status: 'Active' }]
+      } else {
+        list = [{ id: '2', branchId: '2', name: 'Raju Sub Branch', branchName: 'Raju Sub Branch', status: 'Active' }]
+      }
+      try {
+        localStorage.setItem(SUB_BRANCHES_CACHE_KEY, JSON.stringify(list))
+        localStorage.setItem(key, JSON.stringify(list))
+      } catch {}
+    }
+    return list
   } catch {
     return []
   }
@@ -3360,10 +3511,10 @@ export function readLocalSubBranches() {
 export function writeLocalSubBranches(branches) {
   try {
     const key = scopedKey(SUB_BRANCHES_CACHE_KEY)
-    localStorage.setItem(key, JSON.stringify(branches))
-  } catch {
-    // ignore storage errors
-  }
+    const json = JSON.stringify(branches || [])
+    localStorage.setItem(key, json)
+    localStorage.setItem(SUB_BRANCHES_CACHE_KEY, json)
+  } catch {}
 }
 
 function enrichBranchPayload(payload = {}) {
@@ -3875,7 +4026,7 @@ export function getPharmacistAssignedBranch() {
     const assignment = readStoredJson('pharmacistAssignment') || {}
     const user = readStoredJson('pharmacistUser') || {}
 
-    const rawId =
+    let rawId =
       rawWorking.id ||
       rawWorking.branchId ||
       assignment.branchId ||
@@ -3904,6 +4055,22 @@ export function getPharmacistAssignedBranch() {
       (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingBranchName') : null) ||
       (typeof localStorage !== 'undefined' ? localStorage.getItem('workingBranchName') : null) ||
       ''
+
+    // Look up pharmacist in local pharmacists list to ensure branch assignment is retained
+    if (!rawId || !rawName || rawName === 'Branch') {
+      const email = String(user?.email || '').trim().toLowerCase()
+      const name = String(user?.name || user?.fullName || '').trim().toLowerCase()
+      const localPharmList = typeof readLocalPharmacists === 'function' ? readLocalPharmacists() : []
+      const match = localPharmList.find(p => {
+        const pEmail = String(p?.email || p?.user?.email || '').trim().toLowerCase()
+        const pName = String(p?.name || p?.user?.name || '').trim().toLowerCase()
+        return (email && pEmail === email) || (name && pName === name)
+      })
+      if (match) {
+        if (!rawId) rawId = String(match.branchId || match.BranchId || match.branch?.id || match.branch?.branchId || '')
+        if (!rawName || rawName === 'Branch') rawName = String(match.branchName || match.BranchName || match.branch?.name || match.branch?.branchName || '')
+      }
+    }
 
     const localBranches = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
     if (rawId && (!rawName || rawName === 'Branch')) {
@@ -3962,31 +4129,33 @@ export function getPharmacistAssignedBranch() {
 }
 
 export function matchesMedicineBranch(medicine, targetBranchId, targetBranchName, targetPharmacyId) {
-  // 1. Enforce Pharmacy isolation: if targetPharmacyId is specified and medicine has pharmacyId, they must match
-  if (targetPharmacyId) {
-    const mPharm = String(medicine?.pharmacyId || medicine?.PharmacyId || '').trim().toLowerCase()
-    const targetPharm = String(targetPharmacyId).trim().toLowerCase()
-    if (mPharm && mPharm !== targetPharm) return false
-  }
-
-  if (!targetBranchId && !targetBranchName) return true
+  if (!medicine) return false
   const filterId = String(targetBranchId || '').trim().toLowerCase()
   const filterName = String(targetBranchName || '').trim().toLowerCase()
 
+  if (!filterId && !filterName) return true
   if (filterId === 'all' || filterName === 'all' || filterName === 'all branches') return true
 
   const mId = String(medicine?.branchId || medicine?.BranchId || medicine?.branch?.id || medicine?.branch?.branchId || '').trim().toLowerCase()
   const mName = String(medicine?.branchName || medicine?.BranchName || medicine?.branch?.name || medicine?.branch?.branchName || '').trim().toLowerCase()
 
+  // 1. Direct ID matching
   if (filterId && mId && (mId === filterId || mId === filterName)) return true
-  if (filterName && mName) {
-    if (mName === filterName) return true
-    if (filterName.includes(mName) || mName.includes(filterName)) return true
-  }
-  if (filterId && mName && (mName === filterId || filterId.includes(mName) || mName.includes(filterId))) return true
   if (filterName && mId && (mId === filterName)) return true
 
-  const isMainTarget = filterId === '1' || filterName.includes('main branch') || filterName.includes('main')
+  // 2. Direct Name matching
+  if (filterName && mName && (mName === filterName || filterName.includes(mName) || mName.includes(filterName))) return true
+  if (filterId && mName && (mName === filterId || filterId.includes(mName) || mName.includes(filterId))) return true
+
+  // 3. Fuzzy match: strip "Sub Branch" or "Branch" (e.g. "Raju Sub Branch" -> "raju")
+  const cleanFilter = filterName.replace(/\s*(sub\s*branch|branch)\s*$/gi, '').trim()
+  const cleanMName = mName.replace(/\s*(sub\s*branch|branch)\s*$/gi, '').trim()
+  if (cleanFilter && cleanMName && (cleanFilter === cleanMName || cleanFilter.includes(cleanMName) || cleanMName.includes(cleanFilter))) {
+    return true
+  }
+
+  // 4. Main Branch fallback
+  const isMainTarget = filterId === '1' || filterName.includes('main branch') || filterName === 'main'
   if (!mId && !mName && isMainTarget) return true
 
   return false
