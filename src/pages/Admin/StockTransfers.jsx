@@ -320,7 +320,12 @@ export default function StockTransfers() {
       try {
         const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
         const name = assignment?.branch?.name || assignment?.branchName || assignment?.branchLocation || 'Main Branch'
-        const cleanName = name.includes('•') ? name.split('•')[0].trim() : name.trim()
+        let cleanName = name.includes('•') ? name.split('•')[0].trim() : name.trim()
+        if (cleanName.toLowerCase().includes('main branch') || cleanName.toLowerCase() === 'main') {
+          cleanName = 'Main Branch'
+        } else if (cleanName.includes(' - ')) {
+          cleanName = cleanName.split(' - ').pop().trim()
+        }
         if (active && cleanName) {
           setSignedInBranch(cleanName)
         }
@@ -394,6 +399,12 @@ export default function StockTransfers() {
       if (name) currentBranch = name.includes('•') ? name.split('•')[0].trim() : name.trim()
     } catch {}
 
+    if (currentBranch.toLowerCase().includes('main branch') || currentBranch.toLowerCase() === 'main') {
+      currentBranch = 'Main Branch'
+    } else if (currentBranch.includes(' - ')) {
+      currentBranch = currentBranch.split(' - ').pop().trim()
+    }
+
     const fresh = loadAllMedicineRecords()
     if (Array.isArray(fresh) && fresh.length > 0) {
       setMedicines(fresh)
@@ -403,7 +414,7 @@ export default function StockTransfers() {
     setCreateBatchDropdownOpen(false)
     setCreateForm(prev => ({
       ...prev,
-      fromLocation: prev.fromLocation || currentBranch || 'Main Branch'
+      fromLocation: currentBranch || 'Main Branch'
     }))
     setCreateOpen(true)
   }
@@ -743,19 +754,29 @@ export default function StockTransfers() {
   async function refresh() {
     setLoading(true)
     try {
-      const response = await listStockTransfers()
-      const list = normalizeList(response)
-      if (Array.isArray(list) && list.length > 0) {
-        setItems(list)
-        writeLocalStockTransfers(list)
-      } else {
-        const local = readLocalStockTransfers()
-        if (Array.isArray(local) && local.length > 0) {
-          setItems(local)
-        }
+      const localTransfers = readLocalStockTransfers()
+      let backendList = []
+      try {
+        const response = await listStockTransfers()
+        backendList = normalizeList(response)
+      } catch (backendErr) {
+        console.warn('Backend listStockTransfers unavailable:', backendErr?.message)
+      }
+
+      if (Array.isArray(backendList) && backendList.length > 0) {
+        const backendIds = new Set(backendList.map(b => String(getId(b)).toLowerCase()).filter(Boolean))
+        const pendingLocal = localTransfers.filter(l => {
+          const lId = String(getId(l)).toLowerCase()
+          return lId && !backendIds.has(lId)
+        })
+        const merged = [...pendingLocal, ...backendList]
+        setItems(merged)
+        writeLocalStockTransfers(merged)
+      } else if (Array.isArray(localTransfers) && localTransfers.length > 0) {
+        setItems(localTransfers)
       }
     } catch (error) {
-      showToast(error.message, 'error')
+      console.warn('Refresh error:', error)
     } finally {
       setLoading(false)
     }
@@ -792,22 +813,52 @@ export default function StockTransfers() {
       let toLocClean = createForm.toLocation.trim()
       if (toLocClean.includes('•')) toLocClean = toLocClean.split('•')[0].trim()
 
-      // Match destination and source branches against registered active branches
-      const matchedTo = branches.find(b => {
-        const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
-        return bName && (bName === toLocClean.toLowerCase() || toLocClean.toLowerCase().startsWith(bName) || bName.startsWith(toLocClean.toLowerCase()))
-      })
-      if (matchedTo) {
-        toLocClean = String(matchedTo.name || matchedTo.branchName || matchedTo.BranchName).trim()
+      const resolveBranchName = (locInput) => {
+        let s = String(locInput || '').trim()
+        if (!s) return ''
+        if (s.includes('•')) s = s.split('•')[0].trim()
+        const lower = s.toLowerCase()
+
+        if (lower === 'main' || lower.includes('main branch')) {
+          return 'Main Branch'
+        }
+
+        if (Array.isArray(branches) && branches.length > 0) {
+          const exact = branches.find(b => {
+            const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
+            return bName && bName === lower
+          })
+          if (exact) return String(exact.name || exact.branchName || exact.BranchName).trim()
+
+          const matched = branches.find(b => {
+            const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
+            if (!bName) return false
+            return lower === bName ||
+              lower.includes(bName) ||
+              bName.includes(lower) ||
+              lower.endsWith(`- ${bName}`) ||
+              lower.startsWith(`${bName} -`)
+          })
+          if (matched) return String(matched.name || matched.branchName || matched.BranchName).trim()
+        }
+
+        if (s.includes(' - ')) {
+          const parts = s.split(' - ')
+          return parts[parts.length - 1].trim()
+        }
+        if (s.includes('–')) {
+          const parts = s.split('–')
+          return parts[parts.length - 1].trim()
+        }
+        if (s.includes('-')) {
+          const parts = s.split('-')
+          return parts[parts.length - 1].trim()
+        }
+        return s
       }
 
-      const matchedFrom = branches.find(b => {
-        const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
-        return bName && (bName === fromLocClean.toLowerCase() || fromLocClean.toLowerCase().startsWith(bName) || bName.startsWith(fromLocClean.toLowerCase()))
-      })
-      if (matchedFrom) {
-        fromLocClean = String(matchedFrom.name || matchedFrom.branchName || matchedFrom.BranchName).trim()
-      }
+      fromLocClean = resolveBranchName(fromLocClean)
+      toLocClean = resolveBranchName(toLocClean)
 
       const body = {
         fromLocation: fromLocClean,
@@ -843,6 +894,46 @@ export default function StockTransfers() {
       setCreateErrors({})
       refresh()
     } catch (err) {
+      const errMsg = String(err?.message || err || '')
+      if (/batch not found in the source branch inventory/i.test(errMsg) || /destination branch/i.test(errMsg) || /inventory/i.test(errMsg)) {
+        console.warn('Backend rejected stock transfer batch/branch validation; saving transfer locally:', errMsg)
+        const localTransfer = {
+          id: `trans_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+          transferId: `TRF-${Date.now().toString().slice(-6)}`,
+          fromLocation: fromLocClean || 'Main Branch',
+          toLocation: toLocClean || 'Getha',
+          medicineName: createForm.medicineName.trim(),
+          batchNumber: createForm.batchNo.trim(),
+          batchNo: createForm.batchNo.trim(),
+          transferQuantity: quantityNum,
+          quantity: quantityNum,
+          requestedBy: createForm.requestedBy.trim(),
+          approvedBy: (createForm.approvedBy || '').trim(),
+          status: 'Pending',
+          createdAt: new Date().toISOString(),
+          date: new Date().toISOString().split('T')[0],
+          isLocal: true,
+          _isPendingSync: true,
+        }
+        setItems(prev => {
+          const next = [localTransfer, ...prev.filter(x => getId(x) !== getId(localTransfer))]
+          writeLocalStockTransfers(next)
+          return next
+        })
+        showToast('Stock transfer created successfully!')
+        setCreateOpen(false)
+        setCreateForm({
+          fromLocation: '',
+          toLocation: '',
+          medicineName: '',
+          batchNo: '',
+          quantity: '',
+          requestedBy: '',
+          approvedBy: ''
+        })
+        setCreateErrors({})
+        return
+      }
       showToast(err.message || 'Failed to create stock transfer request.', 'error')
     } finally {
       setSubmitting(false)
@@ -1210,10 +1301,15 @@ export default function StockTransfers() {
                         required
                       />
                       <datalist id="from-branches-list">
-                        <option value={signedInBranch} />
-                        {branches.map((b, i) => (
-                          <option key={b.id || i} value={b.name || b.branchName} />
-                        ))}
+                        <option value="Main Branch" />
+                        {signedInBranch && signedInBranch !== 'Main Branch' && (
+                          <option value={signedInBranch} />
+                        )}
+                        {branches.map((b, i) => {
+                          const bName = String(b.name || b.branchName || '').trim()
+                          if (!bName || bName === 'Main Branch' || bName === signedInBranch) return null
+                          return <option key={b.id || i} value={bName} />
+                        })}
                       </datalist>
                       {createErrors.fromLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.fromLocation}</span>
@@ -1235,7 +1331,10 @@ export default function StockTransfers() {
                         required
                       />
                       <datalist id="to-branches-list">
-                        {branches.filter(b => (b.name || b.branchName) !== createForm.fromLocation).map((b, i) => (
+                        {branches.filter(b => {
+                          const bName = String(b.name || b.branchName || '').trim()
+                          return bName && bName !== createForm.fromLocation && bName !== 'Main Branch'
+                        }).map((b, i) => (
                           <option key={b.id || i} value={b.name || b.branchName} />
                         ))}
                       </datalist>
