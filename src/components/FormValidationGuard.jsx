@@ -1,16 +1,18 @@
 import { useEffect } from 'react'
+import { getLanguage, translate } from '../i18n/language'
 
 const phoneWords = ['phone', 'mobile', 'mobile number', 'mbl', 'contact number', 'contact no', 'contact phone', 'supplier contact', 'whatsapp']
 const numberWords = ['quantity', 'qty', 'price', 'amount', 'cost', 'stock', 'gst', 'tax', 'port', 'level', 'reorder', 'minimum', 'maximum', 'duration']
 const personNameWords = ['full name', 'patient name', 'doctor name', 'pharmacist name', 'admin name', 'sender name']
 
 const onlyDigits = (value) => String(value || '').replace(/\D/g, '')
-const onlyLetters = (value) => String(value || '').replace(/[^A-Za-z .'-]/g, '')
-const excludedTextTypes = ['button', 'checkbox', 'color', 'date', 'datetime-local', 'email', 'file', 'hidden', 'month', 'number', 'password', 'radio', 'range', 'reset', 'submit', 'time', 'url', 'week']
+const onlyLetters = (value) => String(value || '').replace(/[^\p{L}\p{M} .'-]/gu, '')
+const excludedTextTypes = ['button', 'checkbox', 'color', 'date', 'datetime-local', 'email', 'file', 'hidden', 'month', 'number', 'password', 'radio', 'range', 'reset', 'search', 'submit', 'time', 'url', 'week']
 
 function fieldText(input) {
-  const label = input.closest('label')?.innerText || ''
-  return [input.name, input.id, input.placeholder, input.getAttribute('aria-label'), label].filter(Boolean).join(' ').toLowerCase()
+  const labelElement = input.closest('label')
+  const label = labelElement?.dataset.pmsSourceText || labelElement?.innerText || ''
+  return [input.name, input.id, input.dataset.pmsSourcePlaceholder || input.placeholder, input.dataset.pmsSourceLabel || input.getAttribute('aria-label'), label].filter(Boolean).join(' ').toLowerCase()
 }
 
 function hasAny(text, words) {
@@ -62,7 +64,7 @@ function validatePhoneField(input) {
   }
 
   const valid = digits.length === 0 || digits.length === 10
-  input.setCustomValidity(valid ? '' : 'Phone or mobile number must be exactly 10 digits.')
+  input.setCustomValidity(valid ? '' : translate('Phone or mobile number must be exactly 10 digits.', getLanguage()))
   return valid
 }
 

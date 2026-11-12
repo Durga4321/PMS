@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { confirmAction } from '../../components/confirmAction'
 import { changeSuperAdminHospitalStatus, listAssignmentHospitals } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
@@ -168,7 +169,7 @@ async function toggleClinicStatus(clinic) {
 
   function handleDelete(clinic) {
     const name = clinicName(clinic)
-    if (!window.confirm(`Are you sure you want to delete ${name}?`)) return
+    if (!await confirmAction(`Are you sure you want to delete ${name}?`)) return
     const id = clinicId(clinic)
     setClinics((current) => current.filter((item) => clinicId(item) !== id))
   }

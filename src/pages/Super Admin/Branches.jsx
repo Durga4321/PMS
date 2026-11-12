@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { confirmAction } from '../../components/confirmAction'
 import {
   changeSuperAdminPharmacyStatus,
   createSuperAdminPharmacy,
@@ -210,7 +211,7 @@ export default function Pharmacies() {
       setError('Unable to delete pharmacy: pharmacy ID is missing.')
       return
     }
-    if (!window.confirm(`Delete ${pharmacyName(pharmacy)}?`)) return
+    if (!await confirmAction(`Delete ${pharmacyName(pharmacy)}?`)) return
     setError('')
     try {
       await deleteSuperAdminPharmacy(pharmacyId)

@@ -28,13 +28,15 @@ import AdminSettings from './pages/Admin/Settings'
 import AdminSuppliers from './pages/Admin/Suppliers'
 import AdminPurchaseOrders from './pages/Admin/PurchaseOrders'
 import AdminStockTransfers from './pages/Admin/StockTransfers'
+import AdminNotifications from './pages/Admin/Notifications'
 import PharmacistDashboard from './pages/Pharmacist/Dashboard'
 import PharmacistPending from './pages/Pharmacist/Pending'
-import PharmacistDispensing from './pages/Pharmacist/Dispensing'
+import PharmacistDispensing, { DispensingHistory } from './pages/Pharmacist/Dispensing'
 import PharmacistMedicines from './pages/Pharmacist/Medicines'
 import PharmacistBills from './pages/Pharmacist/Bills'
 import PharmacistReturns from './pages/Pharmacist/Returns'
 import PharmacistReports from './pages/Pharmacist/Reports'
+import PharmacistNotifications from './pages/Pharmacist/Notifications'
 import ToastProvider from './components/ToastProvider'
 import FormValidationGuard from './components/FormValidationGuard'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -80,6 +82,7 @@ function App() {
             <Route path="/super-admin/change-password" element={<SuperAdminProfile initialTab="password" />} />
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/notifications" element={<AdminNotifications />} />
             <Route path="/admin/users" element={<AdminPermissionRoute module="Users"><AdminUsers /></AdminPermissionRoute>} />
             <Route path="/admin/users/add" element={<AdminPermissionRoute module="Users"><AdminUsers initialAdd={true} /></AdminPermissionRoute>} />
             <Route path="/admin/roles-permissions" element={<AdminRolesPermissions />} />
@@ -107,8 +110,10 @@ function App() {
             <Route path="/admin/profile" element={<SuperAdminProfile initialTab="profile" roleType="pharmacy-admin" />} />
             <Route path="/admin/change-password" element={<SuperAdminProfile initialTab="password" roleType="pharmacy-admin" />} />
             <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
+            <Route path="/pharmacist/notifications" element={<PharmacistNotifications />} />
             <Route path="/pharmacist/pending" element={<PharmacistPending />} />
             <Route path="/pharmacist/dispensing" element={<PharmacistDispensing />} />
+            <Route path="/pharmacist/dispensing/history" element={<DispensingHistory />} />
             <Route path="/pharmacist/medicines" element={<PharmacistMedicines />} />
             <Route path="/pharmacist/bills" element={<PharmacistBills />} />
             <Route path="/pharmacist/returns" element={<PharmacistReturns />} />

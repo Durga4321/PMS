@@ -6,8 +6,10 @@ import {
   getPharmacistAssignedBranch,
   matchesMedicineBranch,
   formatExcelDate,
-  clearLocalMedicinesCache
+  clearLocalMedicinesCache,
+  getPharmacistInventory
 } from '../../config/api'
+import { applyReturnedInventory, returnList } from './returnsModel'
 import '../Admin/Medicines.css'
 
 function getName(item) {
@@ -126,7 +128,7 @@ export default function PharmacistMedicines() {
       ])
 
       fastFetch
-        .then((res) => {
+        .then(async (res) => {
           const serverList = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
           if (serverList.length > 0) {
             serverList.forEach(m => {
@@ -137,6 +139,10 @@ export default function PharmacistMedicines() {
           } else if (local.length > 0) {
             setAllMedicines(local)
           }
+          try {
+            const inventory = returnList(await getPharmacistInventory({ branchId: currentAssigned?.id }))
+            setAllMedicines((current) => applyReturnedInventory(current, inventory))
+          } catch { /* Keep catalogue data when live inventory is unavailable. */ }
         })
         .catch((err) => {
           console.warn('Pharmacist listMedicines fallback:', err?.message || err)

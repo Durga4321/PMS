@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import UserProfileMenu from '../../components/UserProfileMenu'
 import ThemeToggle from '../../components/ThemeToggle'
+import NotificationBell from '../../components/NotificationBell'
 import AdminSidebar from './AdminSidebar'
 import { adminNavigation } from './adminNavigation'
 import { hasPermission, readAdminPermissions } from '../../config/permissions'
@@ -201,10 +202,7 @@ function AdminLayout({ activeLabel, title, subtitle, headerAction, children }) {
 
           <div className="header-right-actions">
             <ThemeToggle />
-            <button className="branch-admin-notification" type="button" aria-label="Notifications" title="Notifications" onClick={() => navigate('/admin/expiry-alerts')}>
-              <Icon><path d="M6 9a6 6 0 0 1 12 0c0 7 2 7 2 9H4c0-2 2-2 2-9" /><path d="M10 21h4" /></Icon>
-              <b className="unread-dot" />
-            </button>
+            <NotificationBell role="pharmacyAdmin" path="/admin/notifications" />
             <UserProfileMenu roleType="pharmacy-admin" />
           </div>
         </header>

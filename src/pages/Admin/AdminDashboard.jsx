@@ -686,7 +686,7 @@ function AdminDashboard() {
       <section className="branch-grid three">
         <AdminTable
           {...dashboardTables.medicines}
-          rows={view.topMedicines.map((item) => {
+          rows={view.topMedicines.slice(0, 5).map((item) => {
             const qty = getItemStock(item)
             const st = String(text(item, ['status'], 'Active')).toLowerCase()
             const isInactive = st.includes('inactive') || item?.isActive === false
@@ -702,10 +702,12 @@ function AdminDashboard() {
             ]
           })}
           onActionClick={() => navigate('/admin/medicines')}
+          onViewAll={() => navigate('/admin/medicines')}
+          scrollable={false}
         />
         <AdminTable
           {...dashboardTables.stock}
-          rows={view.recentStock.map((item) => {
+          rows={view.recentStock.slice(0, 5).map((item) => {
             const qty = getItemStock(item)
             const rawExpiry = text(item, ['expiryDate', 'expiry', 'expiresAt'], '-')
             const expiryText = typeof rawExpiry === 'string' && rawExpiry.includes('T') ? rawExpiry.split('T')[0] : String(rawExpiry || '-')
@@ -718,16 +720,20 @@ function AdminDashboard() {
             ]
           })}
           onActionClick={() => navigate('/inventory')}
+          onViewAll={() => navigate('/inventory')}
+          scrollable={false}
         />
         <AdminTable
           {...dashboardTables.reports}
-          rows={view.reports.map((item) => [
+          rows={view.reports.slice(0, 5).map((item) => [
             text(item, ['title', 'name', 'report']),
             text(item, ['type', 'category']),
             text(item, ['createdBy', 'userName']),
             text(item, ['status'], 'Ready'),
           ])}
           onActionClick={() => navigate('/admin/reports')}
+          onViewAll={() => navigate('/admin/reports')}
+          scrollable={false}
         />
       </section>
     </AdminLayout>

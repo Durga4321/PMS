@@ -2,7 +2,6 @@ import { confirmAction } from '../../components/confirmAction'
 import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { useToast } from '../../components/ToastProvider'
-import MedicineSuccessAnimation from '../../components/MedicineSuccessAnimation'
 import RowActions from '../../components/RowActions'
 import AdminLayout from './AdminLayout'
 import {
@@ -297,7 +296,6 @@ export default function Medicines() {
   const [viewingItem, setViewingItem] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importPercent, setImportPercent] = useState(0)
-  const [showSuccessAnim, setShowSuccessAnim] = useState(false)
 
   const [form, setForm] = useState(emptyForm)
 
@@ -881,7 +879,6 @@ export default function Medicines() {
       }
 
       setFormOpen(false)
-      setShowSuccessAnim(true)
 
       if (editing) {
         await updateMedicine(getId(editing), payload)
@@ -2362,13 +2359,6 @@ export default function Medicines() {
                 </div>
               </div>
             </div>
-          )}
-
-          {showSuccessAnim && (
-            <MedicineSuccessAnimation
-              active={showSuccessAnim}
-              onComplete={() => setShowSuccessAnim(false)}
-            />
           )}
 
         </div>
