@@ -124,3 +124,83 @@
   .pd-dashboard .pd-empty { min-height: 65px; padding: 10px 6px; line-height: 1.5; }
 }
 
+/* Quick Dispense Action Button & Modal */
+.pd-dispense-action-btn {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 3px 8px !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.2;
+  transition: background 0.15s ease;
+}
+
+.pd-dispense-action-btn:hover {
+  background: #059669 !important;
+}
+
+.pd-dispense-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.pd-dispense-modal {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.pd-dispense-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pd-dispense-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.pd-dispense-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.pd-dispense-modal-body {
+  padding: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.pd-dispense-modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #f8fafc;
+}
+

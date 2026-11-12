@@ -429,13 +429,23 @@ function AdminDashboard() {
     const expiryAlerts = Math.max(rawExpiryAlerts, computedExpiryAlerts)
 
     // Compute total unique branches (Main Branch + all created sub-branches)
+    const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+    const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
+    const user = JSON.parse(sessionStorage.getItem('pharmacyAdminUser') || localStorage.getItem('pharmacyAdminUser') || '{}')
+    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+
     const localSub = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
-    const branchNames = new Set(['main branch'])
-    localSub.forEach(b => {
-      const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
-      if (bName && !bName.includes('main branch')) branchNames.add(bName)
-    })
-    const totalBranchesCount = Math.max(branchNames.size, 1 + localSub.length)
+    let totalBranchesCount = 0
+    if (isAssigned) {
+      const branchNames = new Set(['main branch'])
+      localSub.forEach(b => {
+        const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
+        if (bName && !bName.includes('main branch')) branchNames.add(bName)
+      })
+      totalBranchesCount = Math.max(branchNames.size, 1 + localSub.length)
+    } else {
+      totalBranchesCount = localSub.length
+    }
 
     return {
       source,
