@@ -11,6 +11,7 @@ import {
   receiveStockTransfer,
   updateStockTransferDraft,
   listPharmacyBranches,
+  readLocalSubBranches,
   readLocalStockTransfers,
   writeLocalStockTransfers,
   listMedicines,
@@ -229,6 +230,105 @@ function filterMedicinesByInput(medicinesList, searchVal) {
   return [...startsDirectly, ...startsWord, ...generalMatches]
 }
 
+// Ingest and consolidate all pharmacy branches (Main Branch and Sub Branches of that pharmacy)
+export function getPharmacyBranchOptions(remoteBranches = []) {
+  const branchMap = new Map()
+
+  function addBranch(name, isMain = false) {
+    if (!name) return
+    let trimmed = String(name).trim()
+    if (trimmed.includes('•')) trimmed = trimmed.split('•')[0].trim()
+    if (!trimmed || trimmed === '-' || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') return
+    const key = trimmed.toLowerCase()
+    if (!branchMap.has(key)) {
+      branchMap.set(key, {
+        name: trimmed,
+        isMain: isMain || trimmed.toLowerCase().includes('main branch') || trimmed.toLowerCase() === 'main'
+      })
+    }
+  }
+
+  // 1. Resolve Pharmacy Name & Main Branch from assignment / session / localStorage
+  let pharmacyName = ''
+  try {
+    const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
+    const user = JSON.parse(sessionStorage.getItem('pharmacyAdminUser') || localStorage.getItem('pharmacyAdminUser') || '{}')
+    pharmacyName = assignment.pharmacyName || user.pharmacyName || sessionStorage.getItem('workingPharmacyName') || localStorage.getItem('workingPharmacyName') || ''
+    
+    if (!pharmacyName) {
+      const rawPharmacies = localStorage.getItem('pms_admin_pharmacies_list')
+      if (rawPharmacies) {
+        const parsed = JSON.parse(rawPharmacies)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          pharmacyName = parsed[0]?.name || parsed[0]?.pharmacyName || ''
+        }
+      }
+    }
+
+    const assignedBranchName = assignment.branchName || assignment?.branch?.name || assignment?.branchLocation || ''
+    if (assignedBranchName && assignedBranchName !== 'Branch') {
+      const clean = assignedBranchName.includes('•') ? assignedBranchName.split('•')[0].trim() : assignedBranchName.trim()
+      addBranch(clean, true)
+    }
+
+    if (pharmacyName) {
+      addBranch(`${pharmacyName} - Main Branch`, true)
+    }
+    addBranch('Main Branch', true)
+  } catch {}
+
+  // 2. Sub-branches from readLocalSubBranches()
+  try {
+    const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+    if (Array.isArray(localSubs)) {
+      localSubs.forEach((b) => {
+        const bName = String(b?.name || b?.branchName || b?.BranchName || '').trim()
+        if (bName) {
+          const isMain = Boolean(b.isMainBranch) || bName.toLowerCase().includes('main branch')
+          addBranch(bName, isMain)
+          if (!isMain && !bName.toLowerCase().includes('sub branch')) {
+            addBranch(`${bName} - SUB BRANCH`, false)
+          }
+        }
+      })
+    }
+  } catch {}
+
+  // 3. Branches from listPharmacyBranches (remote/cached)
+  if (Array.isArray(remoteBranches)) {
+    remoteBranches.forEach((b) => {
+      const bName = String(b?.name || b?.branchName || b?.BranchName || '').trim()
+      if (bName) {
+        const isMain = Boolean(b.isMainBranch) || bName.toLowerCase().includes('main branch')
+        addBranch(bName, isMain)
+        if (!isMain && !bName.toLowerCase().includes('sub branch')) {
+          addBranch(`${bName} - SUB BRANCH`, false)
+        }
+      }
+    })
+  }
+
+  // 4. Any branches recorded in existing stock transfers
+  try {
+    const localTransfers = readLocalStockTransfers()
+    if (Array.isArray(localTransfers)) {
+      localTransfers.forEach(t => {
+        const from = String(t?.fromLocation || t?.fromBranch || t?.sourceBranch || '').trim()
+        const to = String(t?.toLocation || t?.toBranch || t?.destinationBranch || '').trim()
+        if (from) addBranch(from)
+        if (to) addBranch(to)
+      })
+    }
+  } catch {}
+
+  // Return list sorted: Main Branch(es) first, then Sub-Branches alphabetically
+  return Array.from(branchMap.values()).sort((a, b) => {
+    if (a.isMain && !b.isMain) return -1
+    if (!a.isMain && b.isMain) return 1
+    return a.name.localeCompare(b.name)
+  })
+}
+
 export default function StockTransfers() {
   const { showToast } = useToast()
   const [items, setItems] = useState(() => {
@@ -268,6 +368,16 @@ export default function StockTransfers() {
   const [editBatchDropdownOpen, setEditBatchDropdownOpen] = useState(false)
   const createBatchRef = useRef(null)
   const editBatchRef = useRef(null)
+
+  // Branch combobox selection states
+  const [createFromBranchOpen, setCreateFromBranchOpen] = useState(false)
+  const [createToBranchOpen, setCreateToBranchOpen] = useState(false)
+  const [editFromBranchOpen, setEditFromBranchOpen] = useState(false)
+  const [editToBranchOpen, setEditToBranchOpen] = useState(false)
+  const createFromBranchRef = useRef(null)
+  const createToBranchRef = useRef(null)
+  const editFromBranchRef = useRef(null)
+  const editToBranchRef = useRef(null)
 
   // Derived medicine options with batch, strength, and stock from Medicine Management
   const medicineOptions = useMemo(() => {
@@ -312,8 +422,23 @@ export default function StockTransfers() {
       try {
         const res = await listPharmacyBranches()
         const list = res?.branches || res?.data || []
-        if (active && Array.isArray(list)) {
-          setBranches(list)
+        const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+        const combinedBranches = [...(Array.isArray(list) ? list : [])]
+        if (Array.isArray(localSubs)) {
+          localSubs.forEach(ls => {
+            const lsId = String(ls?.id || ls?.branchId || ls?._id || '')
+            const lsName = String(ls?.name || ls?.branchName || '').trim().toLowerCase()
+            if (!combinedBranches.some(cb => {
+              const cbId = String(cb?.id || cb?.branchId || cb?._id || '')
+              const cbName = String(cb?.name || cb?.branchName || '').trim().toLowerCase()
+              return (lsId && cbId && lsId === cbId) || (lsName && cbName && lsName === cbName)
+            })) {
+              combinedBranches.push(ls)
+            }
+          })
+        }
+        if (active && combinedBranches.length > 0) {
+          setBranches(combinedBranches)
         }
       } catch {}
 
@@ -321,11 +446,6 @@ export default function StockTransfers() {
         const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
         const name = assignment?.branch?.name || assignment?.branchName || assignment?.branchLocation || 'Main Branch'
         let cleanName = name.includes('•') ? name.split('•')[0].trim() : name.trim()
-        if (cleanName.toLowerCase().includes('main branch') || cleanName.toLowerCase() === 'main') {
-          cleanName = 'Main Branch'
-        } else if (cleanName.includes(' - ')) {
-          cleanName = cleanName.split(' - ').pop().trim()
-        }
         if (active && cleanName) {
           setSignedInBranch(cleanName)
         }
@@ -362,11 +482,49 @@ export default function StockTransfers() {
       }
     }
 
+    async function handleBranchSync() {
+      try {
+        const res = await listPharmacyBranches()
+        const list = res?.branches || res?.data || []
+        const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
+        const combinedBranches = [...(Array.isArray(list) ? list : [])]
+        if (Array.isArray(localSubs)) {
+          localSubs.forEach(ls => {
+            const lsId = String(ls?.id || ls?.branchId || ls?._id || '')
+            const lsName = String(ls?.name || ls?.branchName || '').trim().toLowerCase()
+            if (!combinedBranches.some(cb => {
+              const cbId = String(cb?.id || cb?.branchId || cb?._id || '')
+              const cbName = String(cb?.name || cb?.branchName || '').trim().toLowerCase()
+              return (lsId && cbId && lsId === cbId) || (lsName && cbName && lsName === cbName)
+            })) {
+              combinedBranches.push(ls)
+            }
+          })
+        }
+        if (active && combinedBranches.length > 0) {
+          setBranches(combinedBranches)
+        }
+      } catch {}
+    }
+
     window.addEventListener('pms:medicines-updated', handleMedicineSync)
     window.addEventListener('pms:stock-updated', handleMedicineSync)
+    window.addEventListener('pms:tenant-updated', handleBranchSync)
     window.addEventListener('storage', handleMedicineSync)
 
     function handleClickOutside(event) {
+      if (createFromBranchRef.current && !createFromBranchRef.current.contains(event.target)) {
+        setCreateFromBranchOpen(false)
+      }
+      if (createToBranchRef.current && !createToBranchRef.current.contains(event.target)) {
+        setCreateToBranchOpen(false)
+      }
+      if (editFromBranchRef.current && !editFromBranchRef.current.contains(event.target)) {
+        setEditFromBranchOpen(false)
+      }
+      if (editToBranchRef.current && !editToBranchRef.current.contains(event.target)) {
+        setEditToBranchOpen(false)
+      }
       if (createMedRef.current && !createMedRef.current.contains(event.target)) {
         setCreateMedDropdownOpen(false)
       }
@@ -386,6 +544,7 @@ export default function StockTransfers() {
       active = false
       window.removeEventListener('pms:medicines-updated', handleMedicineSync)
       window.removeEventListener('pms:stock-updated', handleMedicineSync)
+      window.removeEventListener('pms:tenant-updated', handleBranchSync)
       window.removeEventListener('storage', handleMedicineSync)
       document.removeEventListener('mousedown', handleClickOutside)
     }
@@ -399,17 +558,13 @@ export default function StockTransfers() {
       if (name) currentBranch = name.includes('•') ? name.split('•')[0].trim() : name.trim()
     } catch {}
 
-    if (currentBranch.toLowerCase().includes('main branch') || currentBranch.toLowerCase() === 'main') {
-      currentBranch = 'Main Branch'
-    } else if (currentBranch.includes(' - ')) {
-      currentBranch = currentBranch.split(' - ').pop().trim()
-    }
-
     const fresh = loadAllMedicineRecords()
     if (Array.isArray(fresh) && fresh.length > 0) {
       setMedicines(fresh)
     }
 
+    setCreateFromBranchOpen(false)
+    setCreateToBranchOpen(false)
     setCreateMedDropdownOpen(false)
     setCreateBatchDropdownOpen(false)
     setCreateForm(prev => ({
@@ -624,6 +779,35 @@ export default function StockTransfers() {
     return combined
   }, [batchOptions, editForm?.batchNo, editForm?.medicineName])
 
+  // Consolidated Pharmacy Branches for From/To selection
+  const allPharmacyBranchOptions = useMemo(() => {
+    return getPharmacyBranchOptions(branches)
+  }, [branches, items])
+
+  const filteredCreateFromBranchOptions = useMemo(() => {
+    const searchVal = String(createForm.fromLocation || '').trim().toLowerCase()
+    if (!searchVal) return allPharmacyBranchOptions
+    return allPharmacyBranchOptions.filter(b => b.name.toLowerCase().includes(searchVal))
+  }, [allPharmacyBranchOptions, createForm.fromLocation])
+
+  const filteredCreateToBranchOptions = useMemo(() => {
+    const searchVal = String(createForm.toLocation || '').trim().toLowerCase()
+    if (!searchVal) return allPharmacyBranchOptions
+    return allPharmacyBranchOptions.filter(b => b.name.toLowerCase().includes(searchVal))
+  }, [allPharmacyBranchOptions, createForm.toLocation])
+
+  const filteredEditFromBranchOptions = useMemo(() => {
+    const searchVal = String(editForm.fromLocation || '').trim().toLowerCase()
+    if (!searchVal) return allPharmacyBranchOptions
+    return allPharmacyBranchOptions.filter(b => b.name.toLowerCase().includes(searchVal))
+  }, [allPharmacyBranchOptions, editForm.fromLocation])
+
+  const filteredEditToBranchOptions = useMemo(() => {
+    const searchVal = String(editForm.toLocation || '').trim().toLowerCase()
+    if (!searchVal) return allPharmacyBranchOptions
+    return allPharmacyBranchOptions.filter(b => b.name.toLowerCase().includes(searchVal))
+  }, [allPharmacyBranchOptions, editForm.toLocation])
+
   // Validation Error States
   const [createErrors, setCreateErrors] = useState({})
   const [editErrors, setEditErrors] = useState({})
@@ -833,7 +1017,9 @@ export default function StockTransfers() {
           const matched = branches.find(b => {
             const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
             if (!bName) return false
+            const cleanSub = lower.replace(/\s*-\s*sub\s*branch/i, '').trim()
             return lower === bName ||
+              cleanSub === bName ||
               lower.includes(bName) ||
               bName.includes(lower) ||
               lower.endsWith(`- ${bName}`) ||
@@ -842,17 +1028,15 @@ export default function StockTransfers() {
           if (matched) return String(matched.name || matched.branchName || matched.BranchName).trim()
         }
 
+        if (lower.includes('sub branch')) {
+          return s.replace(/\s*-\s*sub\s*branch/i, '').trim()
+        }
+
         if (s.includes(' - ')) {
-          const parts = s.split(' - ')
-          return parts[parts.length - 1].trim()
+          return s.split(' - ')[0].trim()
         }
         if (s.includes('–')) {
-          const parts = s.split('–')
-          return parts[parts.length - 1].trim()
-        }
-        if (s.includes('-')) {
-          const parts = s.split('-')
-          return parts[parts.length - 1].trim()
+          return s.split('–')[0].trim()
         }
         return s
       }
@@ -1038,6 +1222,10 @@ export default function StockTransfers() {
   }
 
   function openEdit(item) {
+    setEditFromBranchOpen(false)
+    setEditToBranchOpen(false)
+    setEditMedDropdownOpen(false)
+    setEditBatchDropdownOpen(false)
     setEditForm({
       id: item?._id || item?.id,
       fromLocation: item?.fromLocation || item?.source || '',
@@ -1287,57 +1475,206 @@ export default function StockTransfers() {
                   <div className="transfer-form-grid">
                     <div className="transfer-form-group">
                       <label>From Location / Branch *</label>
-                      <input
-                        type="text"
-                        id="create-fromLocation"
-                        list="from-branches-list"
-                        value={createForm.fromLocation}
-                        onChange={(e) => {
-                          setCreateForm({...createForm, fromLocation: e.target.value})
-                          if (createErrors.fromLocation) setCreateErrors({...createErrors, fromLocation: ''})
-                        }}
-                        placeholder="e.g. Main Branch"
-                        style={createErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
-                        required
-                      />
-                      <datalist id="from-branches-list">
-                        <option value="Main Branch" />
-                        {signedInBranch && signedInBranch !== 'Main Branch' && (
-                          <option value={signedInBranch} />
+                      <div className="transfer-combobox-wrap" ref={createFromBranchRef}>
+                        <input
+                          type="text"
+                          id="create-fromLocation"
+                          className="transfer-combobox-input"
+                          list="from-branches-list"
+                          value={createForm.fromLocation}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setCreateForm(prev => ({ ...prev, fromLocation: val }))
+                            if (createErrors.fromLocation) setCreateErrors(prev => ({ ...prev, fromLocation: '' }))
+                            setCreateFromBranchOpen(true)
+                          }}
+                          onFocus={() => setCreateFromBranchOpen(true)}
+                          onClick={() => setCreateFromBranchOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setCreateFromBranchOpen(false)
+                          }}
+                          placeholder="Select or type branch..."
+                          style={createErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
+                          autoComplete="off"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="transfer-combobox-toggle"
+                          onClick={() => setCreateFromBranchOpen(prev => !prev)}
+                          tabIndex={-1}
+                          aria-label="Toggle from branch dropdown"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: createFromBranchOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        <datalist id="from-branches-list">
+                          {allPharmacyBranchOptions.map((b, i) => (
+                            <option key={`dl-from-${b.name}-${i}`} value={b.name} />
+                          ))}
+                        </datalist>
+
+                        {createFromBranchOpen && (
+                          <div className="transfer-combobox-menu">
+                            {filteredCreateFromBranchOptions.length > 0 ? (
+                              filteredCreateFromBranchOptions.map((b, idx) => {
+                                const isSelected = createForm.fromLocation.trim().toLowerCase() === b.name.toLowerCase()
+                                return (
+                                  <div
+                                    key={`from-${b.name}-${idx}`}
+                                    className={`transfer-combobox-option ${isSelected ? 'is-selected' : ''}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setCreateForm(prev => ({
+                                        ...prev,
+                                        fromLocation: b.name,
+                                        approvedBy: prev.approvedBy || b.name
+                                      }))
+                                      if (createErrors.fromLocation) {
+                                        setCreateErrors(prev => ({ ...prev, fromLocation: '' }))
+                                      }
+                                      setCreateFromBranchOpen(false)
+                                    }}
+                                  >
+                                    <div className="transfer-combobox-option-title">
+                                      {b.name}
+                                    </div>
+                                    <div className="transfer-combobox-option-meta">
+                                      <span className={`transfer-branch-badge ${b.isMain ? 'is-main' : 'is-sub'}`}>
+                                        {b.isMain ? 'Main Branch' : 'Sub Branch'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <div className="transfer-combobox-empty">
+                                {createForm.fromLocation.trim()
+                                  ? `No branches matching "${createForm.fromLocation}". You can keep typing to use this location.`
+                                  : 'No branches available for this pharmacy.'}
+                              </div>
+                            )}
+                          </div>
                         )}
-                        {branches.map((b, i) => {
-                          const bName = String(b.name || b.branchName || '').trim()
-                          if (!bName || bName === 'Main Branch' || bName === signedInBranch) return null
-                          return <option key={b.id || i} value={bName} />
-                        })}
-                      </datalist>
+                      </div>
                       {createErrors.fromLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.fromLocation}</span>
                       )}
                     </div>
                     <div className="transfer-form-group">
                       <label>To Location / Branch *</label>
-                      <input
-                        type="text"
-                        id="create-toLocation"
-                        list="to-branches-list"
-                        value={createForm.toLocation}
-                        onChange={(e) => {
-                          setCreateForm({...createForm, toLocation: e.target.value})
-                          if (createErrors.toLocation) setCreateErrors({...createErrors, toLocation: ''})
-                        }}
-                        placeholder="e.g. Jaya"
-                        style={createErrors.toLocation ? { borderColor: '#ef4444' } : {}}
-                        required
-                      />
-                      <datalist id="to-branches-list">
-                        {branches.filter(b => {
-                          const bName = String(b.name || b.branchName || '').trim()
-                          return bName && bName !== createForm.fromLocation && bName !== 'Main Branch'
-                        }).map((b, i) => (
-                          <option key={b.id || i} value={b.name || b.branchName} />
-                        ))}
-                      </datalist>
+                      <div className="transfer-combobox-wrap" ref={createToBranchRef}>
+                        <input
+                          type="text"
+                          id="create-toLocation"
+                          className="transfer-combobox-input"
+                          list="to-branches-list"
+                          value={createForm.toLocation}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setCreateForm(prev => ({ ...prev, toLocation: val }))
+                            if (createErrors.toLocation) setCreateErrors(prev => ({ ...prev, toLocation: '' }))
+                            setCreateToBranchOpen(true)
+                          }}
+                          onFocus={() => setCreateToBranchOpen(true)}
+                          onClick={() => setCreateToBranchOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setCreateToBranchOpen(false)
+                          }}
+                          placeholder="Select or type branch..."
+                          style={createErrors.toLocation ? { borderColor: '#ef4444' } : {}}
+                          autoComplete="off"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="transfer-combobox-toggle"
+                          onClick={() => setCreateToBranchOpen(prev => !prev)}
+                          tabIndex={-1}
+                          aria-label="Toggle to branch dropdown"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: createToBranchOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        <datalist id="to-branches-list">
+                          {allPharmacyBranchOptions.map((b, i) => (
+                            <option key={`dl-to-${b.name}-${i}`} value={b.name} />
+                          ))}
+                        </datalist>
+
+                        {createToBranchOpen && (
+                          <div className="transfer-combobox-menu">
+                            {filteredCreateToBranchOptions.length > 0 ? (
+                              filteredCreateToBranchOptions.map((b, idx) => {
+                                const isSelected = createForm.toLocation.trim().toLowerCase() === b.name.toLowerCase()
+                                return (
+                                  <div
+                                    key={`to-${b.name}-${idx}`}
+                                    className={`transfer-combobox-option ${isSelected ? 'is-selected' : ''}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setCreateForm(prev => ({
+                                        ...prev,
+                                        toLocation: b.name,
+                                        requestedBy: prev.requestedBy || b.name
+                                      }))
+                                      if (createErrors.toLocation) {
+                                        setCreateErrors(prev => ({ ...prev, toLocation: '' }))
+                                      }
+                                      setCreateToBranchOpen(false)
+                                    }}
+                                  >
+                                    <div className="transfer-combobox-option-title">
+                                      {b.name}
+                                    </div>
+                                    <div className="transfer-combobox-option-meta">
+                                      <span className={`transfer-branch-badge ${b.isMain ? 'is-main' : 'is-sub'}`}>
+                                        {b.isMain ? 'Main Branch' : 'Sub Branch'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <div className="transfer-combobox-empty">
+                                {createForm.toLocation.trim()
+                                  ? `No branches matching "${createForm.toLocation}". You can keep typing to use this location.`
+                                  : 'No branches available for this pharmacy.'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {createErrors.toLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{createErrors.toLocation}</span>
                       )}
@@ -1629,34 +1966,204 @@ export default function StockTransfers() {
                   <div className="transfer-form-grid">
                     <div className="transfer-form-group">
                       <label>From Location / Branch *</label>
-                      <input
-                        type="text"
-                        id="edit-fromLocation"
-                        value={editForm.fromLocation}
-                        onChange={(e) => {
-                          setEditForm({...editForm, fromLocation: e.target.value})
-                          if (editErrors.fromLocation) setEditErrors({...editErrors, fromLocation: ''})
-                        }}
-                        style={editErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
-                        required
-                      />
+                      <div className="transfer-combobox-wrap" ref={editFromBranchRef}>
+                        <input
+                          type="text"
+                          id="edit-fromLocation"
+                          className="transfer-combobox-input"
+                          list="edit-from-branches-list"
+                          value={editForm.fromLocation}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setEditForm(prev => ({ ...prev, fromLocation: val }))
+                            if (editErrors.fromLocation) setEditErrors(prev => ({ ...prev, fromLocation: '' }))
+                            setEditFromBranchOpen(true)
+                          }}
+                          onFocus={() => setEditFromBranchOpen(true)}
+                          onClick={() => setEditFromBranchOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setEditFromBranchOpen(false)
+                          }}
+                          placeholder="Select or type branch..."
+                          style={editErrors.fromLocation ? { borderColor: '#ef4444' } : {}}
+                          autoComplete="off"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="transfer-combobox-toggle"
+                          onClick={() => setEditFromBranchOpen(prev => !prev)}
+                          tabIndex={-1}
+                          aria-label="Toggle from branch dropdown"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: editFromBranchOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        <datalist id="edit-from-branches-list">
+                          {allPharmacyBranchOptions.map((b, i) => (
+                            <option key={`dl-edit-from-${b.name}-${i}`} value={b.name} />
+                          ))}
+                        </datalist>
+
+                        {editFromBranchOpen && (
+                          <div className="transfer-combobox-menu">
+                            {filteredEditFromBranchOptions.length > 0 ? (
+                              filteredEditFromBranchOptions.map((b, idx) => {
+                                const isSelected = editForm.fromLocation.trim().toLowerCase() === b.name.toLowerCase()
+                                return (
+                                  <div
+                                    key={`edit-from-${b.name}-${idx}`}
+                                    className={`transfer-combobox-option ${isSelected ? 'is-selected' : ''}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setEditForm(prev => ({
+                                        ...prev,
+                                        fromLocation: b.name
+                                      }))
+                                      if (editErrors.fromLocation) {
+                                        setEditErrors(prev => ({ ...prev, fromLocation: '' }))
+                                      }
+                                      setEditFromBranchOpen(false)
+                                    }}
+                                  >
+                                    <div className="transfer-combobox-option-title">
+                                      {b.name}
+                                    </div>
+                                    <div className="transfer-combobox-option-meta">
+                                      <span className={`transfer-branch-badge ${b.isMain ? 'is-main' : 'is-sub'}`}>
+                                        {b.isMain ? 'Main Branch' : 'Sub Branch'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <div className="transfer-combobox-empty">
+                                {editForm.fromLocation.trim()
+                                  ? `No branches matching "${editForm.fromLocation}". You can keep typing to use this location.`
+                                  : 'No branches available for this pharmacy.'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {editErrors.fromLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.fromLocation}</span>
                       )}
                     </div>
                     <div className="transfer-form-group">
                       <label>To Location / Branch *</label>
-                      <input
-                        type="text"
-                        id="edit-toLocation"
-                        value={editForm.toLocation}
-                        onChange={(e) => {
-                          setEditForm({...editForm, toLocation: e.target.value})
-                          if (editErrors.toLocation) setEditErrors({...editErrors, toLocation: ''})
-                        }}
-                        style={editErrors.toLocation ? { borderColor: '#ef4444' } : {}}
-                        required
-                      />
+                      <div className="transfer-combobox-wrap" ref={editToBranchRef}>
+                        <input
+                          type="text"
+                          id="edit-toLocation"
+                          className="transfer-combobox-input"
+                          list="edit-to-branches-list"
+                          value={editForm.toLocation}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setEditForm(prev => ({ ...prev, toLocation: val }))
+                            if (editErrors.toLocation) setEditErrors(prev => ({ ...prev, toLocation: '' }))
+                            setEditToBranchOpen(true)
+                          }}
+                          onFocus={() => setEditToBranchOpen(true)}
+                          onClick={() => setEditToBranchOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setEditToBranchOpen(false)
+                          }}
+                          placeholder="Select or type branch..."
+                          style={editErrors.toLocation ? { borderColor: '#ef4444' } : {}}
+                          autoComplete="off"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="transfer-combobox-toggle"
+                          onClick={() => setEditToBranchOpen(prev => !prev)}
+                          tabIndex={-1}
+                          aria-label="Toggle to branch dropdown"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: editToBranchOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        <datalist id="edit-to-branches-list">
+                          {allPharmacyBranchOptions.map((b, i) => (
+                            <option key={`dl-edit-to-${b.name}-${i}`} value={b.name} />
+                          ))}
+                        </datalist>
+
+                        {editToBranchOpen && (
+                          <div className="transfer-combobox-menu">
+                            {filteredEditToBranchOptions.length > 0 ? (
+                              filteredEditToBranchOptions.map((b, idx) => {
+                                const isSelected = editForm.toLocation.trim().toLowerCase() === b.name.toLowerCase()
+                                return (
+                                  <div
+                                    key={`edit-to-${b.name}-${idx}`}
+                                    className={`transfer-combobox-option ${isSelected ? 'is-selected' : ''}`}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setEditForm(prev => ({
+                                        ...prev,
+                                        toLocation: b.name
+                                      }))
+                                      if (editErrors.toLocation) {
+                                        setEditErrors(prev => ({ ...prev, toLocation: '' }))
+                                      }
+                                      setEditToBranchOpen(false)
+                                    }}
+                                  >
+                                    <div className="transfer-combobox-option-title">
+                                      {b.name}
+                                    </div>
+                                    <div className="transfer-combobox-option-meta">
+                                      <span className={`transfer-branch-badge ${b.isMain ? 'is-main' : 'is-sub'}`}>
+                                        {b.isMain ? 'Main Branch' : 'Sub Branch'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            ) : (
+                              <div className="transfer-combobox-empty">
+                                {editForm.toLocation.trim()
+                                  ? `No branches matching "${editForm.toLocation}". You can keep typing to use this location.`
+                                  : 'No branches available for this pharmacy.'}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {editErrors.toLocation && (
                         <span className="form-error-msg" style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>{editErrors.toLocation}</span>
                       )}
