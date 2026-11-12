@@ -2555,15 +2555,41 @@ export const cancelDoctorPrescription = (id, payload = {}) => request(replacePat
 export const completeDoctorPrescription = (id, payload = {}) => request(replacePathParams('doctor/prescriptions/{id}/complete', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
 export const dispensePrescription = (payload = {}) => {
+  const prescriptionId = Number(payload.prescriptionId ?? payload.PrescriptionId ?? payload.id ?? 0)
+
+  let rawMedicines = []
+  if (Array.isArray(payload.medicines)) {
+    rawMedicines = payload.medicines
+  } else if (Array.isArray(payload.Medicines)) {
+    rawMedicines = payload.Medicines
+  } else if (Array.isArray(payload.items)) {
+    rawMedicines = payload.items
+  } else if (payload.prescriptionItemId || payload.PrescriptionItemId || payload.medicineId || payload.id) {
+    rawMedicines = [payload]
+  }
+
+  const medicines = rawMedicines.map((m, idx) => ({
+    prescriptionItemId: Number(m.prescriptionItemId ?? m.PrescriptionItemId ?? m.id ?? idx + 1),
+    quantity: Number(m.quantity ?? m.Quantity ?? m.qty ?? 1)
+  }))
+
+  const cleanPayload = {
+    prescriptionId,
+    medicines: medicines.length > 0 ? medicines : [{ prescriptionItemId: 1, quantity: 1 }]
+  }
+
   try {
-    const meds = Array.isArray(payload?.medicines) ? payload.medicines : (payload?.medicineId || payload?.medicineName ? [payload] : [])
-    meds.forEach(m => {
-      deductMedicineStock(m, Number(m?.quantity || m?.qty || 1), 'dispense')
+    rawMedicines.forEach(m => {
+      deductMedicineStock(m, Number(m?.quantity || m?.Quantity || m?.qty || 1), 'dispense')
     })
   } catch (err) {
     console.warn('dispensePrescription stock deduct notice:', err)
   }
-  return request('pharmacy/dispense', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+
+  return request('pharmacy/dispense', {
+    method: 'POST',
+    body: JSON.stringify(cleanPayload)
+  })
 }
 export const generateBill = (payload) => request('pharmacy/generate-bill', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const getInvoice = (billId) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }))

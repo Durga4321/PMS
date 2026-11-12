@@ -203,11 +203,48 @@ function getTabBtnIcon(label) {
   return <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
 }
 
+function getDefaultPayloadForAction(actionLabel, activeLabel, currentId = '') {
+  const normAction = String(actionLabel || '').toLowerCase()
+  const normModule = String(activeLabel || '').toLowerCase()
+  const pId = Number(currentId) || 1
+
+  if (normAction === 'dispense' || normModule === 'dispensing') {
+    return JSON.stringify({
+      prescriptionId: pId,
+      medicines: [
+        {
+          prescriptionItemId: 1,
+          quantity: 1
+        }
+      ]
+    }, null, 2)
+  }
+
+  if (normAction === 'generate bill') {
+    return JSON.stringify({
+      prescriptionId: pId,
+      patientId: 1,
+      paymentMode: 'Cash'
+    }, null, 2)
+  }
+
+  if (normAction === 'create return' || normModule === 'returns') {
+    return JSON.stringify({
+      billId: Number(currentId) || 1,
+      medicineId: 1,
+      quantity: 1,
+      reason: 'Wrong medicine dispensed'
+    }, null, 2)
+  }
+
+  return '{}'
+}
+
 function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] }) {
   const { showToast } = useToast()
   const [items, setItems] = useState([])
   const [id, setId] = useState('')
-  const [bodyText, setBodyText] = useState('{}')
+  const [bodyText, setBodyText] = useState(() => getDefaultPayloadForAction(actions[0]?.label, activeLabel, ''))
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
@@ -241,7 +278,12 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
     setActionLoading(true)
     setMessage('')
     try {
-      const parsedBody = bodyText.trim() ? JSON.parse(bodyText) : {}
+      let currentBody = bodyText
+      if (!currentBody || currentBody === '{}') {
+        currentBody = getDefaultPayloadForAction(action.label, activeLabel, id)
+        setBodyText(currentBody)
+      }
+      const parsedBody = currentBody.trim() ? JSON.parse(currentBody) : {}
       const body = typeof action.payload === 'function' ? action.payload(id, parsedBody) : action.payload || parsedBody
       if (/^(delete|remove|cancel|dispose|quarantine)\b/i.test(action.label)) {
         const confirmed = await confirmAction(`Are you sure you want to ${action.label.toLowerCase()}${id ? ` record ${id}` : ' this record'}?`, {
