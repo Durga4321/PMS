@@ -2,12 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { FiArrowRight, FiCamera, FiCheckCircle, FiCreditCard, FiFileText, FiPlus, FiRefreshCw, FiTrash2, FiUpload, FiUser, FiX } from 'react-icons/fi'
 import PharmacistLayout from './PharmacistLayout'
-import { pharmacistPrescriptionApi } from '../../config/api'
+import {
+  createDispensingDraft,
+  updateDispensingDraft,
+  listDispensingDrafts,
+  submitDispensingDraft,
+  uploadDraftPrescriptionPhoto,
+  uploadPrescriptionPhoto,
+  getDispensingMedicines,
+  recordManualCashPayment,
+  pharmacistPrescriptionApi
+} from '../../config/api'
 import { useToast } from '../../components/ToastProvider'
 import { confirmAction } from '../../components/confirmAction'
 import { useLanguage } from '../../i18n/language'
 import { newMedicine, newPrescription, prescriptionPayload, prescriptionTotals, savedRecord, updateMedicine } from './prescriptionModel'
-import { archivePrescription, clearPrescriptionDraft, listPrescriptionReferences, prescriptionScope, readPrescriptionDraft, savePrescriptionDraft } from './prescriptionStorage'
 import usePrescriptionCamera from './usePrescriptionCamera'
 import './PrescriptionWorkspace.css'
 
@@ -58,16 +67,69 @@ export default function PrescriptionWorkspace() {
     setDraft(value)
   }
 
+  const [availableMeds, setAvailableMeds] = useState([])
+
   useEffect(() => {
     let active = true
-    async function restore() {
+    async function initWorkspace() {
       try {
-        const stored = await readPrescriptionDraft(prescriptionScope())
-        if (active && stored?.draft) { latest.current = stored.draft; setDraft(stored.draft) }
-      } catch (failure) { if (active) setNotice(failure.message) }
-      finally { if (active) setLoading(false) }
+        const [draftsRes, medsRes] = await Promise.allSettled([
+          listDispensingDrafts(),
+          getDispensingMedicines(),
+        ])
+        if (!active) return
+        if (draftsRes.status === 'fulfilled') {
+          const list = draftsRes.value?.data || draftsRes.value?.drafts || (Array.isArray(draftsRes.value) ? draftsRes.value : [])
+          if (Array.isArray(list) && list.length > 0 && !draft.prescriptionId && !draft.patient.patientName) {
+            const latestDraft = list[0]
+            if (latestDraft?.id || latestDraft?.draftId) {
+              const dId = String(latestDraft.id || latestDraft.draftId)
+              const mappedPatient = {
+                patientName: latestDraft.patientName || latestDraft.patient?.name || '',
+                patientId: latestDraft.patientId || latestDraft.patient?.id || '',
+                patientAge: latestDraft.patientAge || latestDraft.age || '',
+                patientGender: latestDraft.patientGender || latestDraft.gender || '',
+                patientPhone: latestDraft.patientPhone || latestDraft.phone || '',
+                doctorName: latestDraft.doctorName || latestDraft.doctor || '',
+                prescriptionDate: latestDraft.prescriptionDate || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+                notes: latestDraft.notes || '',
+              }
+              const mappedMeds = Array.isArray(latestDraft.medicines) && latestDraft.medicines.length > 0
+                ? latestDraft.medicines.map((m) => ({
+                    ...newMedicine(),
+                    medicineName: m.medicineName || m.name || '',
+                    strength: m.strength || '',
+                    quantity: String(m.quantity || ''),
+                    unitPrice: String(m.unitPrice || m.price || ''),
+                    days: String(m.days || '1'),
+                    morning: String(m.morning || ''),
+                    afternoon: String(m.afternoon || ''),
+                    evening: String(m.evening || ''),
+                  }))
+                : [newMedicine()]
+
+              change((current) => ({
+                ...current,
+                draftId: dId,
+                patient: { ...current.patient, ...mappedPatient },
+                medicines: mappedMeds,
+              }))
+            }
+          }
+        }
+        if (medsRes.status === 'fulfilled') {
+          const mList = medsRes.value?.data || medsRes.value?.medicines || (Array.isArray(medsRes.value) ? medsRes.value : [])
+          if (Array.isArray(mList) && mList.length > 0) {
+            setAvailableMeds(mList)
+          }
+        }
+      } catch (failure) {
+        if (active) setNotice(failure.message)
+      } finally {
+        if (active) setLoading(false)
+      }
     }
-    restore()
+    initWorkspace()
     return () => { active = false }
   }, [])
 
@@ -83,6 +145,13 @@ export default function PrescriptionWorkspace() {
       await image.decode()
       change((current) => ({ ...current, photo: file }))
       stopCamera()
+
+      // If server draft exists, immediately sync photo to server API
+      if (latest.current.draftId) {
+        try {
+          await uploadDraftPrescriptionPhoto(latest.current.draftId, file)
+        } catch {}
+      }
     } catch { setError('The selected file could not be opened as an image.') }
     finally { URL.revokeObjectURL(url); setPhotoLoading(false) }
   }
@@ -97,9 +166,35 @@ export default function PrescriptionWorkspace() {
     inFlight.current = true
     setBusy(true)
     setError('')
-    try { await savePrescriptionDraft(prescriptionScope(), latest.current); setNotice('Draft and prescription photo saved on this device.'); showToast('Draft saved successfully.') }
-    catch (failure) { setError(failure.message) }
-    finally { inFlight.current = false; setBusy(false) }
+    try {
+      const current = latest.current
+      const payload = prescriptionPayload(current)
+      let draftId = current.draftId
+      if (draftId) {
+        await updateDispensingDraft(draftId, payload)
+      } else {
+        const created = await createDispensingDraft(payload)
+        const id = created?.draftId || created?.id || created?.data?.draftId || created?.data?.id
+        if (id) {
+          draftId = String(id)
+          change((prev) => ({ ...prev, draftId }))
+        }
+      }
+      if (draftId && current.photo instanceof File) {
+        try {
+          await uploadDraftPrescriptionPhoto(draftId, current.photo)
+        } catch (photoErr) {
+          console.warn('Draft photo upload warning:', photoErr.message)
+        }
+      }
+      setNotice('Draft saved to server.')
+      showToast('Draft saved successfully.')
+    } catch (failure) {
+      setError(failure.message || 'Unable to save draft.')
+    } finally {
+      inFlight.current = false
+      setBusy(false)
+    }
   }
 
   async function proceed(event) {
@@ -110,30 +205,74 @@ export default function PrescriptionWorkspace() {
     setError('')
     stopCamera()
     try {
-      const scope = prescriptionScope()
       let current = latest.current
       const payload = prescriptionPayload(current)
-      await savePrescriptionDraft(scope, current)
+
+      // 1. Ensure server draft is saved/updated
+      let draftId = current.draftId
+      if (!draftId) {
+        try {
+          const created = await createDispensingDraft(payload)
+          draftId = String(created?.draftId || created?.id || created?.data?.draftId || created?.data?.id || '')
+          if (draftId) {
+            current = { ...current, draftId }
+            change(current)
+          }
+        } catch {}
+      } else {
+        try {
+          await updateDispensingDraft(draftId, payload)
+        } catch {}
+      }
+
+      // 2. Submit draft to server to generate prescription and bill
+      if (draftId && !current.prescriptionId) {
+        try {
+          const submitted = await submitDispensingDraft(draftId, payload)
+          const rxId = submitted?.prescriptionId || submitted?.id || submitted?.data?.prescriptionId
+          const bId = submitted?.billId || submitted?.bill?.id || submitted?.data?.billId
+          const amount = submitted?.billAmount || submitted?.totalAmount || submitted?.bill?.totalAmount || submitted?.data?.totalAmount
+          if (rxId) current = { ...current, prescriptionId: String(rxId) }
+          if (bId) current = { ...current, billId: String(bId) }
+          if (amount != null && !isNaN(Number(amount))) current = { ...current, billAmount: Number(amount) }
+          change(current)
+        } catch (submitErr) {
+          console.warn('Submit draft fallback:', submitErr.message)
+        }
+      }
+
+      // 3. Fallback to direct create/bill if submit was not applicable
       if (!current.prescriptionId) {
         const prescription = savedRecord(await pharmacistPrescriptionApi.create(payload), 'prescription')
         current = { ...current, prescriptionId: prescription.id }
         change(current)
-        await savePrescriptionDraft(scope, current)
-        await archivePrescription(scope, current)
       }
+
       if (!current.billId) {
         const bill = savedRecord(await pharmacistPrescriptionApi.bill({ ...payload, prescriptionId: current.prescriptionId, totalAmount: prescriptionTotals(current.medicines).amount, clientRequestId: `${current.requestId}:bill` }), 'bill')
         const rawAmount = bill.totalAmount ?? bill.grandTotal ?? bill.amount ?? bill.total
         const validAmount = rawAmount != null && Number.isFinite(Number(rawAmount)) && Number(rawAmount) >= 0
         current = { ...current, billId: bill.id, billAmount: validAmount ? Number(rawAmount) : null }
         change(current)
-        await savePrescriptionDraft(scope, current)
-        await archivePrescription(scope, current)
       }
+
+      // 4. Attach photo to prescription on server if photo exists
+      if (current.photo instanceof File && current.prescriptionId) {
+        try {
+          await uploadPrescriptionPhoto(current.prescriptionId, current.photo)
+        } catch (photoErr) {
+          console.warn('Prescription photo upload warning:', photoErr.message)
+        }
+      }
+
       if (current.billAmount == null) throw new Error('The bill was created without a valid payable amount. Check Bills before continuing.')
       navigate('/pharmacist/dispensing?step=payment')
-    } catch (failure) { setError(failure.message || 'Unable to prepare this prescription for payment.') }
-    finally { inFlight.current = false; setBusy(false) }
+    } catch (failure) {
+      setError(failure.message || 'Unable to prepare this prescription for payment.')
+    } finally {
+      inFlight.current = false
+      setBusy(false)
+    }
   }
 
   async function nextStep(event) {
@@ -144,10 +283,21 @@ export default function PrescriptionWorkspace() {
     setBusy(true)
     stopCamera()
     try {
-      await savePrescriptionDraft(prescriptionScope(), latest.current)
+      // Save draft to server
+      const payload = prescriptionPayload(latest.current)
+      if (latest.current.draftId) {
+        await updateDispensingDraft(latest.current.draftId, payload)
+      } else {
+        const created = await createDispensingDraft(payload)
+        const id = created?.draftId || created?.id || created?.data?.draftId || created?.data?.id
+        if (id) change((prev) => ({ ...prev, draftId: String(id) }))
+      }
       navigate('/pharmacist/dispensing?step=medicines')
-    } catch (failure) { setError(failure.message) }
-    finally { setBusy(false) }
+    } catch (failure) {
+      navigate('/pharmacist/dispensing?step=medicines')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function pay(event) {
@@ -160,32 +310,61 @@ export default function PrescriptionWorkspace() {
       const current = latest.current
       if (!current.billId || current.billAmount == null || !Number.isFinite(current.billAmount)) throw new Error('A confirmed bill is required before recording payment.')
       if (current.paymentMethod !== 'Cash' && !current.transactionReference.trim()) throw new Error('Enter the confirmed payment transaction reference.')
-      await pharmacistPrescriptionApi.pay({ prescriptionId: current.prescriptionId, billId: current.billId, amount: current.billAmount, paymentMethod: current.paymentMethod, paymentMode: current.paymentMethod, transactionReference: current.transactionReference.trim(), clientRequestId: `${current.requestId}:payment` })
+
+      if (current.paymentMethod === 'Cash') {
+        await recordManualCashPayment({
+          billId: current.billId,
+          amount: current.billAmount,
+          paymentMethod: 'Cash',
+          paymentMode: 'Cash',
+          notes: `Dispensing cash payment for prescription ${current.prescriptionId || ''}`,
+          clientRequestId: `${current.requestId}:payment`,
+        })
+      } else {
+        await pharmacistPrescriptionApi.pay({
+          prescriptionId: current.prescriptionId,
+          billId: current.billId,
+          amount: current.billAmount,
+          paymentMethod: current.paymentMethod,
+          paymentMode: current.paymentMethod,
+          transactionReference: current.transactionReference.trim(),
+          clientRequestId: `${current.requestId}:payment`,
+        })
+      }
+
       const completed = { ...current, paymentComplete: true }
       change(completed)
-      try {
-        await savePrescriptionDraft(prescriptionScope(), completed)
-        await archivePrescription(prescriptionScope(), completed)
-      } catch { setNotice('Payment was recorded, but the saved reference on this device could not be updated.') }
       showToast('Payment recorded successfully!')
-    } catch (failure) { setError(failure.message || 'Unable to record payment.') }
-    finally { inFlight.current = false; setBusy(false) }
+    } catch (failure) {
+      setError(failure.message || 'Unable to record payment.')
+    } finally {
+      inFlight.current = false
+      setBusy(false)
+    }
   }
 
   async function startNew() {
     if (!draft.paymentComplete && (draft.patient.patientName || draft.photo || draft.medicines.some((row) => row.medicineName)) && !await confirmAction('Start a new prescription? Save your draft first to keep unfinished changes.', { title: 'New Prescription', confirmLabel: 'Continue' })) return
-    try {
-      await clearPrescriptionDraft(prescriptionScope())
-      change(newPrescription())
-      stopCamera()
-      setError(''); setNotice(''); setReferencePreview(null)
-      navigate('/pharmacist/dispensing')
-    } catch (failure) { setError(failure.message) }
+    change(newPrescription())
+    stopCamera()
+    setError('')
+    setNotice('')
+    setReferencePreview(null)
+    navigate('/pharmacist/dispensing')
   }
 
   async function showReferences() {
-    try { setReferences(references ? null : await listPrescriptionReferences(prescriptionScope())) }
-    catch (failure) { setError(failure.message) }
+    try {
+      if (references) {
+        setReferences(null)
+      } else {
+        const response = await listDispensingDrafts()
+        const drafts = response?.data || response?.drafts || (Array.isArray(response) ? response : [])
+        setReferences(drafts)
+      }
+    } catch (failure) {
+      setError(failure.message)
+    }
   }
 
   function patientField(key, label, type = 'text', extra = {}) {
@@ -202,8 +381,13 @@ export default function PrescriptionWorkspace() {
       <ol className="rx-stepper" aria-label="Prescription progress">{['Patient & Prescription', 'Add Medicines', 'Payment'].map((label, index) => <li key={label} className={(index === activeStep) ? 'is-active' : ''} aria-current={(index === activeStep) ? 'step' : undefined}><b>{index + 1}</b>{label}</li>)}</ol>
       {error ? <p className="rx-message rx-error" role="alert">{error}</p> : null}
       {notice ? <p className="rx-message" role="status">{notice}</p> : null}
-      {references ? <section className="rx-card rx-references"><h2>Saved References</h2><p>Prescription photos saved on this device for your account.</p>{references.length ? references.map((record) => <button key={record.key} type="button" onClick={() => setReferencePreview(record.draft)}><FiFileText /><span translate="no">{record.draft.patient.patientName}</span><span>{record.draft.patient.prescriptionDate}</span></button>) : <p>No saved prescription references yet.</p>}</section> : null}
-      {referencePreview ? <section className="rx-card rx-reference-preview"><header><h2>Prescription Reference</h2><button type="button" onClick={() => setReferencePreview(null)} aria-label="Close"><FiX /></button></header><p translate="no">{referencePreview.patient.patientName} · {referencePreview.patient.doctorName}</p>{referencePreview.photo ? <Photo file={referencePreview.photo} /> : <p>No prescription photo attached.</p>}<p><span>Prescription ID</span>: {referencePreview.prescriptionId}</p></section> : null}
+      {references ? <section className="rx-card rx-references"><h2>Saved References</h2><p>Prescriptions and drafts saved on the server.</p>{references.length ? references.map((record, idx) => {
+        const itemDraft = record.draft || record
+        const pName = itemDraft.patient?.patientName || itemDraft.patientName || itemDraft.patient?.name || `Draft #${record.id || idx + 1}`
+        const pDate = itemDraft.patient?.prescriptionDate || itemDraft.prescriptionDate || itemDraft.createdAt || ''
+        return <button key={record.id || record.draftId || record.key || idx} type="button" onClick={() => setReferencePreview(itemDraft)}><FiFileText /><span translate="no">{pName}</span><span>{pDate}</span></button>
+      }) : <p>No saved prescription references yet.</p>}</section> : null}
+      {referencePreview ? <section className="rx-card rx-reference-preview"><header><h2>Prescription Reference</h2><button type="button" onClick={() => setReferencePreview(null)} aria-label="Close"><FiX /></button></header><p translate="no">{referencePreview.patient?.patientName || referencePreview.patientName || 'Patient'} · {referencePreview.patient?.doctorName || referencePreview.doctorName || ''}</p>{referencePreview.photo ? <Photo file={referencePreview.photo} /> : <p>No prescription photo attached.</p>}<p><span>Prescription ID</span>: {referencePreview.prescriptionId || referencePreview.id || 'Draft'}</p></section> : null}
       {loading ? <p role="status">Loading prescription draft...</p> : draft.paymentComplete ? <section className="rx-card rx-complete"><FiCheckCircle /><h2>Payment recorded successfully!</h2><p><span>Bill ID</span>: <span translate="no">{draft.billId}</span></p><strong>{currency(amountDue)}</strong><p>{draft.photo ? 'Your prescription photo is saved on this device for reference.' : 'Your prescription has been saved.'}</p><div className="rx-heading-actions"><Link to="/pharmacist/bills">View Bills</Link><button className="rx-primary" type="button" onClick={startNew}>New Prescription</button></div></section> : payment ? <form className="rx-payment-grid" onSubmit={pay}>
         <section className="rx-card"><h2><FiFileText />Bill Summary</h2><p translate="no">{draft.patient.patientName} · {draft.patient.patientPhone}</p><p><span>Bill ID</span>: <span translate="no">{draft.billId}</span></p><div className="rx-summary-lines">{draft.medicines.slice(visiblePage * 3, visiblePage * 3 + 3).map((row, localIndex) => <div key={row.key}><span translate="no">{row.medicineName}</span><span>{row.quantity} × {currency(Number(row.unitPrice))}</span><strong>{currency(totals.lines[visiblePage * 3 + localIndex])}</strong></div>)}</div>{medicinePagination()}<div className="rx-totals"><strong>Total payable</strong><strong>{currency(amountDue)}</strong></div>{amountDue !== totals.amount ? <p>The final amount is calculated by the billing service.</p> : null}</section>
         <section className="rx-card"><h2><FiCreditCard />Payment</h2><fieldset disabled={busy}><label className="rx-field"><span>Payment Method</span><select value={draft.paymentMethod} onChange={(event) => change((current) => ({ ...current, paymentMethod: event.target.value }))}>{['Cash', 'UPI', 'Card'].map((method) => <option key={method} value={method}>{method}</option>)}</select></label>{draft.paymentMethod !== 'Cash' ? <label className="rx-field"><span>Transaction Reference *</span><input required value={draft.transactionReference} onChange={(event) => change((current) => ({ ...current, transactionReference: event.target.value }))} /></label> : null}<p>Record payment only after cash is received or the card / UPI transaction is confirmed.</p><div className="rx-payment-amount">{currency(amountDue)}</div><button className="rx-primary" type="submit">{busy ? 'Recording payment...' : 'Confirm Payment'}</button></fieldset><button disabled={busy} type="button" onClick={() => navigate('/pharmacist/dispensing?step=medicines')}>Back to Prescription</button></section>
@@ -227,7 +411,28 @@ export default function PrescriptionWorkspace() {
           </section>
         </div>}
         {medicinesStep && <section className="rx-card rx-medicines"><header><div><h2><FiFileText />Add Medicines Manually</h2><p>Enter medicines and dose schedules exactly as prescribed by the doctor.</p></div><button type="button" disabled={busy || locked} onClick={() => { change((current) => ({ ...current, medicines: [...current.medicines, newMedicine()] })); setMedicinePage(Math.floor(draft.medicines.length / 3)) }}><FiPlus />Add Medicine</button></header>
-          <fieldset disabled={busy || locked}><div className="rx-table-scroll"><table><thead><tr>{['Medicine Name', 'Strength', 'Morning', 'Afternoon', 'Evening', 'Duration (days)', 'Quantity', 'Unit Price', 'Amount', 'Actions'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{draft.medicines.slice(visiblePage * 3, visiblePage * 3 + 3).map((row, localIndex) => { const index = visiblePage * 3 + localIndex; return <tr key={row.key}>{['medicineName', 'strength', 'morning', 'afternoon', 'evening', 'days', 'quantity', 'unitPrice'].map((field) => <td key={field}><input aria-label={`${field} ${index + 1}`} type={field === 'medicineName' || field === 'strength' ? 'text' : 'number'} required={['medicineName', 'days', 'quantity', 'unitPrice'].includes(field)} min={field === 'days' || field === 'quantity' ? 1 : 0} step={field === 'days' || field === 'quantity' ? 1 : .01} maxLength={field === 'medicineName' ? 200 : undefined} placeholder={field === 'medicineName' ? 'Enter medicine name' : field === 'strength' ? 'As prescribed' : '0'} value={row[field]} onChange={(event) => change((current) => ({ ...current, medicines: current.medicines.map((medicine) => medicine.key === row.key ? updateMedicine(medicine, field, event.target.value) : medicine) }))} /></td>)}<td className="rx-line-amount">{currency(totals.lines[index])}</td><td><button type="button" aria-label={`Remove medicine ${index + 1}`} disabled={draft.medicines.length === 1} onClick={() => change((current) => ({ ...current, medicines: current.medicines.filter((medicine) => medicine.key !== row.key) }))}><FiTrash2 /></button></td></tr> })}</tbody></table></div></fieldset>
+          <fieldset disabled={busy || locked}><div className="rx-table-scroll"><table><thead><tr>{['Medicine Name', 'Strength', 'Morning', 'Afternoon', 'Evening', 'Duration (days)', 'Quantity', 'Unit Price', 'Amount', 'Actions'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{draft.medicines.slice(visiblePage * 3, visiblePage * 3 + 3).map((row, localIndex) => { const index = visiblePage * 3 + localIndex; return <tr key={row.key}>{['medicineName', 'strength', 'morning', 'afternoon', 'evening', 'days', 'quantity', 'unitPrice'].map((field) => <td key={field}><input aria-label={`${field} ${index + 1}`} type={field === 'medicineName' || field === 'strength' ? 'text' : 'number'} required={['medicineName', 'days', 'quantity', 'unitPrice'].includes(field)} min={field === 'days' || field === 'quantity' ? 1 : 0} step={field === 'days' || field === 'quantity' ? 1 : .01} maxLength={field === 'medicineName' ? 200 : undefined} placeholder={field === 'medicineName' ? 'Enter medicine name' : field === 'strength' ? 'As prescribed' : '0'} list={field === 'medicineName' ? `rx-med-options-${row.key}` : undefined} value={row[field]} onChange={(event) => {
+            const val = event.target.value
+            let matchedPrice = null
+            let matchedStrength = null
+            if (field === 'medicineName' && Array.isArray(availableMeds) && availableMeds.length > 0) {
+              const match = availableMeds.find((m) => String(m.name || m.medicineName || '').trim().toLowerCase() === val.trim().toLowerCase())
+              if (match) {
+                matchedPrice = match.sellingPrice || match.unitPrice || match.price || match.costPrice
+                matchedStrength = match.strength || match.power
+              }
+            }
+            change((current) => ({
+              ...current,
+              medicines: current.medicines.map((medicine) => {
+                if (medicine.key !== row.key) return medicine
+                let updated = updateMedicine(medicine, field, val)
+                if (matchedPrice != null) updated = updateMedicine(updated, 'unitPrice', String(matchedPrice))
+                if (matchedStrength) updated = updateMedicine(updated, 'strength', String(matchedStrength))
+                return updated
+              })
+            }))
+          }} />{field === 'medicineName' && Array.isArray(availableMeds) && availableMeds.length > 0 && <datalist id={`rx-med-options-${row.key}`}>{availableMeds.map((m, mIdx) => <option key={m.id || m.medicineId || mIdx} value={m.name || m.medicineName} />)}</datalist>}</td>)}<td className="rx-line-amount">{currency(totals.lines[index])}</td><td><button type="button" aria-label={`Remove medicine ${index + 1}`} disabled={draft.medicines.length === 1} onClick={() => change((current) => ({ ...current, medicines: current.medicines.filter((medicine) => medicine.key !== row.key) }))}><FiTrash2 /></button></td></tr> })}</tbody></table></div></fieldset>
           {medicinePagination()}<p className="rx-dose-note">Morning, afternoon and evening values are units per dose. Quantity is calculated from doses × days and can be adjusted.</p><div className="rx-totals"><span>Medicines: {draft.medicines.length}</span><span>Total quantity: {totals.quantity}</span><strong>Total payable {currency(totals.amount)}</strong></div>
         </section>}
         <footer className="rx-footer"><p><FiCreditCard />{medicinesStep ? 'Next: payment method and billing' : 'Next: add medicines and dose schedules'}</p><div>{medicinesStep ? <button type="button" disabled={busy} onClick={() => navigate('/pharmacist/dispensing')}>Back</button> : null}<button type="button" disabled={busy || photoLoading} onClick={saveDraft}>Save Draft</button><button className="rx-primary" type="submit" disabled={busy || cameraActive || photoLoading}>{busy ? 'Please wait...' : medicinesStep ? 'Proceed to Payment' : 'Next: Add Medicines'}<FiArrowRight /></button></div></footer>
