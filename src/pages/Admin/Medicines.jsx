@@ -1291,7 +1291,6 @@ export default function Medicines() {
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value)}
                 className="med-branch-filter"
-                style={{ fontWeight: 600, color: '#166534', borderColor: '#86efac', background: '#f0fdf4' }}
                 title="Filter medicines by Pharmacy Branch"
               >
                 <option value="all">All Branches</option>

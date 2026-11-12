@@ -144,6 +144,22 @@
   background: #ffffff;
 }
 
+.branch-admin-page .med-filters .med-branch-filter {
+  color: var(--pms-text);
+  border-color: var(--pms-border);
+  background: var(--pms-surface);
+  font-weight: 400;
+  align-self: center;
+}
+.branch-admin-page .med-branch-filter option {
+  color: var(--pms-text);
+  background: var(--pms-surface);
+}
+.branch-admin-page .med-branch-filter:focus-visible {
+  outline: 2px solid var(--pms-accent);
+  outline-offset: 2px;
+}
+
 .med-action-btns {
   display: flex;
   align-items: center;

@@ -684,28 +684,6 @@ export default function Suppliers() {
       <div className="stock-scroll-area">
         <div className="sup-layout-container">
 
-          {/* Workflow Buttons Toolbar */}
-          <div className="sup-toolbar" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '8px' }}>
-            <div className="sup-action-btns">
-              <button 
-                type="button" 
-                className="sup-btn sup-btn-primary"
-                onClick={() => setCreateOpen(true)}
-              >
-                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Supplier
-              </button>
-            </div>
-            <button 
-              type="button" 
-              className="sup-btn sup-btn-secondary"
-              onClick={() => { refresh(true); loadSummaryMetrics(); }}
-            >
-              <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-              Refresh
-            </button>
-          </div>
-
           {/* Summary Cards (4 Equal Sized Cards) */}
           <div className="sup-summary-grid">
             <div className="sup-summary-card" style={{ '--card-accent': '#2563eb', '--card-bg': '#eff6ff', '--card-border': 'rgba(37, 99, 235, 0.2)' }}>
