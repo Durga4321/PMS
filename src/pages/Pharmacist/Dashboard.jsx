@@ -1,6 +1,12 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { getPharmacistDashboard, getPendingPharmacyPrescriptions, getPharmacistInventoryAlerts } from '../../config/api'
+import {
+  getPharmacistDashboard,
+  getPendingPharmacyPrescriptions,
+  getPharmacistInventoryAlerts,
+  listBills,
+  listMedicineReturns,
+} from '../../config/api'
 import PharmacistLayout from './PharmacistLayout'
 import DashboardGreetingCard from '../../components/DashboardGreetingCard'
 import './Dashboard.css'
@@ -21,7 +27,13 @@ const formatTime = (value) => {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
-const sources = [getPharmacistDashboard, getPendingPharmacyPrescriptions, getPharmacistInventoryAlerts]
+const sources = [
+  getPharmacistDashboard,
+  getPendingPharmacyPrescriptions,
+  getPharmacistInventoryAlerts,
+  listBills,
+  listMedicineReturns,
+]
 
 function Icon({ name }) {
   const paths = {
@@ -45,7 +57,7 @@ function Empty({ error, loading, label = 'No records available.' }) {
 }
 
 export default function Dashboard() {
-  const [data, setData] = useState([null, null, null])
+  const [data, setData] = useState([null, null, null, null, null])
   const [errors, setErrors] = useState([])
   const [loading, setLoading] = useState(true)
   const [updated, setUpdated] = useState(null)
@@ -70,23 +82,31 @@ export default function Dashboard() {
 
   const dashboard = data[0] || {}
   const summary = dashboard.summary || dashboard.stats || dashboard.counts || dashboard
-  const queue = rows(data[1], ['prescriptions', 'pendingPrescriptions'])
-  const alerts = rows(data[2], ['alerts'])
+  const queue = rows(data[1], ['prescriptions', 'pendingPrescriptions', 'items', 'data'])
+  const alerts = rows(data[2], ['alerts', 'items', 'data'])
+  const liveBills = rows(data[3], ['bills', 'items', 'data'])
+  const liveReturns = rows(data[4], ['returns', 'items', 'data'])
   const statusOf = (row) => text(field(row, ['status', 'prescriptionStatus']), 'Pending')
   const urgent = (row) => /urgent|high|critical/i.test(text(field(row, ['priority', 'urgency']), ''))
   const visibleQueue = queue.filter((row) => (filter === 'All' || (filter === 'Urgent' ? urgent(row) : /progress|processing/i.test(statusOf(row)))) && [row.prescriptionId, row.id, row.patientName, row.patient?.name].some((value) => String(value || '').toLowerCase().includes(search.toLowerCase())))
+
+  const pendingVal = data[1] !== null ? queue.length : field(summary, ['pendingPrescriptions', 'pendingCount', 'pendingPrescriptionsCount'])
+  const dispensedVal = field(summary, ['todayDispensed', 'dispensedToday', 'dispensedCount'])
+  const billsVal = field(summary, ['totalBills', 'billsCount', 'paidBillsCount']) ?? (data[3] !== null ? liveBills.length : undefined)
+  const returnsVal = field(summary, ['todayReturns', 'returnsToday', 'todayReturnsCount']) ?? (data[4] !== null ? liveReturns.length : undefined)
+
   const metrics = [
-    ['prescription', 'Pending prescriptions', data[1] !== null ? queue.length : field(summary, ['pendingPrescriptions', 'pendingCount', 'pendingPrescriptionsCount'])],
-    ['dispense', 'Dispensed today', field(summary, ['todayDispensed', 'dispensedToday', 'dispensedCount'])],
-    ['bill', 'Total bills', field(summary, ['totalBills', 'billsCount', 'paidBillsCount'])],
-    ['returns', 'Returns today', field(summary, ['todayReturns', 'returnsToday', 'todayReturnsCount'])],
+    ['prescription', 'Pending prescriptions', pendingVal],
+    ['dispense', 'Dispensed today', dispensedVal],
+    ['bill', 'Total bills', billsVal],
+    ['returns', 'Returns today', returnsVal],
   ]
 
   return <PharmacistLayout activeLabel="Dashboard" title="Pharmacist Dashboard">
     <div className="pd-dashboard">
       <DashboardGreetingCard role="Pharmacist" subtitle="Your daily dispensing and pharmacy overview" />
       <header className="pd-heading">
-        <span className={`pd-sync${errors.some(Boolean) ? ' is-warning' : ''}`}>{loading ? 'Syncing?' : errors.some(Boolean) ? 'Some data unavailable' : 'Live data'}</span>
+        <span className={`pd-sync${errors.some(Boolean) ? ' is-warning' : ''}`}>{loading ? 'Syncing…' : errors.some(Boolean) ? 'Some data unavailable' : 'Live data'}</span>
         <small className="pd-last-refreshed">{updated ? `Last refreshed ${updated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Waiting for live data'}</small>
       </header>
       {errors[0] && <div className="pd-banner" role="alert">Dashboard summary: {errors[0]}</div>}

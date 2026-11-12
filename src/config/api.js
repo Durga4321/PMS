@@ -2808,10 +2808,10 @@ export const getPharmacyStockMovementReport = (params = {}) => request(`pharmacy
 export const getPharmacyStockSummaryReport = () => request('pharmacy/reports/stock-summary')
 export const getPharmacyTopSellingReport = (params = {}) => request(`pharmacy/reports/top-selling${queryString(params)}`)
 export const getPharmacyAdminDashboard = () => request('pharmacy/dashboard', { authRole: 'pharmacyAdmin' })
-export const getPharmacistDashboard = () => request('pharmacy/dashboard', { authRole: 'pharmacist' })
+export const getPharmacistDashboard = () => request('pharmacist/dashboard', { authRole: 'pharmacist' })
 export const getPharmacistInventory = (params = {}) => request(`inventory${queryString(params)}`, { authRole: 'pharmacist' })
 export const getPharmacistInventoryBatches = (medicineId) => request(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
-export const getPharmacistInventoryAlerts = () => request('pharmacy/alerts', { authRole: 'pharmacist' })
+export const getPharmacistInventoryAlerts = (params = {}) => request(`pharmacist/inventory/alerts${queryString(params)}`, { authRole: 'pharmacist' })
 
 export async function getPharmacyAdminAssignmentStatus() {
   try {

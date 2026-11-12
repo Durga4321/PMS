@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../components/ToastProvider'
 import PharmacistLayout from './PharmacistLayout'
 import DashboardGreeting from '../../components/DashboardGreeting'
+import { confirmAction } from '../../components/confirmAction'
 
 const listKeys = [
   'items',
@@ -33,44 +34,44 @@ const moduleColumns = {
     ['Status', ['status', 'state']],
   ],
   Pending: [
-    ['Prescription ID', ['prescriptionId', 'externalPrescriptionId', 'recordId', 'id', '_id']],
-    ['Patient', ['patientName', 'patient.name', 'patient.fullName', 'patient']],
+    ['Prescription ID', ['prescriptionId', 'externalPrescriptionId', 'recordId', 'id', '_id', 'number']],
+    ['Patient', ['patientName', 'patient.name', 'patient.fullName', 'patient', 'customerName']],
     ['Doctor', ['doctorName', 'doctor.name', 'doctor.fullName', 'doctor']],
-    ['Medicine', ['medicineName', 'medicine.name', 'medicine']],
+    ['Medicine', ['medicineName', 'medicine.name', 'medicine', 'medicines']],
     ['Status', ['status', 'prescriptionStatus']],
-    ['Date', ['createdAt', 'date', 'prescriptionDate']],
+    ['Date', ['createdAt', 'date', 'prescriptionDate', 'createdOn']],
   ],
   Dispensing: [
-    ['Prescription ID', ['prescriptionId', 'recordId', 'id', '_id']],
-    ['Patient', ['patientName', 'patient.name', 'patient']],
-    ['Medicine', ['medicineName', 'medicine.name', 'medicine']],
-    ['Quantity', ['quantity', 'qty', 'dispensedQuantity']],
-    ['Bill ID', ['billId', 'bill.id', 'invoiceId']],
+    ['Prescription ID', ['prescriptionId', 'recordId', 'id', '_id', 'externalPrescriptionId']],
+    ['Patient', ['patientName', 'patient.name', 'patient', 'customerName']],
+    ['Medicine', ['medicineName', 'medicine.name', 'medicine', 'medicines']],
+    ['Quantity', ['quantity', 'qty', 'dispensedQuantity', 'amount']],
+    ['Bill ID', ['billId', 'bill.id', 'invoiceId', 'id']],
     ['Status', ['status', 'paymentStatus', 'dispenseStatus']],
   ],
   Bills: [
-    ['Bill ID', ['billId', 'invoiceId', 'id', '_id']],
-    ['Patient', ['patientName', 'patient.name', 'patient']],
-    ['Amount', ['totalAmount', 'amount', 'grandTotal', 'total']],
-    ['Payment', ['paymentStatus', 'payment.status']],
-    ['Status', ['status']],
-    ['Date', ['createdAt', 'date', 'billDate']],
+    ['Bill ID', ['billId', 'invoiceId', 'id', '_id', 'number', 'billNumber']],
+    ['Patient', ['patientName', 'patient.name', 'patient', 'customerName', 'patient.fullName']],
+    ['Amount', ['totalAmount', 'amount', 'grandTotal', 'total', 'netAmount', 'paidAmount']],
+    ['Payment', ['paymentStatus', 'payment.status', 'paymentMode', 'mode']],
+    ['Status', ['status', 'billStatus']],
+    ['Date', ['createdAt', 'date', 'billDate', 'createdOn']],
   ],
   Returns: [
-    ['Return ID', ['returnId', 'id', '_id']],
+    ['Return ID', ['returnId', 'id', '_id', 'number']],
     ['Bill ID', ['billId', 'bill.id', 'invoiceId']],
-    ['Medicine', ['medicineName', 'medicine.name', 'medicine']],
-    ['Quantity', ['quantity', 'qty', 'returnQuantity']],
-    ['Reason', ['reason', 'returnReason']],
-    ['Status', ['status']],
+    ['Medicine', ['medicineName', 'medicine.name', 'medicine', 'brandName']],
+    ['Quantity', ['quantity', 'qty', 'returnQuantity', 'amount']],
+    ['Reason', ['reason', 'returnReason', 'disposition']],
+    ['Status', ['status', 'returnStatus']],
   ],
   Reports: [
-    ['Report', ['title', 'name', 'report', 'type']],
-    ['Category', ['category', 'reportType', 'module']],
-    ['Amount', ['amount', 'total', 'revenue', 'sales']],
-    ['Count', ['count', 'quantity', 'totalCount']],
-    ['Status', ['status']],
-    ['Date', ['createdAt', 'date', 'period']],
+    ['Report', ['title', 'name', 'report', 'type', 'action', 'userName', 'medicineName', 'medicine', 'supplierName', 'supplier', 'billId', 'transactionId', 'id']],
+    ['Category', ['category', 'reportType', 'module', 'entityName', 'paymentMethod', 'paymentMode', 'mode', 'movementType', 'batchNumber', 'batchNo']],
+    ['Amount', ['amount', 'total', 'revenue', 'sales', 'totalAmount', 'grandTotal', 'refundAmount', 'costPrice', 'sellingPrice', 'value']],
+    ['Count', ['count', 'quantity', 'totalCount', 'soldQuantity', 'currentStock', 'stock', 'daysToExpiry', 'itemCount', 'unitsSold']],
+    ['Status', ['status', 'severity', 'paymentStatus', 'state']],
+    ['Date', ['createdAt', 'date', 'period', 'timestamp', 'createdOn', 'expiryDate', 'purchaseDate', 'transactionDate', 'time']],
   ],
 }
 
@@ -80,8 +81,6 @@ const dashboardCards = [
   ['bills', 'Total Bills', ['totalBills', 'billsCount', 'paidBillsCount', 'summary.totalBills', 'summary.billsCount'], '#d97706', '#fef3c7', 'lowStock'],
   ['returns', 'Returns', ['todayReturns', 'returnsCount', 'returns', 'summary.todayReturns', 'summary.returnsCount'], '#ef4444', '#fee2e2', 'expiryAlerts'],
 ]
-
-
 
 function getByPath(source, path) {
   return String(path).split('.').reduce((value, key) => value?.[key], source)
@@ -96,9 +95,21 @@ function pick(source, paths, fallback = '-') {
 }
 
 function displayValue(value) {
-  if (Array.isArray(value)) return value.length
-  if (value && typeof value === 'object') return pick(value, ['name', 'title', 'label', 'id', '_id'], JSON.stringify(value))
-  return String(value ?? '-')
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '-'
+    const names = value.map(item => {
+      if (typeof item === 'string') return item
+      return pick(item, ['name', 'medicineName', 'title', 'brandName'], '')
+    }).filter(Boolean)
+    if (names.length) return names.join(', ')
+    return String(value.length)
+  }
+  if (value && typeof value === 'object') {
+    if (value instanceof Date) return value.toISOString().split('T')[0]
+    return pick(value, ['name', 'title', 'label', 'medicineName', 'patientName', 'id', '_id'], JSON.stringify(value))
+  }
+  if (value === null || value === undefined || value === '') return '-'
+  return String(value)
 }
 
 function unwrapPayload(response) {
@@ -107,18 +118,20 @@ function unwrapPayload(response) {
 
 function findList(source) {
   if (Array.isArray(source)) return source
-  if (!source || typeof source !== 'object') return []
+  if (!source || typeof source !== 'object') return null
 
   for (const key of listKeys) {
-    const value = source[key]
-    if (Array.isArray(value)) return value
-    if (value && typeof value === 'object') {
-      const nested = findList(value)
-      if (nested.length) return nested
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      const value = source[key]
+      if (Array.isArray(value)) return value
+      if (value && typeof value === 'object') {
+        const nested = findList(value)
+        if (Array.isArray(nested)) return nested
+      }
     }
   }
 
-  return []
+  return null
 }
 
 function metricsAsRows(source) {
@@ -133,9 +146,20 @@ function metricsAsRows(source) {
 function normalizeItems(response, activeLabel) {
   const payload = unwrapPayload(response)
   const rows = findList(payload)
-  if (rows.length) return rows
+  if (Array.isArray(rows)) return rows
   if (activeLabel === 'Dashboard') return metricsAsRows(payload)
-  if (payload && typeof payload === 'object' && Object.keys(payload).length) return [payload]
+
+  // Only if payload is a true single entity object (with an ID or name), return it as a single row
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const hasEntityField = Boolean(
+      payload.id || payload._id || payload.billId || payload.prescriptionId ||
+      payload.returnId || payload.medicineId || payload.patientName || payload.doctorName ||
+      payload.medicineName || payload.action || payload.report || payload.transactionId ||
+      payload.number || payload.invoiceId
+    )
+    if (hasEntityField) return [payload]
+  }
+
   return []
 }
 
@@ -144,10 +168,6 @@ function metricValue(source, paths) {
   if (Array.isArray(value)) return value.length
   if (value && typeof value === 'object') return Number(value.total ?? value.count ?? value.value ?? Object.keys(value).length) || 0
   return Number(value) || 0
-}
-
-function ActionIcon() {
-  return <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" strokeWidth="2.5" style={{ marginRight: '6px' }}><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></svg>
 }
 
 function getDashboardCardIcon(key) {
@@ -198,7 +218,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
     setLoading(true)
     setMessage('')
     try {
-      const response = await load()
+      const response = await load(id ? { search: id, id } : {})
       setRawResponse(response)
       setItems(normalizeItems(response, activeLabel))
     } catch (error) {
@@ -209,7 +229,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
     } finally {
       setLoading(false)
     }
-  }, [activeLabel, load, showToast])
+  }, [activeLabel, id, load, showToast])
 
   useEffect(() => {
     const timer = window.setTimeout(refresh, 0)
@@ -235,6 +255,9 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
       setItems(normalizeItems(response, activeLabel))
       showToast(response?.message || `${action.label} completed.`)
     } catch (error) {
+      setItems([])
+      setRawResponse(null)
+      setMessage(error.message)
       showToast(error.message, 'error')
     } finally {
       setActionLoading(false)
@@ -244,7 +267,7 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
   const columns = moduleColumns[activeLabel] || moduleColumns.Dashboard
   const payload = unwrapPayload(rawResponse)
   const stats = useMemo(() => dashboardCards.map(([key, label, paths, color, bgColor, colorClass]) => ({ key, label, value: rawResponse === null ? '—' : metricValue(payload, paths), color, bgColor, colorClass })), [payload, rawResponse])
-  const emptyStateTitle = message ? 'Unable to load data' : loading ? 'Loading data...' : activeLabel === 'Pending' ? 'No pending prescriptions found' : 'No data found'
+  const emptyStateTitle = message ? 'Unable to load data' : loading ? 'Loading data...' : activeLabel === 'Pending' ? 'No pending prescriptions found' : `No ${activeLabel.toLowerCase()} found`
   const emptyStateDesc = loading ? 'Please wait while latest API data loads.' : 'No records were returned by the API for this module.'
   const isDashboard = activeLabel === 'Dashboard'
   const selectedAction = actions.find((action) => action.label === activeTabLabel)
@@ -430,5 +453,3 @@ function PharmacistApiScreen({ activeLabel, title, subtitle, load, actions = [] 
 }
 
 export default PharmacistApiScreen
-
-import { confirmAction } from '../../components/confirmAction'
