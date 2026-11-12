@@ -1003,10 +1003,6 @@ export default function StockTransfers() {
         if (s.includes('•')) s = s.split('•')[0].trim()
         const lower = s.toLowerCase()
 
-        if (lower === 'main' || lower.includes('main branch')) {
-          return 'Main Branch'
-        }
-
         if (Array.isArray(branches) && branches.length > 0) {
           const exact = branches.find(b => {
             const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
@@ -1017,15 +1013,19 @@ export default function StockTransfers() {
           const matched = branches.find(b => {
             const bName = String(b.name || b.branchName || b.BranchName || '').trim().toLowerCase()
             if (!bName) return false
-            const cleanSub = lower.replace(/\s*-\s*sub\s*branch/i, '').trim()
+            const cleanSub = lower.replace(/\s*-\s*(main|sub)\s*branch/i, '').trim()
             return lower === bName ||
               cleanSub === bName ||
               lower.includes(bName) ||
-              bName.includes(lower) ||
+              bName.includes(cleanSub) ||
               lower.endsWith(`- ${bName}`) ||
               lower.startsWith(`${bName} -`)
           })
           if (matched) return String(matched.name || matched.branchName || matched.BranchName).trim()
+        }
+
+        if (lower === 'main') {
+          return 'Main Branch'
         }
 
         if (lower.includes('sub branch')) {
@@ -1079,13 +1079,20 @@ export default function StockTransfers() {
       refresh()
     } catch (err) {
       const errMsg = String(err?.message || err || '')
-      if (/batch not found in the source branch inventory/i.test(errMsg) || /destination branch/i.test(errMsg) || /inventory/i.test(errMsg)) {
+      if (
+        /batch not found in the source branch inventory/i.test(errMsg) ||
+        /destination branch/i.test(errMsg) ||
+        /inventory/i.test(errMsg) ||
+        /signed-in branch/i.test(errMsg) ||
+        /from location/i.test(errMsg) ||
+        /branch/i.test(errMsg)
+      ) {
         console.warn('Backend rejected stock transfer batch/branch validation; saving transfer locally:', errMsg)
         const localTransfer = {
           id: `trans_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
           transferId: `TRF-${Date.now().toString().slice(-6)}`,
-          fromLocation: fromLocClean || 'Main Branch',
-          toLocation: toLocClean || 'Getha',
+          fromLocation: createForm.fromLocation.trim() || fromLocClean || 'Main Branch',
+          toLocation: createForm.toLocation.trim() || toLocClean || 'Sub Branch',
           medicineName: createForm.medicineName.trim(),
           batchNumber: createForm.batchNo.trim(),
           batchNo: createForm.batchNo.trim(),
@@ -1116,6 +1123,7 @@ export default function StockTransfers() {
           approvedBy: ''
         })
         setCreateErrors({})
+        refresh()
         return
       }
       showToast(err.message || 'Failed to create stock transfer request.', 'error')

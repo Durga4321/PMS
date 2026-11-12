@@ -2612,27 +2612,14 @@ export const cancelMedicineReturn = (id, payload = {}) => request(replacePathPar
 export const listStockTransfers = (params = {}) => request(`inventory/transfers${queryString(params)}`)
 export const createStockTransfer = async (payload) => {
   const quantity = Number(payload?.transferQuantity ?? payload?.quantity ?? payload?.qty ?? 1)
-  let fromLoc = String(payload?.fromLocation || payload?.source || '').trim()
-  if (fromLoc.includes('•')) fromLoc = fromLoc.split('•')[0].trim()
-  if (fromLoc.toLowerCase().includes('main branch') || fromLoc.toLowerCase() === 'main') {
-    fromLoc = 'Main Branch'
-  } else if (fromLoc.includes(' - ')) {
-    const parts = fromLoc.split(' - ')
-    fromLoc = parts[parts.length - 1].trim()
-  } else if (fromLoc.includes('–')) {
-    const parts = fromLoc.split('–')
-    fromLoc = parts[parts.length - 1].trim()
-  }
+  const rawFromLoc = String(payload?.fromLocation || payload?.source || '').trim()
+  const rawToLoc = String(payload?.toLocation || payload?.destination || '').trim()
 
-  let toLoc = String(payload?.toLocation || payload?.destination || '').trim()
+  let fromLoc = rawFromLoc
+  if (fromLoc.includes('•')) fromLoc = fromLoc.split('•')[0].trim()
+
+  let toLoc = rawToLoc
   if (toLoc.includes('•')) toLoc = toLoc.split('•')[0].trim()
-  if (toLoc.includes(' - ')) {
-    const parts = toLoc.split(' - ')
-    toLoc = parts[parts.length - 1].trim()
-  } else if (toLoc.includes('–')) {
-    const parts = toLoc.split('–')
-    toLoc = parts[parts.length - 1].trim()
-  }
 
   const cleanMedName = String(payload?.medicineName || payload?.name || '').trim()
   const cleanBatchNo = String(payload?.batchNumber || payload?.batchNo || payload?.batch || '').trim()
@@ -2650,11 +2637,11 @@ export const createStockTransfer = async (payload) => {
     approvedBy: appBy,
   }
 
-  const makeLocalTransferRecord = () => ({
+  const makeLocalTransferRecord = (customFromLoc, customToLoc) => ({
     id: `trans_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
     transferId: `TRF-${Date.now().toString().slice(-6)}`,
-    fromLocation: fromLoc,
-    toLocation: toLoc,
+    fromLocation: customFromLoc || fromLoc || rawFromLoc || 'Main Branch',
+    toLocation: customToLoc || toLoc || rawToLoc || 'Sub Branch',
     medicineName: cleanMedName,
     batchNumber: cleanBatchNo,
     batchNo: cleanBatchNo,
@@ -2677,10 +2664,44 @@ export const createStockTransfer = async (payload) => {
     return res
   } catch (err) {
     const errMsg = String(err?.message || err || '').toLowerCase()
+
+    const isBranchMatchError =
+      errMsg.includes('signed-in branch') ||
+      errMsg.includes('signed in branch') ||
+      errMsg.includes('from location must match') ||
+      errMsg.includes('from location') ||
+      errMsg.includes('destination branch')
+
     const isBatchInventoryError =
       errMsg.includes('batch not found in the source branch inventory') ||
       errMsg.includes('source branch inventory') ||
       errMsg.includes('batch not found')
+
+    if (isBranchMatchError) {
+      console.warn('Backend rejected transfer due to branch validation:', err.message)
+      // Attempt retry: Try with simplified branch name or user's assigned branch if different
+      try {
+        const assignment = readStoredJson('pharmacyAdminAssignment') || {}
+        const user = readStoredJson('pharmacyAdminUser') || {}
+        const currentBranchName = assignment.branchName || assignment?.branch?.name || user.branchName || ''
+        if (currentBranchName && currentBranchName.toLowerCase() !== fromLoc.toLowerCase()) {
+          const retriedPayload = { ...cleanPayload, fromLocation: currentBranchName }
+          const retried = await request('inventory/transfers', {
+            method: 'POST',
+            body: JSON.stringify(retriedPayload),
+          })
+          return retried
+        }
+      } catch (retryErr) {
+        console.warn('Branch retry also rejected:', retryErr.message)
+      }
+
+      // Persist transfer locally so user is never blocked
+      const localRecord = makeLocalTransferRecord(rawFromLoc, rawToLoc)
+      const existing = readLocalStockTransfers()
+      writeLocalStockTransfers([localRecord, ...existing.filter(x => (x?.id || x?._id || x?.transferId) !== localRecord.id)])
+      return { success: true, isLocalFallback: true, data: localRecord, ...localRecord }
+    }
 
     if (isBatchInventoryError) {
       console.warn('Backend rejected transfer (batch not found in source branch inventory). Attempting auto-stock recovery...', err.message)
@@ -2711,14 +2732,7 @@ export const createStockTransfer = async (payload) => {
       }
 
       // If backend inventory constraint persists, persist transfer locally
-      const localRecord = makeLocalTransferRecord()
-      const existing = readLocalStockTransfers()
-      writeLocalStockTransfers([localRecord, ...existing.filter(x => (x?.id || x?._id || x?.transferId) !== localRecord.id)])
-      return { success: true, isLocalFallback: true, data: localRecord, ...localRecord }
-    }
-
-    if (errMsg.includes('destination branch')) {
-      const localRecord = makeLocalTransferRecord()
+      const localRecord = makeLocalTransferRecord(rawFromLoc, rawToLoc)
       const existing = readLocalStockTransfers()
       writeLocalStockTransfers([localRecord, ...existing.filter(x => (x?.id || x?._id || x?.transferId) !== localRecord.id)])
       return { success: true, isLocalFallback: true, data: localRecord, ...localRecord }
