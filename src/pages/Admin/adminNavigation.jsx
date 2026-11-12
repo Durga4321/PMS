@@ -21,5 +21,6 @@ export const adminNavigation = [
   item('Stock Transfers', '/admin/stock-transfers', 'arrowLeftRight', 'cyan'),
   item('Expiry Alerts', '/admin/expiry-alerts', 'triangleAlert', 'red'),
   item('Reports', '/admin/reports', 'barChart3', 'purple'),
+  item('Notifications', '/admin/notifications', 'notifications', 'rose'),
   item('Settings', '/admin/settings', 'cog', 'cyan'),
 ]

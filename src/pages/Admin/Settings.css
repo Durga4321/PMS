@@ -241,7 +241,7 @@
 
 /* Section tabs replace the vertically stacked settings cards. */
 .settings-layout-container { gap: 14px; }
-.settings-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.settings-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .settings-tabs [role="tab"] { min-width: 0; min-height: 48px; padding: 10px 12px; border: 1px solid var(--pms-border, #cbd5e1); border-radius: 10px; background: var(--pms-surface, #fff); color: var(--pms-text, #183044); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; overflow-wrap: anywhere; }
 .settings-tabs [aria-selected="true"] { background: var(--pms-accent-strong, #007d79); border-color: var(--pms-accent-strong, #007d79); color: #fff; }
 .settings-tabs [role="tab"]:hover { border-color: var(--pms-accent-strong, #007d79); }

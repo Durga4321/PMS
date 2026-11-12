@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getSuperAdminSettings, updateSuperAdminSettings } from '../../config/api'
 import { useToast } from '../../components/ToastProvider'
+import { LANGUAGES, setLanguage, useLanguage } from '../../i18n/language'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './SystemSettings.css'
@@ -68,6 +69,7 @@ function SettingsIcon({ name }) {
 
 function SystemSettings() {
   const { showToast } = useToast()
+  const language = useLanguage()
   const [settings, setSettings] = useState(getStoredLocalSettings)
   const [tab, setTab] = useState('general')
   const [loading, setLoading] = useState(true)
@@ -187,14 +189,15 @@ function SystemSettings() {
         <SuperAdminTopbar onMenu={() => setSidebarOpen((value) => !value)} />
         <section className="settings-heading"><div><h1>System Settings</h1><span>Configure global pharmacy platform preferences.</span></div><span className="settings-environment"><i />Production Environment</span></section>
         <form className="settings-card" onSubmit={saveSettings}>
-          <nav className="settings-tabs" aria-label="Settings sections">{[['general', 'General Settings'], ['email', 'Email Settings'], ['sms', 'SMS Settings'], ['payment', 'Payment Settings']].map(([value, label]) => <button key={value} className={`${value} ${tab === value ? 'active' : ''}`} onClick={() => setTab(value)} type="button"><SettingsIcon name={value} />{label}</button>)}<span className="settings-live"><i />Live</span></nav>
+          <nav className="settings-tabs" aria-label="Settings sections">{[['general', 'General Settings'], ['email', 'Email Settings'], ['sms', 'SMS Settings'], ['payment', 'Payment Settings'], ['language', 'Language']].map(([value, label]) => <button key={value} className={`${value} ${tab === value ? 'active' : ''}`} onClick={() => setTab(value)} type="button" aria-pressed={tab === value}><SettingsIcon name={value} />{label}</button>)}<span className="settings-live"><i />Live</span></nav>
           {loading ? <div className="settings-state">Loading current settings...</div> : <>
             {error ? <div className="settings-alert">{error}</div> : null}
+            {tab === 'language' ? <div className="settings-language-panel"><h2>Language</h2><p>Choose the display language for Super Admin, Admin, and Pharmacist screens.</p><label className="settings-field"><span className="settings-field-label">Display Language</span><span className="settings-control"><select value={language} onChange={(event) => setLanguage(event.target.value)}>{LANGUAGES.map((option) => <option key={option.value} value={option.value} lang={option.value} translate="no">{option.label}</option>)}</select></span></label><p role="status">Language changes apply immediately and are saved in this browser.</p></div> : null}
             {tab === 'general' ? <div className="settings-form-grid">{field('App Name', 'appName', 'text', 'Enter application name')}{selectField('Timezone', 'timezone', ['Asia/Kolkata', 'UTC', 'America/New_York', 'Europe/London'])}{selectField('Currency', 'currency', ['INR', 'USD', 'EUR', 'GBP'])}{selectField('Status', 'status', ['Enabled', 'Disabled'])}{notesField}</div> : null}
             {tab === 'email' ? <div className="settings-form-grid">{field('Sender Name', 'senderName', 'text', 'Pharmacy System')}{field('From Email', 'senderEmail', 'email', 'notifications@example.com')}{field('SMTP Host', 'smtpHost', 'text', 'smtp.example.com')}{field('SMTP Port', 'smtpPort', 'number', '587')}{field('SMTP Username', 'smtpUsername', 'text', 'SMTP username')}{passwordField('SMTP Password', 'smtpPassword', 'SMTP password', showSmtpPassword, setShowSmtpPassword)}{selectField('Status', 'status', ['Enabled', 'Disabled'])}{notesField}</div> : null}
             {tab === 'sms' ? <div className="settings-form-grid">{field('Configuration Name', 'smsConfigurationName', 'text', 'SMS configuration')}{field('Provider', 'smsProvider', 'text', 'Provider name')}{field('Sender ID', 'smsSenderId', 'text', 'Sender ID')}{passwordField('API Key', 'smsApiKey', 'Enter API key', showSmsApiKey, setShowSmsApiKey)}{field('API Secret', 'smsApiSecret', 'password', 'Enter API secret')}{selectField('Status', 'status', ['Enabled', 'Disabled'])}{notesField}</div> : null}
             {tab === 'payment' ? <div className="settings-form-grid">{field('Configuration Name', 'paymentConfigurationName', 'text', 'Payment configuration')}{field('Gateway Provider', 'paymentGateway', 'text', 'Gateway provider')}{field('Merchant ID', 'merchantId', 'text', 'Merchant ID')}{field('Public Key', 'publicKey', 'text', 'Public key')}{secretKeyField}{selectField('Mode', 'paymentMode', ['Test', 'Live'])}{selectField('Status', 'status', ['Enabled', 'Disabled'])}{notesField}</div> : null}
-            <div className="settings-actions">{feedback ? <span className="settings-feedback">{feedback}</span> : null}<button type="submit" disabled={saving}><SettingsIcon name="save" />{saving ? 'Saving...' : 'Save Config'}</button></div>
+            {tab !== 'language' ? <div className="settings-actions">{feedback ? <span className="settings-feedback">{feedback}</span> : null}<button type="submit" disabled={saving}><SettingsIcon name="save" />{saving ? 'Saving...' : 'Save Config'}</button></div> : null}
           </>}
         </form>
       </main>

@@ -170,6 +170,7 @@
 
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin: 0 0 18px;
@@ -177,6 +178,13 @@
   border-bottom: 0;
   background: transparent;
 }
+
+.settings-language-panel { display: grid; gap: 16px; padding: 12px 0; }
+.settings-language-panel h2, .settings-language-panel p { margin: 0; }
+.settings-language-panel h2 { font-size: 20px; color: var(--pms-text, #30264f); }
+.settings-language-panel p { color: var(--pms-muted, #73698a); line-height: 1.6; }
+.settings-language-panel .settings-field { max-width: 540px; }
+.settings-tabs button.language.active { border-color: #08a9c7; background: #d5f8fc; }
 
 .settings-live {
   display: inline-flex;

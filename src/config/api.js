@@ -439,7 +439,7 @@ function passwordResetPayload(payload = {}) {
   return value === undefined ? payload : { ...payload, newPassword: value, NewPassword: value }
 }
 async function request(path, options = {}) {
-  const { authRole, signal, headers: customHeaders, tenantBranchId, publicRequest = false, ...fetchOptions } = options
+  const { authRole, signal, headers: customHeaders, tenantBranchId, publicRequest = false, validateResponse, ...fetchOptions } = options
   const token = publicRequest ? null : authTokenFor(path, authRole)
 
   const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
@@ -590,6 +590,7 @@ async function request(path, options = {}) {
     throw error
   }
 
+  if (validateResponse) validateResponse(data, response)
   return data
 }
 
@@ -2609,6 +2610,21 @@ export const getMedicineReturn = (id) => request(replacePathParams('pharmacy/ret
 export const approveMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const cancelMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
+function pharmacistReturnRequest(path, options = {}) {
+  return request(path, { ...options, authRole: 'pharmacist', validateResponse: (data, response) => {
+    if ((response.headers.get('content-type') || '').includes('text/html') || /Backend server returned an HTML/i.test(data?.message || '')) throw new Error('The returns service returned an invalid response. Please try again later.')
+    if (data?.success === false || data?.data?.success === false || data?.error) throw new Error(data?.message || 'Unable to complete the medicine return.')
+  } })
+}
+export const pharmacistReturnsApi = {
+  list: (params = {}, options = {}) => pharmacistReturnRequest(`pharmacy/returns${queryString(params)}`, options),
+  inventory: (options = {}) => pharmacistReturnRequest('inventory', options),
+  batches: (medicineId, options = {}) => pharmacistReturnRequest(replacePathParams('inventory/{medicineId}/batches', { medicineId }), options),
+  create: (payload) => pharmacistReturnRequest('pharmacy/returns', { method: 'POST', body: JSON.stringify(payload) }),
+  approve: (id, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(payload) }),
+  cancel: (id) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify({ reason: 'Cancelled by pharmacist before approval.' }) }),
+}
+
 export const listStockTransfers = (params = {}) => request(`inventory/transfers${queryString(params)}`)
 export const createStockTransfer = async (payload) => {
   const quantity = Number(payload?.transferQuantity ?? payload?.quantity ?? payload?.qty ?? 1)
@@ -3630,6 +3646,23 @@ export function createManualPharmacyPrescription(payload) {
     body: JSON.stringify(apiPayload(payload)),
   })
 }
+
+// The pharmacist prescription workspace uses only the signed-in pharmacist's
+// credentials. It does not deduct cached stock before a server confirmation.
+function pharmacistPrescriptionRequest(path, payload) {
+  return request(path, {
+    authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)),
+    validateResponse: (data, response) => {
+      if ((response.headers.get('content-type') || '').includes('text/html') || /Backend server returned an HTML/i.test(data?.message || '')) throw new Error('The prescription service returned an invalid response. Please try again later.')
+      if (data?.success === false || data?.data?.success === false || data?.error) throw new Error(data?.message || 'Unable to save this prescription request.')
+    },
+  })
+}
+export const pharmacistPrescriptionApi = {
+  create: (payload) => pharmacistPrescriptionRequest('pharmacy/prescriptions/manual', payload),
+  bill: (payload) => pharmacistPrescriptionRequest('pharmacy/generate-bill', payload),
+  pay: (payload) => pharmacistPrescriptionRequest('pharmacy/payment', payload),
+}
 export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-auth/permissions', { authRole: 'pharmacyAdmin' })
 export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
 export const getPharmacyPrescriptions = (params = {}) => request(`pharmacy/prescriptions${queryString(params)}`)
@@ -4157,6 +4190,75 @@ export const sendSuperAdminNotification = (payload) => request('pharmacy-super-a
 export const deleteSuperAdminNotification = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}', { id }), { method: 'DELETE' })
 export const markSuperAdminNotificationRead = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}/read', { id }), { method: 'PATCH' })
 export const markAllSuperAdminNotificationsRead = () => request('pharmacy-super-admin/notifications/mark-all-read', { method: 'PATCH' })
+
+// Delivery and recipient authorization are owned by the server. These calls
+// deliberately have no local-cache fallback: a local save is not delivery.
+function roleNotificationApi(base, authRole) {
+  const superAdmin = authRole === 'superAdmin'
+  function unavailable(action) {
+    return Promise.reject(new Error(`${action} API has not been provided for this role.`))
+  }
+  async function collection(path, params, options) {
+    const response = await request(`${path}${queryString(params)}`, { ...options, authRole })
+    const body = response?.data ?? response
+    if (!Array.isArray(body) && !['items', 'notifications', 'records', 'results', 'recipients'].some((key) => Array.isArray(body?.[key]))) {
+      throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')
+    }
+    return response
+  }
+  return {
+    list: (params = {}, options = {}) => collection(base, params, options),
+    recipients: (params = {}, options = {}) => authRole === 'pharmacist' ? unavailable('Notification recipient lookup') : collection(`${base}/recipients`, params, options),
+    unreadCount: async (options = {}) => {
+      if (!superAdmin) {
+        const response = await request('notifications/unread-count', { ...options, authRole })
+        const body = response?.data ?? response
+        return { data: { unreadCount: body?.unreadCount ?? body?.count ?? (typeof body === 'number' ? body : 0) } }
+      }
+      // Super Admin has no separate count endpoint in the supplied contract.
+      // Its existing list endpoint supports the unread status filter.
+      const response = await collection(base, { status: 'unread', page: 1, pageSize: 100 }, options)
+      const body = response?.data ?? response
+      const total = body?.unreadCount ?? body?.counts?.unread ?? response?.unreadCount ?? body?.total ?? body?.totalCount ?? body?.pagination?.total ?? response?.total
+      if (total != null) return { data: { unreadCount: Number(total) } }
+      const rows = Array.isArray(body) ? body : body.items ?? body.notifications ?? body.records ?? body.results ?? []
+      return { data: { unreadCount: rows.filter((item) => {
+        const state = String(item.status ?? item.state ?? '').toLowerCase()
+        const read = item.isRead ?? item.read ?? (state === 'read')
+        return state !== 'sent' && read !== true && read !== 1 && read !== 'true'
+      }).length } }
+    },
+    send: async (payload) => {
+      if (authRole === 'pharmacist') return unavailable('Pharmacist notification send')
+      return request(base, {
+        authRole,
+        method: 'POST',
+        body: JSON.stringify(payload),
+        validateResponse: (data, response) => {
+          const contentType = response.headers.get('content-type') || ''
+          const result = data?.data ?? data
+          if (contentType.includes('text/html') || /Backend server returned an HTML|ERR_NGROK|server tunnel is currently offline/i.test(data?.message || '')) {
+            throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')
+          }
+          if (data?.success === false || data?.isSuccess === false || result?.success === false || result?.isSuccess === false || data?.error || result?.error) {
+            throw new Error(data?.message || result?.message || 'Unable to send notification.')
+          }
+          // Any valid HTTP success is sufficient; send APIs may return a
+          // message/summary or 204 instead of a newly created record ID.
+        },
+      })
+    },
+    markRead: (id) => request(`${base}/${encodeURIComponent(id)}/read`, { authRole, method: 'PATCH' }),
+    markAllRead: () => request(superAdmin ? `${base}/mark-all-read` : 'notifications/mark-all-read', { authRole, method: 'PATCH' }),
+    remove: (id) => request(`${base}/${encodeURIComponent(id)}`, { authRole, method: 'DELETE' }),
+  }
+}
+
+export const notificationApis = {
+  superAdmin: roleNotificationApi('pharmacy-super-admin/notifications', 'superAdmin'),
+  pharmacyAdmin: roleNotificationApi('pharmacy-admin/notifications', 'pharmacyAdmin'),
+  pharmacist: roleNotificationApi('pharmacist/notifications', 'pharmacist'),
+}
 
 export const listSuperAdminHospitals = (params = {}) => request(`pharmacy-super-admin/hospitals${queryString(params)}`)
 export const listSuperAdminHospitalBranches = (hospitalId) => request(replacePathParams('pharmacy-super-admin/hospitals/{hospitalId}/branches', { hospitalId }))

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useToast } from '../../components/ToastProvider'
+import { LANGUAGES, setLanguage, useLanguage } from '../../i18n/language'
 import AdminLayout from './AdminLayout'
 import { getPharmacySettings, updatePharmacySettings, getPharmacyAdminAssignmentStatus, scopedKey } from '../../config/api'
 import './Settings.css'
 
-const SETTINGS_TABS = ['Pharmacy Information', 'Business Settings', 'Inventory Settings', 'Sales & Purchase', 'Notifications']
+const SETTINGS_TABS = ['Pharmacy Information', 'Business Settings', 'Inventory Settings', 'Sales & Purchase', 'Notifications', 'Language']
 
 const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
 
@@ -108,6 +109,7 @@ function getInitialSettings() {
 
 export default function Settings() {
   const { showToast } = useToast()
+  const language = useLanguage()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState(0)
@@ -436,6 +438,19 @@ export default function Settings() {
                     }}>{label}</button>
                 ))}
               </div>
+              {activeTab === 5 && <section className="settings-section-card" role="tabpanel" id="settings-panel-5" aria-labelledby="settings-tab-5" tabIndex={0}>
+                <h2>Language</h2>
+                <div className="settings-form-grid">
+                  <div className="settings-form-group">
+                    <label htmlFor="admin-display-language">Display Language</label>
+                    <select id="admin-display-language" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                      {LANGUAGES.map((option) => <option key={option.value} value={option.value} lang={option.value} translate="no">{option.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <p role="status">Language changes apply immediately and are saved in this browser.</p>
+              </section>}
+
               {/* Card 1: Pharmacy Information */}
               {activeTab === 0 && <section className="settings-section-card" role="tabpanel" id="settings-panel-0" aria-labelledby="settings-tab-0" tabIndex={0}>
                 <h2>

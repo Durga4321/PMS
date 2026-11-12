@@ -1,4 +1,5 @@
 import './ConfirmAction.css'
+import { getLanguage, translate } from '../i18n/language'
 
 let pendingConfirmation = null
 
@@ -14,10 +15,11 @@ export function confirmAction(message, options = {}) {
     dialog.setAttribute('aria-labelledby', 'pms-action-confirm-title')
     dialog.setAttribute('aria-describedby', 'pms-action-confirm-description')
     dialog.innerHTML = '<div class="pms-action-confirm-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M8 6V4h8v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg></div><h2 id="pms-action-confirm-title"></h2><p id="pms-action-confirm-description"></p><div class="pms-action-confirm-actions"><button type="button" autofocus>Cancel</button><button type="button" class="pms-action-confirm-confirm"></button></div>'
-    dialog.querySelector('h2').textContent = title
-    dialog.querySelector('p').textContent = message
+    dialog.querySelector('h2').textContent = translate(title, getLanguage())
+    dialog.querySelector('p').textContent = translate(message, getLanguage())
     const [cancelButton, confirmButton] = dialog.querySelectorAll('button')
-    confirmButton.textContent = confirmLabel
+    cancelButton.textContent = translate('Cancel', getLanguage())
+    confirmButton.textContent = translate(confirmLabel, getLanguage())
     let settled = false
     function finish(confirmed) {
       if (settled) return

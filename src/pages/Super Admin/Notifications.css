@@ -73,3 +73,51 @@
   margin: 0 16px 12px;
   border-radius: 13px;
 }
+
+/* Keep header actions independent of the Reports page button styles. */
+.notifications-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.notifications-heading-actions > button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid #dbe5ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #40536c;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.notifications-heading-actions > button:first-child {
+  border-color: #f3caca;
+  background: #fff5f5;
+  color: #d26d6d;
+}
+.notifications-heading-actions > button:hover:not(:disabled) {
+  border-color: #a9bbcf;
+  background: #f8fafc;
+  color: #334155;
+}
+.notifications-heading-actions > button:first-child:hover:not(:disabled) {
+  border-color: #e9aaaa;
+  background: #ffeded;
+  color: #b95454;
+}
+.notifications-heading-actions > button:disabled { cursor: not-allowed; }
+.notifications-heading-actions > button:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 3px;
+}
+@media (max-width: 760px) {
+  .notifications-page .notifications-heading { align-items: flex-start; }
+  .notifications-heading-actions { justify-content: flex-start; }
+}

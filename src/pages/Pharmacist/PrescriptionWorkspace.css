@@ -1,0 +1,101 @@
+.rx-workspace { --rx-border: var(--pms-border, #efc8d3); --rx-accent: var(--pms-accent-strong, #ad294b); color: var(--pms-text, #492331); display: grid; gap: 20px; padding: 12px 0 28px; min-width: 0; }
+.rx-workspace * { box-sizing: border-box; }
+.rx-workspace > form { min-width: 0; max-width: 100%; }
+.rx-workspace { gap: 14px; padding-top: 8px; }
+.rx-heading h1 { font-size: clamp(22px, 2vw, 30px); }
+.rx-heading > div > p { font-size: 13px; }
+.rx-heading .rx-breadcrumb { margin-bottom: 6px; font-size: 12px; }
+.rx-workspace h1 { margin: 4px 0 8px; font-size: clamp(24px, 2.1vw, 34px); line-height: 1.2; }
+.rx-workspace h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font-size: 20px; }
+.rx-workspace h2 svg { color: var(--rx-accent); }
+.rx-workspace p { margin: 6px 0 12px; line-height: 1.6; }
+.rx-workspace small, .rx-workspace .rx-breadcrumb { color: var(--pms-muted, #80616d); line-height: 1.6; }
+.rx-heading, .rx-heading-actions, .rx-medicines > header, .rx-reference-preview > header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.rx-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; column-gap: 24px; }
+.rx-heading > div:first-child { min-width: 0; }
+.rx-heading > .rx-heading-actions { align-self: center; justify-content: flex-end; }
+.rx-heading .rx-breadcrumb { margin-top: 0; margin-bottom: 12px; }
+.rx-heading > div > p:last-child { margin-bottom: 0; }
+.rx-workspace button, .rx-heading-actions a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 10px 15px; border: 1px solid var(--rx-border); border-radius: 10px; font: inherit; font-size: 13px; font-weight: 700; background: var(--pms-surface, white); color: var(--rx-accent); cursor: pointer; text-decoration: none; }
+.rx-workspace button:hover:not(:disabled), .rx-heading-actions a:hover { background: color-mix(in srgb, var(--rx-accent) 8%, var(--pms-surface, white)); }
+.rx-workspace button:disabled { opacity: .5; cursor: not-allowed; }
+.rx-workspace .rx-primary { background: var(--pms-gradient, linear-gradient(120deg, #e9436b, #ac2648)); color: #fff; border-color: transparent; }
+.rx-workspace .rx-primary:hover:not(:disabled) { background: var(--rx-accent); color: #fff; }
+.rx-workspace :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--rx-accent); outline-offset: 3px; }
+.rx-workspace svg { width: 21px; height: 21px; flex-shrink: 0; }
+.rx-stepper { display: flex; list-style: none; padding: 0; margin: 0; justify-content: space-between; gap: 16px; }
+.rx-stepper li { flex: 1 1 0; min-width: 0; min-height: 50px; display: flex; justify-content: center; align-items: center; gap: 10px; border: 1px solid var(--rx-border); padding: 12px; border-radius: 30px; font-size: 14px; text-align: center; overflow-wrap: anywhere; }
+.rx-stepper b { display: grid; place-items: center; flex-shrink: 0; width: 25px; height: 25px; border: 1px solid currentColor; border-radius: 50%; }
+.rx-stepper .is-active { background: var(--pms-gradient, linear-gradient(120deg, #e9436b, #ac2648)); border-color: transparent; color: white; }
+.rx-card { background: var(--pms-surface, #fff); border: 1px solid var(--rx-border); border-radius: 16px; padding: 22px; min-width: 0; }
+.rx-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 18px; margin-bottom: 18px; }
+.rx-details-grid > .rx-card > h2 { min-height: 28px; margin-bottom: 18px; }
+.rx-patient-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px 18px; }
+.rx-workspace fieldset { min-width: 0; border: 0; margin: 0; padding: 0; }
+.rx-field { display: grid; gap: 8px; font-size: 13px; font-weight: 700; min-width: 0; }
+.rx-patient-grid .rx-field { align-content: start; }
+.rx-patient-grid .rx-field > span { min-height: 20px; line-height: 1.5; }
+.rx-patient-grid :is(input, select) { height: 44px; }
+.rx-patient-grid textarea { min-height: 76px; }
+.rx-workspace input:not([hidden]), .rx-workspace select, .rx-workspace textarea { width: 100%; min-height: 40px; padding: 10px 12px; border: 1px solid var(--rx-border); border-radius: 8px; background: var(--pms-surface, white); color: var(--pms-text, #492331); font: inherit; font-size: 13px; }
+.rx-workspace textarea { resize: vertical; }
+.rx-workspace input:disabled, .rx-workspace select:disabled, .rx-workspace textarea:disabled { color: var(--pms-text, #492331); opacity: .8; }
+.rx-photo-card { display: flex; flex-direction: column; }
+.rx-camera-frame { position: relative; flex: 1 0 255px; min-height: 235px; height: 255px; max-height: 360px; overflow: hidden; display: grid; place-items: center; border: 1px dashed var(--rx-border); border-radius: 12px; background: color-mix(in srgb, var(--rx-accent) 4%, var(--pms-surface, white)); }
+.rx-camera-frame video:not([hidden]), .rx-camera-frame img { width: 100%; height: 100%; object-fit: contain; }
+.rx-camera-frame video[hidden] { display: none; }
+.rx-camera-empty { text-align: center; padding: 16px; color: var(--pms-muted, #80616d); }
+.rx-camera-empty > svg { display: block; width: 42px; height: 42px; margin: 0 auto 12px; }
+.rx-camera-empty strong { display: block; }
+.rx-camera-empty p { font-size: 13px; }
+.rx-camera-ready { position: absolute; top: 12px; left: 12px; padding: 5px 10px; border-radius: 20px; color: white; background: #12613f; font-size: 12px; }
+.rx-photo-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 9px; margin: 14px 0 10px; }
+.rx-attached { display: flex; align-items: center; gap: 8px; font-size: 12px; overflow-wrap: anywhere; }
+.rx-attached svg { color: #168250; }
+.rx-medicines > header { align-items: flex-start; margin-bottom: 18px; }
+.rx-medicines header h2 { margin-bottom: 4px; }
+.rx-medicines header p, .rx-dose-note { font-size: 13px; color: var(--pms-muted, #80616d); }
+.rx-table-scroll { overflow: auto; border: 1px solid var(--rx-border); border-radius: 10px; }
+.rx-workspace table { width: 100%; min-width: 1080px; border-collapse: collapse; font-size: 13px; }
+.rx-workspace th { text-align: left; white-space: nowrap; font-size: 12px; background: color-mix(in srgb, var(--rx-accent) 8%, var(--pms-surface, white)); padding: 12px 9px; }
+.rx-workspace td { padding: 10px 7px; border-top: 1px solid var(--rx-border); }
+.rx-workspace td:first-child { min-width: 190px; }
+.rx-workspace td:nth-child(2) { min-width: 125px; }
+.rx-workspace td:nth-child(n+3):nth-child(-n+8) { width: 85px; min-width: 80px; }
+.rx-workspace .rx-line-amount { font-weight: 700; white-space: nowrap; }
+.rx-totals { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin-top: 18px; padding: 15px; border-radius: 9px; background: color-mix(in srgb, var(--rx-accent) 7%, var(--pms-surface, white)); font-size: 14px; }
+.rx-totals > strong:last-child { margin-left: auto; font-size: 19px; }
+.rx-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 20px 0; }
+.rx-footer p { display: flex; align-items: center; gap: 9px; font-size: 13px; margin: 0; }
+.rx-footer > div { display: flex; flex-wrap: wrap; gap: 12px; }
+.rx-footer > div { margin-left: auto; }
+.rx-message { padding: 13px 16px; border-radius: 10px; background: var(--pms-surface, white); border: 1px solid var(--rx-border); }
+.rx-error { color: #b31f3e; }
+.rx-payment-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
+.rx-payment-grid fieldset { display: grid; gap: 18px; margin-bottom: 15px; }
+.rx-payment-amount { font-size: 36px; font-weight: 800; padding: 10px 0; }
+.rx-summary-lines > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--rx-border); padding: 16px 0; }
+.rx-complete { text-align: center; padding: 40px 24px; }
+.rx-complete > svg { width: 56px; height: 56px; color: #168250; }
+.rx-complete h2 { justify-content: center; margin-top: 16px; }
+.rx-complete > strong { display: block; font-size: 34px; margin: 20px 0; }
+.rx-complete .rx-heading-actions { justify-content: center; }
+.rx-references > button { margin: 5px; }
+.rx-reference-preview img { display: block; max-width: 100%; max-height: 600px; margin: 20px auto; object-fit: contain; }
+.rx-details-grid .rx-card { padding: 16px; }
+.rx-details-grid > .rx-card > h2 { font-size: 18px; min-height: 24px; margin-bottom: 12px; }
+.rx-patient-grid { gap: 10px 16px; }
+.rx-patient-grid .rx-field { gap: 5px; font-size: 12px; }
+.rx-patient-grid .rx-field > span { min-height: 17px; line-height: 1.4; }
+.rx-patient-grid :is(input, select) { height: 36px; min-height: 36px; padding: 7px 10px; }
+.rx-patient-grid textarea { min-height: 40px; height: 40px; padding: 7px 10px; }
+.rx-camera-frame { flex-basis: 180px; height: 180px; min-height: 180px; max-height: 240px; }
+.rx-photo-actions { margin: 10px 0 6px; }
+.rx-photo-card small { font-size: 11px; }
+.rx-stepper li { min-height: 44px; padding: 8px 10px; }
+.rx-footer { padding: 12px 0; }
+.rx-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 12px; font-size: 12px; }
+@media (max-width: 1100px) { .rx-payment-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .rx-heading { grid-template-columns: minmax(0, 1fr); } .rx-heading > .rx-heading-actions { justify-content: flex-start; } }
+@media (max-width: 800px) { .rx-details-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .rx-workspace { gap: 14px; } .rx-card { padding: 16px; } .rx-patient-grid { grid-template-columns: 1fr; } .rx-stepper { gap: 6px; } .rx-stepper li { flex-direction: column; padding: 9px 5px; border-radius: 12px; font-size: 11px; text-align: center; } .rx-footer > div, .rx-footer button { flex: 1; } .rx-totals { gap: 10px; } .rx-totals > strong:last-child { width: 100%; margin: 0; } }

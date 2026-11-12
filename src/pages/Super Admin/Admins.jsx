@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { confirmAction } from '../../components/confirmAction'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import SuperAdminSidebar from './SuperAdminSidebar'
@@ -328,7 +329,7 @@ function Admins() {
       showToast('Unable to delete admin: missing admin ID.', 'error')
       return
     }
-    if (!window.confirm(`Are you sure you want to delete ${getName(admin)}?`)) return
+    if (!await confirmAction(`Are you sure you want to delete ${getName(admin)}?`)) return
 
     try {
       const response = await deleteSuperAdminRole(adminId)

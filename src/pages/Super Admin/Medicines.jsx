@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { confirmAction } from '../../components/confirmAction'
 import RowActions from '../../components/RowActions'
 import { changeSuperAdminMedicineStatus, deleteMedicine, getSuperAdminMedicines } from '../../config/api'
 import SuperAdminSidebar from './SuperAdminSidebar'
@@ -187,7 +188,7 @@ function Medicines() {
 
   async function handleDelete(medicine) {
     const name = medicineName(medicine)
-    if (!window.confirm(`Are you sure you want to delete ${name}?`)) return
+    if (!await confirmAction(`Are you sure you want to delete ${name}?`)) return
     const id = medicineId(medicine)
     if (!id) {
       setError('Unable to delete medicine: missing medicine ID.')
