@@ -999,6 +999,11 @@ button.btn-secondary:hover {
 .branch-admin-page .admin-heading-card p { margin: 6px 0 0; color: var(--pms-muted); font-size: 12px; }
 .branch-admin-page .branch-admin-content { margin: 0 16px; padding: 0 0 20px !important; }
 .branch-admin-page .branch-admin-content.is-dashboard { padding: 16px 0 20px !important; }
+.branch-admin-page:not(.pharmacist-page) .branch-admin-content.is-dashboard > .dashboard-greeting-card {
+  margin: 4px 0 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
 .branch-admin-page .branch-panel { border-radius: 13px; margin-bottom: 12px; }
 
 [data-pms-theme] .branch-admin-page table thead th {
