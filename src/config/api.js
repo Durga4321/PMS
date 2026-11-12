@@ -3635,45 +3635,38 @@ export function readLocalSubBranches() {
         if (Array.isArray(p) && p.length > 0) list = p
       } catch {}
     }
+
+    // Filter out dummy auto-seeded branches and clean up
+    list = list.filter((b) => {
+      const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
+      return bName && bName !== 'raju sub branch'
+    })
+
+    // If pharmacist is logged in and specifically assigned to a sub-branch, include that sub-branch
     if (!list.length) {
-      const masterRaw = localStorage.getItem(SUB_BRANCHES_CACHE_KEY)
-      if (masterRaw) {
-        try {
-          const p = JSON.parse(masterRaw)
-          if (Array.isArray(p) && p.length > 0) list = p
-        } catch {}
-      }
-    }
-    if (!list.length) {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i)
-        if (k && (k === SUB_BRANCHES_CACHE_KEY || k.startsWith(SUB_BRANCHES_CACHE_KEY + '_'))) {
-          try {
-            const p = JSON.parse(localStorage.getItem(k))
-            if (Array.isArray(p) && p.length > 0) {
-              list = p
-              break
-            }
-          } catch {}
+      const isPharmacist = Boolean(
+        (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pharmacistToken')) ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('pharmacistToken')) ||
+        (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pharmacistUser'))
+      )
+      if (isPharmacist) {
+        const pUser = readStoredJson('pharmacistUser') || {}
+        const pAssign = readStoredJson('pharmacistAssignment') || {}
+        const bName = pAssign.branchName || pAssign.BranchName || pUser.branchName || pUser.BranchName
+        const bId = pAssign.branchId || pAssign.BranchId || pUser.branchId || pUser.BranchId
+        if (bName && !bName.toLowerCase().includes('main branch')) {
+          list = [{ id: String(bId || '2'), branchId: String(bId || '2'), name: bName, branchName: bName, status: 'Active' }]
         }
       }
     }
-    if (!list.length) {
-      // Check pharmacist user or assignment for sub branch
-      const pUser = readStoredJson('pharmacistUser') || {}
-      const pAssign = readStoredJson('pharmacistAssignment') || {}
-      const bName = pAssign.branchName || pAssign.BranchName || pUser.branchName || pUser.BranchName
-      const bId = pAssign.branchId || pAssign.BranchId || pUser.branchId || pUser.BranchId || '2'
-      if (bName && !bName.toLowerCase().includes('main branch')) {
-        list = [{ id: String(bId), branchId: String(bId), name: bName, branchName: bName, status: 'Active' }]
-      } else {
-        list = [{ id: '2', branchId: '2', name: 'Raju Sub Branch', branchName: 'Raju Sub Branch', status: 'Active' }]
+
+    // Clean up legacy unscoped key so other admins do not pick up stale sub-branches
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem(SUB_BRANCHES_CACHE_KEY)) {
+        localStorage.removeItem(SUB_BRANCHES_CACHE_KEY)
       }
-      try {
-        localStorage.setItem(SUB_BRANCHES_CACHE_KEY, JSON.stringify(list))
-        localStorage.setItem(key, JSON.stringify(list))
-      } catch {}
-    }
+    } catch {}
+
     return list
   } catch {
     return []
@@ -3683,9 +3676,16 @@ export function readLocalSubBranches() {
 export function writeLocalSubBranches(branches) {
   try {
     const key = scopedKey(SUB_BRANCHES_CACHE_KEY)
-    const json = JSON.stringify(branches || [])
+    const cleanList = (branches || []).filter((b) => {
+      const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
+      return bName && bName !== 'raju sub branch'
+    })
+    const json = JSON.stringify(cleanList)
     localStorage.setItem(key, json)
-    localStorage.setItem(SUB_BRANCHES_CACHE_KEY, json)
+    // Remove the global unscoped key to prevent cross-admin data leakage
+    try {
+      localStorage.removeItem(SUB_BRANCHES_CACHE_KEY)
+    } catch {}
   } catch {}
 }
 
