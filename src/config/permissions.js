@@ -165,22 +165,22 @@ export function readAdminPermissions() {
 
 export const PHARMACIST_MODULES = [
   'Dashboard',
-  'Pending',
   'Dispensing',
   'Medicines',
   'Bills',
   'Returns',
-  'Reports'
+  'Reports',
+  'Notifications'
 ]
 
 export const PHARMACIST_MODULE_ALIASES = {
   Dashboard: ['dashboard'],
-  Pending: ['pending', 'prescriptions', 'pending prescriptions'],
   Dispensing: ['dispensing', 'sales', 'billing'],
   Medicines: ['medicines', 'medicine', 'catalogue'],
   Bills: ['bills', 'billing', 'invoices'],
   Returns: ['returns', 'return'],
   Reports: ['reports', 'report'],
+  Notifications: ['notifications', 'notification', 'alerts', 'alert'],
 }
 
 export function readPharmacistPermissions() {

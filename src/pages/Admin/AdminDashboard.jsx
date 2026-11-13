@@ -8,7 +8,7 @@ import {
   getDailySalesReport, 
   getPharmacyPayments,
   readLocalMedicines,
-  readLocalSubBranches
+  listPharmacyBranches
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
@@ -165,6 +165,7 @@ function AdminDashboard() {
   const [billsList, setBillsList] = useState([])
   const [dailySalesData, setDailySalesData] = useState(null)
   const [paymentsList, setPaymentsList] = useState([])
+  const [branchesList, setBranchesList] = useState([])
   const [loading, setLoading] = useState(false)
   const [salesFilter, setSalesFilter] = useState('7d')
 
@@ -180,6 +181,7 @@ function AdminDashboard() {
       setBillsList([])
       setDailySalesData(null)
       setPaymentsList([])
+      setBranchesList([])
       setLoading(false)
       return
     }
@@ -196,14 +198,16 @@ function AdminDashboard() {
       fast(listBills()),
       fast(getDailySalesReport()),
       fast(getPharmacyPayments()),
+      fast(listPharmacyBranches()),
     ])
-      .then(([dashRes, medRes, invRes, billsRes, dailyRes, payRes]) => {
+      .then(([dashRes, medRes, invRes, billsRes, dailyRes, payRes, branchRes]) => {
         if (dashRes.status === 'fulfilled') setDashboard(unwrap(dashRes.value))
         if (medRes.status === 'fulfilled') setMedicinesList(unwrapArray(medRes.value))
         if (invRes.status === 'fulfilled') setInventoryList(unwrapArray(invRes.value))
         if (billsRes.status === 'fulfilled') setBillsList(unwrapArray(billsRes.value))
         if (dailyRes.status === 'fulfilled') setDailySalesData(unwrap(dailyRes.value))
         if (payRes.status === 'fulfilled') setPaymentsList(unwrapArray(payRes.value))
+        if (branchRes.status === 'fulfilled') setBranchesList(unwrapArray(branchRes.value))
       })
       .finally(() => setLoading(false))
   }
@@ -217,11 +221,13 @@ function AdminDashboard() {
     window.addEventListener('pms:medicines-updated', handleDashboardSync)
     window.addEventListener('pms:stock-updated', handleDashboardSync)
     window.addEventListener('pms:purchase-orders-updated', handleDashboardSync)
+    window.addEventListener('pms:branches-updated', handleDashboardSync)
     window.addEventListener('storage', handleDashboardSync)
     return () => {
       window.removeEventListener('pms:medicines-updated', handleDashboardSync)
       window.removeEventListener('pms:stock-updated', handleDashboardSync)
       window.removeEventListener('pms:purchase-orders-updated', handleDashboardSync)
+      window.removeEventListener('pms:branches-updated', handleDashboardSync)
       window.removeEventListener('storage', handleDashboardSync)
     }
   }, [])
@@ -428,23 +434,17 @@ function AdminDashboard() {
     const lowStock = Math.max(rawLowStock, computedLowStock)
     const expiryAlerts = Math.max(rawExpiryAlerts, computedExpiryAlerts)
 
-    // Compute total unique branches (Main Branch + all created sub-branches)
+    // Compute total unique branches
     const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
     const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
     const user = JSON.parse(sessionStorage.getItem('pharmacyAdminUser') || localStorage.getItem('pharmacyAdminUser') || '{}')
-    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+    const hasPharmacy = Boolean(assignment?.pharmacyId || user?.pharmacyId || activePharmacyId || assignment?.isPharmacyAssigned || user?.isPharmacyAssigned)
 
-    const localSub = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
     let totalBranchesCount = 0
-    if (isAssigned) {
-      const branchNames = new Set(['main branch'])
-      localSub.forEach(b => {
-        const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
-        if (bName && !bName.includes('main branch')) branchNames.add(bName)
-      })
-      totalBranchesCount = Math.max(branchNames.size, 1 + localSub.length)
-    } else {
-      totalBranchesCount = localSub.length
+    if (hasPharmacy) {
+      const isDeletedRecord = (b) => Boolean(b?.isDeleted || b?.IsDeleted || b?.deletedAt || b?.DeletedAt)
+      const validSubBranches = branchesList.filter(b => !isDeletedRecord(b) && !String(b?.name || b?.branchName || '').toLowerCase().includes('main branch'))
+      totalBranchesCount = 1 + validSubBranches.length
     }
 
     return {
@@ -547,7 +547,7 @@ function AdminDashboard() {
       recentStock: effectiveStock,
       reports: list(dashboard, ['reports', 'recentReports', 'activities']),
     }
-  }, [dashboard, inventoryList, medicinesList, billsList, dailySalesData, paymentsList])
+  }, [dashboard, inventoryList, medicinesList, billsList, dailySalesData, paymentsList, branchesList])
 
   return (
     <AdminLayout activeLabel="Dashboard" title="Admin Dashboard" subtitle="Admin / Dashboard">
