@@ -165,54 +165,29 @@ function buildMainBranch(settings = {}) {
   const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
   if (!isAssigned) return null
 
-  const localPharmacies = readLocalPharmacies().filter((p) => {
-    const name = String(pharmacyNameOf(p) || p.name || p.pharmacyName || '').trim()
-    return name && !isDefaultOwner(name)
-  })
-  const firstPharmacy = localPharmacies[0]
-
-  let pharmacyRecord = firstPharmacy || null
-  if (!pharmacyRecord && assignment.pharmacyName && !isDefaultOwner(assignment.pharmacyName) && assignment.pharmacyId) {
-    pharmacyRecord = {
-      id: assignment.pharmacyId,
-      branchId: assignment.branchId || assignment.mainBranchId || assignment.pharmacyId,
-      name: assignment.pharmacyName,
-      branchName: assignment.pharmacyName,
-      phone: assignment.pharmacyContactNumber || assignment.phone || assignment.mobileNumber || '',
-      email: assignment.pharmacyEmail || assignment.email || '',
-      address: assignment.pharmacyAddress || assignment.address || '',
-      city: assignment.city || '',
-      district: assignment.district || '',
-      state: assignment.state || '',
-      country: assignment.country || 'India',
-      postalCode: assignment.postalCode || '',
-      status: 'Active',
-    }
-  }
-
-  if (!pharmacyRecord || !idOf(pharmacyRecord)) return null
-
-  const name = pharmacyNameOf(pharmacyRecord) || pharmacyRecord.pharmacyName || pharmacyRecord.name || pharmacyRecord.branchName
+  const pharmacyId = activePharmacyId || assignment.pharmacyId || assignment.PharmacyId || user.pharmacyId || user.PharmacyId || ''
+  const name = assignment.pharmacyName || user.pharmacyName || settings.pharmacyName || ''
   if (!name || isDefaultOwner(name)) return null
 
-  const phone = branchField(pharmacyRecord, 'phone') !== '-' ? branchField(pharmacyRecord, 'phone') : (pharmacyRecord.phone || pharmacyRecord.phoneNumber || pharmacyRecord.pharmacyContactNumber || '')
-  const email = branchField(pharmacyRecord, 'email') !== '-' ? branchField(pharmacyRecord, 'email') : (pharmacyRecord.email || pharmacyRecord.emailAddress || pharmacyRecord.pharmacyEmail || '')
-  const address = branchField(pharmacyRecord, 'address') !== '-' ? branchField(pharmacyRecord, 'address') : (pharmacyRecord.address || pharmacyRecord.pharmacyAddress || '')
+  const branchId = assignment.branchId || assignment.mainBranchId || pharmacyId || '1'
+  const phone = assignment.pharmacyContactNumber || assignment.phone || assignment.mobileNumber || user.phone || ''
+  const email = assignment.pharmacyEmail || assignment.email || user.email || ''
+  const address = assignment.pharmacyAddress || assignment.address || ''
 
   return {
-    id: idOf(pharmacyRecord) || pharmacyRecord.branchId,
-    branchId: idOf(pharmacyRecord) || pharmacyRecord.branchId,
+    id: String(branchId),
+    branchId: String(branchId),
     name,
     branchName: name,
     phone,
     email,
     address,
-    city: pharmacyRecord.city || '',
-    district: pharmacyRecord.district || '',
-    state: pharmacyRecord.state || '',
-    country: pharmacyRecord.country || 'India',
-    postalCode: pharmacyRecord.postalCode || '',
-    status: pharmacyRecord.status || 'Active',
+    city: assignment.city || '',
+    district: assignment.district || '',
+    state: assignment.state || '',
+    country: assignment.country || 'India',
+    postalCode: assignment.postalCode || '',
+    status: 'Active',
     isMainBranch: true,
   }
 }
@@ -366,21 +341,10 @@ export default function AdminBranches() {
       if (requestId !== branchRequestRef.current) return
       const isDeletedRecord = (b) => Boolean(b?.isDeleted || b?.IsDeleted || b?.deletedAt || b?.DeletedAt || b?.deletedOn || b?.DeletedOn)
       const remoteList = listFrom(response).filter((b) => !isDeletedRecord(b))
-      const localList = (typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []).filter((b) => !isDeletedRecord(b))
-      const map = new Map()
-      remoteList.forEach((b) => {
-        const id = String(idOf(b) || '')
-        if (id) map.set(id, b)
-      })
-      localList.forEach((b) => {
-        const id = String(idOf(b) || '')
-        if (id && !map.has(id)) map.set(id, b)
-      })
-      setBranches(Array.from(map.values()))
+      setBranches(remoteList)
     } catch (requestError) {
       if (requestId !== branchRequestRef.current) return
-      const localList = (typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : [])
-      setBranches(localList)
+      setBranches([])
       console.log('Branch list API failed:', requestError.message)
       if (!mainBranch && !localList.length) setError(requestError.message || 'Unable to load sub branches.')
     } finally {
@@ -569,7 +533,7 @@ export default function AdminBranches() {
         }
         const currentSub = (typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []).filter((b) => String(idOf(b)) !== String(createdId))
         if (typeof writeLocalSubBranches === 'function') {
-          writeLocalSubBranches([...currentSub, newBranch])
+          /* writeLocalSubBranches removed */
         }
         setBranches((items) => [...items.filter((b) => String(idOf(b)) !== String(createdId)), newBranch])
       }

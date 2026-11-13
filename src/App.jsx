@@ -30,6 +30,7 @@ import AdminPurchaseOrders from './pages/Admin/PurchaseOrders'
 import AdminStockTransfers from './pages/Admin/StockTransfers'
 import AdminNotifications from './pages/Admin/Notifications'
 import PharmacistDashboard from './pages/Pharmacist/Dashboard'
+import PharmacistPrescriptions from './pages/Pharmacist/Prescriptions'
 import PharmacistPending from './pages/Pharmacist/Pending'
 import PharmacistDispensing, { DispensingHistory } from './pages/Pharmacist/Dispensing'
 import PharmacistMedicines from './pages/Pharmacist/Medicines'
@@ -111,7 +112,8 @@ function App() {
             <Route path="/admin/change-password" element={<SuperAdminProfile initialTab="password" roleType="pharmacy-admin" />} />
             <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
             <Route path="/pharmacist/notifications" element={<PharmacistNotifications />} />
-            <Route path="/pharmacist/pending" element={<PharmacistPending />} />
+            <Route path="/pharmacist/prescriptions" element={<Navigate to="/pharmacist/dispensing" replace />} />
+            <Route path="/pharmacist/pending" element={<Navigate to="/pharmacist/dispensing" replace />} />
             <Route path="/pharmacist/dispensing" element={<PharmacistDispensing />} />
             <Route path="/pharmacist/dispensing/history" element={<DispensingHistory />} />
             <Route path="/pharmacist/medicines" element={<PharmacistMedicines />} />

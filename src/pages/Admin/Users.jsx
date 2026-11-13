@@ -27,16 +27,25 @@ const permissionKeys = ['prescriptions', 'dispensing', 'stock', 'reports']
 function normalizeList(response) {
   if (Array.isArray(response)) return response
   if (Array.isArray(response?.data)) return response.data
+  if (Array.isArray(response?.Data)) return response.Data
   if (Array.isArray(response?.data?.pharmacists)) return response.data.pharmacists
+  if (Array.isArray(response?.data?.Pharmacists)) return response.data.Pharmacists
+  if (Array.isArray(response?.data?.users)) return response.data.users
+  if (Array.isArray(response?.data?.Users)) return response.data.Users
+  if (Array.isArray(response?.data?.items)) return response.data.items
   if (Array.isArray(response?.data?.branches)) return response.data.branches
   if (Array.isArray(response?.pharmacists)) return response.pharmacists
+  if (Array.isArray(response?.Pharmacists)) return response.Pharmacists
+  if (Array.isArray(response?.users)) return response.users
+  if (Array.isArray(response?.Users)) return response.Users
+  if (Array.isArray(response?.items)) return response.items
   if (Array.isArray(response?.branches)) return response.branches
   if (Array.isArray(response?.results)) return response.results
   return []
 }
 
 function getId(item) {
-  return item?._id || item?.id || item?.pharmacistId || item?.uuid
+  return item?._id || item?.id || item?.Id || item?.pharmacistId || item?.PharmacistId || item?.userId || item?.UserId || item?.uuid
 }
 
 function branchIdOf(item) {
@@ -116,7 +125,7 @@ function storedBranchId() {
 }
 
 function getName(item) {
-  return item?.name || item?.fullName || item?.pharmacistName || item?.email || 'Pharmacist'
+  return item?.name || item?.Name || item?.fullName || item?.FullName || item?.pharmacistName || item?.PharmacistName || item?.email || item?.Email || 'Pharmacist'
 }
 
 const LOCAL_PHONES_KEY = 'pms_pharmacist_phones'
@@ -144,26 +153,39 @@ function getPhone(item) {
   if (!item) return ''
   const direct =
     item.phone ||
+    item.Phone ||
     item.mobile ||
+    item.Mobile ||
     item.mobileNumber ||
+    item.MobileNumber ||
     item.phoneNumber ||
+    item.PhoneNumber ||
     item.contactNumber ||
+    item.ContactNumber ||
     item.contact ||
+    item.Contact ||
     item.contactNo ||
+    item.ContactNo ||
     item.mobileNo ||
+    item.MobileNo ||
     item.phone_number ||
     item.mobile_number
 
   if (direct && String(direct).trim() && String(direct).trim() !== '-') return String(direct).trim()
 
-  const nested = item.user || item.userId || item.pharmacist || item.pharmacistId || item.profile || item.details
+  const nested = item.user || item.User || item.userId || item.pharmacist || item.profile || item.details
   if (nested && typeof nested === 'object') {
     const val =
       nested.phone ||
+      nested.Phone ||
       nested.mobile ||
+      nested.Mobile ||
       nested.mobileNumber ||
+      nested.MobileNumber ||
       nested.phoneNumber ||
+      nested.PhoneNumber ||
       nested.contactNumber ||
+      nested.ContactNumber ||
       nested.contact ||
       nested.contactNo ||
       nested.mobileNo ||
@@ -176,7 +198,8 @@ function getPhone(item) {
   const id = getId(item)
   const localMap = getLocalPhones()
   if (id && localMap[String(id)]) return localMap[String(id)]
-  if (item.email && localMap[String(item.email)]) return localMap[String(item.email)]
+  const emailKey = item.email || item.Email
+  if (emailKey && localMap[String(emailKey)]) return localMap[String(emailKey)]
 
   return ''
 }
@@ -312,30 +335,17 @@ function Users({ initialAdd = false }) {
     const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
     const assignment = readStoredJson('pharmacyAdminAssignment') || {}
     const user = readStoredJson('pharmacyAdminUser') || {}
-    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
-
-    if (!isAssigned) {
-      setPharmacists([])
-      setLoading(false)
-      return
+    const rawPharmId = activePharmacyId || assignment?.pharmacyId || assignment?.PharmacyId || user?.pharmacyId || user?.PharmacyId || user?.pharmacy?.id || user?.pharmacy?.pharmacyId
+    if (rawPharmId && !activePharmacyId) {
+      try {
+        sessionStorage.setItem('workingPharmacyId', String(rawPharmId))
+        localStorage.setItem('workingPharmacyId', String(rawPharmId))
+      } catch {}
     }
 
     try {
       const response = await listPharmacists({ search: query })
-      let list = normalizeList(response)
-      if (!list || !list.length) {
-        list = readLocalPharmacists(activePharmacyId)
-      }
-      // Filter strictly by active pharmacy so Pharmacy A and Pharmacy B pharmacists are completely isolated
-      if (activePharmacyId && list && list.length) {
-        const hasPharmacyTags = list.some(p => p.pharmacyId || p.PharmacyId)
-        if (hasPharmacyTags) {
-          list = list.filter(p => {
-            const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
-            return !pId || pId === activePharmacyId
-          })
-        }
-      }
+      const list = normalizeList(response) || []
       setPharmacists(list)
     } catch (error) {
       const rawMsg = error.message || 'Unable to load pharmacists.'
@@ -344,17 +354,7 @@ function Users({ initialAdd = false }) {
         message = 'Backend server tunnel is currently offline (ngrok ERR_NGROK_3200). Operating in local offline mode.'
       }
       setLoadError(message)
-      let local = readLocalPharmacists(activePharmacyId)
-      if (activePharmacyId && local && local.length) {
-        const hasPharmacyTags = local.some(p => p.pharmacyId || p.PharmacyId)
-        if (hasPharmacyTags) {
-          local = local.filter(p => {
-            const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
-            return !pId || pId === activePharmacyId
-          })
-        }
-      }
-      setPharmacists(local)
+      setPharmacists([])
       if (!/View permission for User Management/i.test(message) && !rawMsg.includes('ERR_NGROK')) {
         showToast(message, 'warning')
       }
@@ -364,31 +364,6 @@ function Users({ initialAdd = false }) {
   }
 
   useEffect(() => {
-    // Initial pass: load cached pharmacists immediately for active pharmacy
-    const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
-    const assignment = readStoredJson('pharmacyAdminAssignment') || {}
-    const user = readStoredJson('pharmacyAdminUser') || {}
-    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
-
-    if (!isAssigned) {
-      setPharmacists([])
-      setLoading(false)
-      return
-    }
-
-    let cached = readLocalPharmacists(activePharmacyId)
-    if (activePharmacyId && cached && cached.length) {
-      const hasPharmacyTags = cached.some(p => p.pharmacyId || p.PharmacyId)
-      if (hasPharmacyTags) {
-        cached = cached.filter(p => {
-          const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
-          return !pId || pId === activePharmacyId
-        })
-      }
-    }
-    if (cached && cached.length) {
-      setPharmacists(cached)
-    }
     if (!isAddRoute) loadPharmacists()
   }, [isAddRoute])
 

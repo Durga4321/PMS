@@ -755,203 +755,11 @@ export function migrateLegacyCache(baseKey, scopedTarget) {
   return
 }
 
-export function readLocalMedicines(targetPharmacyId) {
-  try {
-    const isPharmacist = Boolean(
-      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pharmacistToken')) ||
-      (typeof localStorage !== 'undefined' && localStorage.getItem('pharmacistToken')) ||
-      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pharmacistUser'))
-    )
-    const ctx = pharmacyTenantContext()
-    const activePharmId = String(targetPharmacyId || ctx.pharmacyId || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || '').trim()
-
-    // If no active pharmacy ID exists (e.g. newly created admin without a pharmacy, or DB cleared), NEVER return stale medicines!
-    // But for a logged-in pharmacist, always allow reading local medicines for their branch!
-    if (!activePharmId && !isPharmacist) {
-      return []
-    }
-
-    const key = scopedKey(LOCAL_MEDICINES_KEY)
-    let list = []
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.length > 0) list = parsed
-      } catch {}
-    }
-
-    if (!list.length && activePharmId) {
-      const pharmKey = `${LOCAL_MEDICINES_KEY}_pharmacy_${activePharmId}`
-      const pRaw = localStorage.getItem(pharmKey)
-      if (pRaw) {
-        try {
-          const parsed = JSON.parse(pRaw)
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed
-        } catch {}
-      }
-    }
-
-    if (!list.length) {
-      const masterRaw = localStorage.getItem(LOCAL_MEDICINES_KEY)
-      if (masterRaw) {
-        try {
-          const parsed = JSON.parse(masterRaw)
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed
-        } catch {}
-      }
-    }
-
-    // If list is still empty or user is pharmacist, search all local medicine storage keys
-    if (!list.length || isPharmacist) {
-      const allFound = [...list]
-      const seenIds = new Set(allFound.map(m => String(m?.id || m?._id || m?.medicineCode || m?.name || '').trim().toLowerCase()).filter(Boolean))
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i)
-          if (k && (k === LOCAL_MEDICINES_KEY || k.startsWith(LOCAL_MEDICINES_KEY + '_'))) {
-            try {
-              const p = JSON.parse(localStorage.getItem(k))
-              if (Array.isArray(p) && p.length > 0) {
-                p.forEach(m => {
-                  const mKey = String(m?.id || m?._id || m?.medicineCode || m?.name || '').trim().toLowerCase()
-                  if (mKey && !seenIds.has(mKey)) {
-                    seenIds.add(mKey)
-                    allFound.push(m)
-                  }
-                })
-              }
-            } catch {}
-          }
-        }
-      } catch {}
-      if (allFound.length > 0) list = allFound
-    }
-
-    // If storage was wiped or empty, seed from medicineCatalogReference so medicines are immediately available!
-    if (!list.length && medicineCatalogReference && typeof medicineCatalogReference === 'object') {
-      const seen = new Set()
-      const seedList = []
-      const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
-      const subBranch = localSubs.find(s => String(s.name || s.branchName || '').toLowerCase().includes('raju')) || (localSubs.length > 0 ? localSubs[0] : null)
-      const subName = subBranch?.name || subBranch?.branchName || 'Raju Sub Branch'
-      const subId = String(subBranch?.id || subBranch?.branchId || subBranch?._id || '2')
-
-      Object.values(medicineCatalogReference).forEach(item => {
-        if (!item || !item.medicineCode) return
-        const code = String(item.medicineCode).trim().toLowerCase()
-        if (seen.has(code)) return
-        seen.add(code)
-        seedList.push({
-          ...item,
-          id: item.medicineCode,
-          branchId: subId,
-          BranchId: subId,
-          branchName: subName,
-          BranchName: subName,
-          pharmacyId: activePharmId || '1',
-          PharmacyId: activePharmId || '1',
-          status: 'Active',
-          isActive: true
-        })
-      })
-      if (seedList.length > 0) {
-        list = seedList
-        try {
-          localStorage.setItem(key, JSON.stringify(seedList))
-          localStorage.setItem(LOCAL_MEDICINES_KEY, JSON.stringify(seedList))
-        } catch {}
-      }
-    }
-
-    // Auto-heal any sub-branch medicines mislabeled with "NTR Nagar Branch" or matching sub-branch ID
-    const localSubs = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
-    if (localSubs.length > 0 && list.length > 0) {
-      let healedAny = false
-      list = list.map(m => {
-        const mBranchName = String(m?.branchName || m?.BranchName || '').trim()
-        const mBranchId = String(m?.branchId || m?.BranchId || '').trim()
-
-        const matchedSub = localSubs.find(s =>
-          String(s.id || s.branchId || s._id) === mBranchId ||
-          (mBranchName && String(s.name || s.branchName || '').toLowerCase() === mBranchName.toLowerCase())
-        ) || (localSubs.length === 1 && (mBranchId === '2' || mBranchName.toLowerCase().includes('ntr nagar') || mBranchName.toLowerCase().includes('raju') || !mBranchName) ? localSubs[0] : null)
-
-        if (matchedSub) {
-          const properName = matchedSub.name || matchedSub.branchName || 'Raju Sub Branch'
-          const properId = String(matchedSub.id || matchedSub.branchId || matchedSub._id || mBranchId || '2')
-          if (mBranchName !== properName || mBranchId !== properId) {
-            healedAny = true
-            return {
-              ...m,
-              branchName: properName,
-              BranchName: properName,
-              branchId: properId,
-              BranchId: properId
-            }
-          }
-        }
-        return m
-      })
-      if (healedAny) {
-        try {
-          localStorage.setItem(key, JSON.stringify(list))
-          localStorage.setItem(LOCAL_MEDICINES_KEY, JSON.stringify(list))
-        } catch {}
-      }
-    }
-
-    // Isolate strictly by active pharmacy if set (for admin)
-    // For a logged-in pharmacist, DO NOT drop medicines here - let branch filter match their assigned branch!
-    if (activePharmId && list.length > 0 && !isPharmacist) {
-      const filtered = list.filter(m => {
-        const pId = String(m.pharmacyId || m.PharmacyId || '').trim()
-        return !pId || pId === activePharmId
-      })
-      if (filtered.length > 0) return filtered
-    }
-
-    if (!list.length) {
-      // Check pharmacist user or assignment for sub branch
-      const pUser = readStoredJson('pharmacistUser') || {}
-      const pAssign = readStoredJson('pharmacistAssignment') || {}
-      const bName = pAssign.branchName || pAssign.BranchName || pUser.branchName || pUser.BranchName
-      const bId = pAssign.branchId || pAssign.BranchId || pUser.branchId || pUser.BranchId || '2'
-      if (bName && !bName.toLowerCase().includes('main branch')) {
-        list = [{ id: String(bId), branchId: String(bId), name: bName, branchName: bName, status: 'Active' }]
-      } else {
-        list = [{ id: '2', branchId: '2', name: 'Raju Sub Branch', branchName: 'Raju Sub Branch', status: 'Active' }]
-      }
-      try {
-        localStorage.setItem(SUB_BRANCHES_CACHE_KEY, JSON.stringify(list))
-        localStorage.setItem(key, JSON.stringify(list))
-      } catch {}
-    }
-    return list
-  } catch {
-    return []
-  }
+export function readLocalMedicines() {
+  return []
 }
 
-export function writeLocalMedicines(items, targetPharmacyId) {
-  try {
-    const list = items || []
-    const key = scopedKey(LOCAL_MEDICINES_KEY)
-    const serialized = JSON.stringify(list)
-    localStorage.setItem(key, serialized)
-
-    const ctx = pharmacyTenantContext()
-    const activePharmId = String(targetPharmacyId || ctx.pharmacyId || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || '').trim()
-    if (activePharmId) {
-      localStorage.setItem(`${LOCAL_MEDICINES_KEY}_pharmacy_${activePharmId}`, serialized)
-    }
-
-    // Always save directly to master LOCAL_MEDICINES_KEY so all user-uploaded medicines are preserved across roles!
-    localStorage.setItem(LOCAL_MEDICINES_KEY, serialized)
-  } catch {
-    // ignore storage errors
-  }
-}
+export function writeLocalMedicines() {}
 
 export function clearLocalMedicinesCache(targetPharmacyId) {
   try {
@@ -2335,27 +2143,10 @@ export const changeSupplierStatus = (id, payload) => request(replacePathParams('
 export const LOCAL_PURCHASE_ORDERS_KEY = 'pms_purchase_orders'
 
 export function readLocalPurchaseOrders() {
-  try {
-    const key = scopedKey(LOCAL_PURCHASE_ORDERS_KEY)
-    migrateLegacyCache(LOCAL_PURCHASE_ORDERS_KEY, key)
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
-    }
-    return []
-  } catch {
-    return []
-  }
+  return []
 }
 
-export function writeLocalPurchaseOrders(orders) {
-  try {
-    const list = orders || []
-    const key = scopedKey(LOCAL_PURCHASE_ORDERS_KEY)
-    localStorage.setItem(key, JSON.stringify(list))
-  } catch {}
-}
+export function writeLocalPurchaseOrders() {}
 
 export function normalizePurchaseOrder(po) {
   if (!po || typeof po !== 'object') return po
@@ -2844,25 +2635,10 @@ export const deleteStockTransferDraft = async (id) => {
 const LOCAL_STOCK_TRANSFERS_KEY = 'pms_stock_transfers'
 
 export function readLocalStockTransfers() {
-  try {
-    const key = scopedKey(LOCAL_STOCK_TRANSFERS_KEY)
-    migrateLegacyCache(LOCAL_STOCK_TRANSFERS_KEY, key)
-    const raw = localStorage.getItem(key)
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+  return []
 }
 
-export function writeLocalStockTransfers(list) {
-  try {
-    const key = scopedKey(LOCAL_STOCK_TRANSFERS_KEY)
-    localStorage.setItem(key, JSON.stringify(list || []))
-  } catch {
-    // ignore storage errors
-  }
-}
+export function writeLocalStockTransfers() {}
 
 export const getPharmacyAlerts = () => request('pharmacy/alerts')
 export const getPharmacyAuditLogs = (params = {}) => request(`pharmacy/audit-logs${queryString(params)}`)
@@ -2906,111 +2682,75 @@ export function changePharmacyAdminPassword(payload) {
 
 const LOCAL_PHARMACISTS_KEY = 'pms_pharmacy_pharmacists'
 
-export function readLocalPharmacists(targetPharmacyId) {
-  try {
-    const ctx = pharmacyTenantContext()
-    const activePharmId = String(targetPharmacyId || ctx.pharmacyId || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || '').trim()
-
-    // If no active pharmacy ID exists, an unassigned admin has 0 pharmacists!
-    if (!activePharmId) {
-      return []
-    }
-
-    const key = scopedKey(LOCAL_PHARMACISTS_KEY)
-    migrateLegacyCache(LOCAL_PHARMACISTS_KEY, key)
-    let list = []
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) list = parsed
-      } catch {}
-    }
-
-    if (!list.length && activePharmId) {
-      const pKey = `${LOCAL_PHARMACISTS_KEY}_pharmacy_${activePharmId}`
-      const pRaw = localStorage.getItem(pKey)
-      if (pRaw) {
-        try {
-          const parsed = JSON.parse(pRaw)
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed
-        } catch {}
-      }
-    }
-
-    // Filter out dummy/static pharmacists AND any sub-branches that might have been saved as pharmacists!
-    list = list.filter(p => {
-      const name = String(p?.name || p?.fullName || '').toLowerCase().trim()
-      const email = String(p?.email || '').toLowerCase().trim()
-      const id = String(p?.id || p?.pharmacistId || '')
-      if (id === 'ph_sunil_1' || id === 'ph_vishnu_2') return false
-      if ((name === 'sunil' || name === 'vishnu') && (email === 'sunil@gmail.com' || email === 'vishnu@gmail.com')) return false
-      // Filter out sub-branches!
-      if (name.includes('sub branch') || name.includes('subbranch') || name.includes('branch')) return false
-      return true
-    })
-
-    // If empty, return empty list (no fake mock users)
-    if (!list.length) {
-      return []
-    }
-
-    // Isolate by pharmacyId if known
-    if (activePharmId && list.length > 0) {
-      const hasPharmacyTags = list.some(p => p.pharmacyId || p.PharmacyId)
-      if (hasPharmacyTags) {
-        list = list.filter(p => {
-          const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
-          return !pId || pId === activePharmId
-        })
-      }
-    }
-
-    return list
-  } catch {
-    return []
-  }
+export function readLocalPharmacists() {
+  return []
 }
 
-export function writeLocalPharmacists(list, targetPharmacyId) {
-  try {
-    const items = list || []
-    const key = scopedKey(LOCAL_PHARMACISTS_KEY)
-    const serialized = JSON.stringify(items)
-    localStorage.setItem(key, serialized)
+export function writeLocalPharmacists() {}
 
-    const ctx = pharmacyTenantContext()
-    const activePharmId = String(targetPharmacyId || ctx.pharmacyId || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || '').trim()
-    if (activePharmId) {
-      localStorage.setItem(`${LOCAL_PHARMACISTS_KEY}_pharmacy_${activePharmId}`, serialized)
-    }
-
-    // Cleanly merge into master list without overwriting other pharmacies' pharmacists
-    const masterRaw = localStorage.getItem(LOCAL_PHARMACISTS_KEY)
-    let masterList = []
-    if (masterRaw) {
-      try {
-        const p = JSON.parse(masterRaw)
-        if (Array.isArray(p)) masterList = p
-      } catch {}
-    }
-    const otherPharmacists = masterList.filter(p => {
-      const pId = String(p.pharmacyId || p.PharmacyId || '').trim()
-      return pId && activePharmId && pId !== activePharmId
-    })
-    localStorage.setItem(LOCAL_PHARMACISTS_KEY, JSON.stringify([...otherPharmacists, ...items]))
-  } catch {
-    // ignore storage errors
-  }
-}
-
-function extractPharmacistsArray(response) {
+export function extractPharmacistsArray(response) {
+  if (!response) return []
   if (Array.isArray(response)) return response
   if (Array.isArray(response?.data)) return response.data
-  if (Array.isArray(response?.data?.pharmacists)) return response.data.pharmacists
+  if (Array.isArray(response?.Data)) return response.Data
   if (Array.isArray(response?.pharmacists)) return response.pharmacists
+  if (Array.isArray(response?.Pharmacists)) return response.Pharmacists
+  if (Array.isArray(response?.users)) return response.users
+  if (Array.isArray(response?.Users)) return response.Users
+  if (Array.isArray(response?.items)) return response.items
+  if (Array.isArray(response?.Items)) return response.Items
   if (Array.isArray(response?.results)) return response.results
+  if (Array.isArray(response?.Results)) return response.Results
+  if (Array.isArray(response?.data?.pharmacists)) return response.data.pharmacists
+  if (Array.isArray(response?.data?.Pharmacists)) return response.data.Pharmacists
+  if (Array.isArray(response?.data?.users)) return response.data.users
+  if (Array.isArray(response?.data?.Users)) return response.data.Users
+  if (Array.isArray(response?.data?.items)) return response.data.items
+  if (Array.isArray(response?.data?.Items)) return response.data.Items
+  if (Array.isArray(response?.data?.results)) return response.data.results
+  if (Array.isArray(response?.Data?.pharmacists)) return response.Data.pharmacists
+  if (Array.isArray(response?.Data?.users)) return response.Data.users
+  if (Array.isArray(response?.Data?.items)) return response.Data.items
   return []
+}
+
+export function normalizePharmacistRecord(item) {
+  if (!item || typeof item !== 'object') return item
+  const id = item.id || item.Id || item._id || item.pharmacistId || item.PharmacistId || item.userId || item.UserId
+  const name = item.name || item.Name || item.fullName || item.FullName || item.pharmacistName || item.PharmacistName || ''
+  const email = item.email || item.Email || item.user?.email || item.User?.Email || ''
+  const phone = item.mobileNumber || item.MobileNumber || item.phone || item.Phone || item.phoneNumber || item.PhoneNumber || item.contactNumber || item.ContactNumber || item.contact || item.Contact || ''
+  const pharmacyId = item.pharmacyId || item.PharmacyId || item.pharmacy?.id || item.Pharmacy?.Id
+  const branchId = item.branchId || item.BranchId || item.branch?.id || item.Branch?.Id || ''
+  const branchName = item.branchName || item.BranchName || item.pharmacyName || item.PharmacyName || item.branch?.name || item.pharmacy?.name || ''
+  const status = item.status || item.Status || (item.isActive ?? item.IsActive ?? true ? 'Active' : 'Inactive')
+  const isActive = item.isActive !== undefined ? Boolean(item.isActive) : (item.IsActive !== undefined ? Boolean(item.IsActive) : String(status).toLowerCase() === 'active')
+
+  return {
+    ...item,
+    id: id ? String(id) : undefined,
+    Id: id ? (Number(id) || id) : undefined,
+    pharmacistId: id ? String(id) : undefined,
+    name,
+    Name: name,
+    fullName: name,
+    email,
+    Email: email,
+    phone,
+    Phone: phone,
+    mobileNumber: phone,
+    MobileNumber: phone,
+    pharmacyId,
+    PharmacyId: pharmacyId,
+    branchId,
+    BranchId: branchId,
+    branchName,
+    BranchName: branchName,
+    status,
+    Status: status,
+    isActive,
+    IsActive: isActive,
+  }
 }
 
 function parsePositiveInt(val) {
@@ -3028,13 +2768,60 @@ export async function listPharmacists(params = {}) {
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
 
-  const response = await request(`pharmacy-admin/pharmacists${query.toString() ? `?${query}` : ''}`, {
-    authRole: 'pharmacyAdmin',
-  })
-  const apiList = extractPharmacistsArray(response)
-  return { ...(typeof response === 'object' && response ? response : {}), data: apiList, pharmacists: apiList }
-}
+  const tenant = pharmacyTenantContext('pharmacyAdmin')
+  const pharmacyId = parsePositiveInt(params.pharmacyId) || parsePositiveInt(tenant.pharmacyId)
+  const branchId = parsePositiveInt(params.branchId) || parsePositiveInt(tenant.branchId)
 
+  if (pharmacyId && !query.has('pharmacyId') && !query.has('PharmacyId')) {
+    query.set('pharmacyId', String(pharmacyId))
+  }
+
+  try {
+    const headers = {
+      ...(pharmacyId ? {
+        'X-Pharmacy-Id': String(pharmacyId),
+        'x-pharmacy-id': String(pharmacyId),
+        PharmacyId: String(pharmacyId),
+      } : {}),
+      ...(branchId ? {
+        'X-Branch-Id': String(branchId),
+        'x-branch-id': String(branchId),
+        BranchId: String(branchId),
+      } : {}),
+    }
+
+    const response = await request(`pharmacy-admin/pharmacists${query.toString() ? `?${query}` : ''}`, {
+      authRole: 'pharmacyAdmin',
+      headers,
+    })
+    const rawList = extractPharmacistsArray(response)
+    const apiList = rawList.map(normalizePharmacistRecord).filter((p) => {
+      const role = String(p?.role || p?.Role || '').toLowerCase()
+      if (role.includes('admin')) return false
+      return true
+    })
+
+    const result = [...apiList]
+    result.data = apiList
+    result.pharmacists = apiList
+    result.users = apiList
+    if (typeof response === 'object' && response && !Array.isArray(response)) {
+      Object.keys(response).forEach((key) => {
+        if (!['data', 'pharmacists', 'users'].includes(key)) {
+          result[key] = response[key]
+        }
+      })
+    }
+    return result
+  } catch (err) {
+    console.warn('Backend listPharmacists notice:', err.message)
+    const result = []
+    result.data = []
+    result.pharmacists = []
+    result.users = []
+    return result
+  }
+}
 function localByIdIdOrEmailSet(map, key, val) {
   map.set(key, val)
 }
@@ -3709,69 +3496,10 @@ export const getSuperAdminAuditLogSummary = () => request('pharmacy-super-admin/
 const SUB_BRANCHES_CACHE_KEY = 'pms_pharmacy_sub_branches'
 
 export function readLocalSubBranches() {
-  try {
-    const key = scopedKey(SUB_BRANCHES_CACHE_KEY)
-    let list = []
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      try {
-        const p = JSON.parse(raw)
-        if (Array.isArray(p) && p.length > 0) list = p
-      } catch {}
-    }
-
-    // Filter out dummy auto-seeded branches and clean up
-    list = list.filter((b) => {
-      const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
-      return bName && bName !== 'raju sub branch'
-    })
-
-    // If pharmacist is logged in and specifically assigned to a sub-branch, include that sub-branch
-    if (!list.length) {
-      const isPharmacist = Boolean(
-        (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pharmacistToken')) ||
-        (typeof localStorage !== 'undefined' && localStorage.getItem('pharmacistToken')) ||
-        (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('pharmacistUser'))
-      )
-      if (isPharmacist) {
-        const pUser = readStoredJson('pharmacistUser') || {}
-        const pAssign = readStoredJson('pharmacistAssignment') || {}
-        const bName = pAssign.branchName || pAssign.BranchName || pUser.branchName || pUser.BranchName
-        const bId = pAssign.branchId || pAssign.BranchId || pUser.branchId || pUser.BranchId
-        if (bName && !bName.toLowerCase().includes('main branch')) {
-          list = [{ id: String(bId || '2'), branchId: String(bId || '2'), name: bName, branchName: bName, status: 'Active' }]
-        }
-      }
-    }
-
-    // Clean up legacy unscoped key so other admins do not pick up stale sub-branches
-    try {
-      if (typeof localStorage !== 'undefined' && localStorage.getItem(SUB_BRANCHES_CACHE_KEY)) {
-        localStorage.removeItem(SUB_BRANCHES_CACHE_KEY)
-      }
-    } catch {}
-
-    return list
-  } catch {
-    return []
-  }
+  return []
 }
 
-export function writeLocalSubBranches(branches) {
-  try {
-    const key = scopedKey(SUB_BRANCHES_CACHE_KEY)
-    const cleanList = (branches || []).filter((b) => {
-      const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
-      return bName && bName !== 'raju sub branch'
-    })
-    const json = JSON.stringify(cleanList)
-    localStorage.setItem(key, json)
-    // Remove the global unscoped key to prevent cross-admin data leakage
-    try {
-      localStorage.removeItem(SUB_BRANCHES_CACHE_KEY)
-    } catch {}
-  } catch {}
-}
+export function writeLocalSubBranches() {}
 
 function enrichBranchPayload(payload = {}) {
   const ctx = pharmacyTenantContext()

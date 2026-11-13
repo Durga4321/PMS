@@ -271,7 +271,7 @@ function optionValue(item) {
 
 export default function Medicines() {
   const { showToast } = useToast()
-  const [medicines, setMedicines] = useState(() => (typeof readLocalMedicines === 'function' ? readLocalMedicines() : []))
+  const [medicines, setMedicines] = useState([])
   const [categories, setCategories] = useState([])
   const [dosageForms, setDosageForms] = useState([])
   const [strengths, setStrengths] = useState([])
@@ -280,14 +280,7 @@ export default function Medicines() {
   const [category, setCategory] = useState('')
   const [dosageForm, setDosageForm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [loading, setLoading] = useState(() => {
-    try {
-      const existing = readLocalMedicines()
-      return !(Array.isArray(existing) && existing.length > 0)
-    } catch {
-      return false
-    }
-  })
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(null)
 
@@ -414,8 +407,7 @@ export default function Medicines() {
       try {
         const res = await listPharmacyBranches()
         const bList = Array.isArray(res?.data) ? res.data : Array.isArray(res?.branches) ? res.branches : []
-        const localSub = typeof readLocalSubBranches === 'function' ? readLocalSubBranches() : []
-        const otherBranches = [...bList, ...localSub].filter(b => {
+        const otherBranches = bList.filter(b => {
           const bName = String(b?.name || b?.branchName || '').trim().toLowerCase()
           return bName && !bName.includes('main branch') && bName !== 'main'
         })
@@ -577,7 +569,7 @@ export default function Medicines() {
         .then((response) => {
           const list = normalizeList(response)
           if (list && list.length > 0) {
-            writeLocalMedicines(list)
+            writeLocalMedicines(fullMergedList)
             setMedicines(list)
           }
         })
@@ -625,7 +617,7 @@ export default function Medicines() {
           return norm
         })
         if (updatedAny) {
-          writeLocalMedicines(healed)
+          writeLocalMedicines(fullMergedList)
         }
         setMedicines(healed)
       }
@@ -639,8 +631,7 @@ export default function Medicines() {
     }
 
     function handleStockSync() {
-      const fresh = readLocalMedicines()
-      setMedicines(fresh || [])
+      loadMedicines()
       loadSummaryMetrics()
     }
     window.addEventListener('pms:medicines-updated', handleStockSync)
@@ -701,7 +692,7 @@ export default function Medicines() {
     setForm({
       ...emptyForm,
       branchId: defaultBranch,
-      branchName: defaultBranchObj?.name || (defaultBranch === '2' ? 'NTR Nagar Branch' : 'Main Branch')
+      branchName: defaultBranchObj?.name || (defaultBranch === '2' ? 'Raju Sub Branch' : 'Main Branch')
     })
     setFormErrors({})
     setFormOpen(true)
@@ -740,7 +731,7 @@ export default function Medicines() {
       storageLocation: medicine?.storageLocation || medicine?.StorageLocation || '',
       lastPurchase: formatExcelDate(medicine?.lastPurchase || medicine?.LastPurchase || medicine?.lastPurchaseDate || medicine?.LastPurchaseDate) || '',
       branchId: medicine?.branchId || medicine?.BranchId || '1',
-      branchName: medicine?.branchName || medicine?.BranchName || (medicine?.branchId === '2' ? 'NTR Nagar Branch' : 'Main Branch')
+      branchName: medicine?.branchName || medicine?.BranchName || (medicine?.branchId === '2' ? 'Raju Sub Branch' : 'Main Branch')
     })
     setFormOpen(true)
   }
@@ -1048,7 +1039,7 @@ export default function Medicines() {
       })
       const fullMergedList = Array.from(updatedMap.values())
       try {
-        localStorage.setItem('pms_imported_medicines', JSON.stringify(fullMergedList))
+        /* pms_imported_medicines removed */
       } catch {}
       writeLocalMedicines(fullMergedList)
       setMedicines(fullMergedList)
@@ -1412,7 +1403,7 @@ export default function Medicines() {
                           <td><code>{medCode}</code></td>
                           <td>
                             <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', whiteSpace: 'nowrap' }}>
-                              {medicine?.branchName || (medicine?.branchId === '2' ? 'NTR Nagar Branch' : 'Main Branch')}
+                              {medicine?.branchName || (medicine?.branchId === '2' ? 'Raju Sub Branch' : 'Main Branch')}
                             </span>
                           </td>
                           <td><div style={{ fontWeight: 600, color: '#1e293b' }}>{getName(medicine)}</div></td>
@@ -1544,7 +1535,7 @@ export default function Medicines() {
                               setForm({
                                 ...form,
                                 branchId: selId,
-                                branchName: selObj?.name || (selId === '2' ? 'NTR Nagar Branch' : 'Main Branch')
+                                branchName: selObj?.name || (selId === '2' ? 'Raju Sub Branch' : 'Main Branch')
                               })
                             }}
                           >
@@ -2116,7 +2107,7 @@ export default function Medicines() {
                     <div className="med-detail-row" style={{ marginTop: '8px' }}>
                       <div className="med-detail-item">
                         <label>Pharmacy Branch</label>
-                        <span style={{ fontWeight: 600, color: '#166534' }}>{viewingItem?.branchName || (viewingItem?.branchId === '2' ? 'NTR Nagar Branch' : 'Main Branch')}</span>
+                        <span style={{ fontWeight: 600, color: '#166534' }}>{viewingItem?.branchName || (viewingItem?.branchId === '2' ? 'Raju Sub Branch' : 'Main Branch')}</span>
                       </div>
                       <div className="med-detail-item">
                         <label>Generic Name</label>

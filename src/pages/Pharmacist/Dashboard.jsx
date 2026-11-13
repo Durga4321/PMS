@@ -192,11 +192,12 @@ export default function Dashboard() {
         <span className={`pd-sync${errors.some(Boolean) ? ' is-warning' : ''}`}>{loading ? 'Syncing…' : errors.some(Boolean) ? 'Some data unavailable' : 'Live data'}</span>
         <small className="pd-last-refreshed">{updated ? `Last refreshed ${updated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Waiting for live data'}</small>
       </header>
-      {errors[0] && <div className="pd-banner" role="alert">Dashboard summary: {errors[0]}</div>}
+      {errors[0] && !errors[0].includes('Access denied') && <div className="pd-banner" role="alert">Dashboard summary: {errors[0]}</div>}
       <div className="pd-metrics">{metrics.map(([icon, label, value]) => <article className="pd-metric" key={label}><span className="pd-icon"><Icon name={icon} /></span><div><p>{label}</p><strong>{loading ? '…' : count(value)}</strong><small>{value === undefined ? 'Not provided by the server' : 'Current live records'}</small></div></article>)}</div>
-      <nav className="pd-action-cards" aria-label="Quick actions">{[['dispense', 'Dispense & Billing', 'dispensing'], ['prescription', 'Review prescriptions', 'pending'], ['stock', 'Check medicine stock', 'medicines'], ['bill', 'Manage bills', 'bills'], ['chart', 'View reports', 'reports']].map(([icon, label, path]) => <Link key={path} to={`/pharmacist/${path}`}><Icon name={icon} />{label}</Link>)}</nav>
+
+      <nav className="pd-action-cards" aria-label="Quick actions">{[['dispense', 'Dispense & Billing', 'dispensing'], ['stock', 'Check medicine stock', 'medicines'], ['bill', 'Manage bills', 'bills'], ['chart', 'View reports', 'reports']].map(([icon, label, path]) => <Link key={path} to={`/pharmacist/${path}`}><Icon name={icon} />{label}</Link>)}</nav>
       <div className="pd-main-row">
-        <Panel title="Prescription Queue" icon="prescription" to="/pharmacist/pending">
+        <Panel title="Prescription Queue" icon="prescription" to="/pharmacist/dispensing">
           <div className="pd-queue-tools">
             <div className="pd-tabs">
               {['All', 'Urgent', 'In progress'].map((tab) => (
@@ -229,7 +230,7 @@ export default function Dashboard() {
                     <td><span className="pd-pill">{statusOf(row)}</span></td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Link to="/pharmacist/pending">Review →</Link>
+                        <Link to="/pharmacist/dispensing">Review →</Link>
                         {statusOf(row).toLowerCase() !== 'dispensed' && (
                           <button
                             type="button"
@@ -248,7 +249,7 @@ export default function Dashboard() {
             </table>
           </div>
           {!visibleQueue.length && <Empty loading={loading} error={errors[1]} label={search || filter !== 'All' ? 'No matching prescriptions.' : 'No pending prescriptions.'} />}
-          {visibleQueue.length > 5 && <Link className="pd-more" to="/pharmacist/pending">View all {visibleQueue.length} matching prescriptions →</Link>}
+          {visibleQueue.length > 5 && <Link className="pd-more" to="/pharmacist/dispensing">View all {visibleQueue.length} matching prescriptions →</Link>}
         </Panel>
         <Panel title="Needs Attention" icon="alert" to="/pharmacist/medicines">
           {alerts.slice(0, 4).map((alert, index) => (
@@ -263,6 +264,7 @@ export default function Dashboard() {
           ))}
           {!alerts.length && <Empty loading={loading} error={errors[2]} label="No inventory alerts reported." />}
         </Panel>
+
       </div>
 
       {dispenseModalOpen && dispenseTargetRx && (

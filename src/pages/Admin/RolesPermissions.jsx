@@ -21,20 +21,26 @@ const EMPTY_PERMISSIONS = emptyPermissions(MODULES)
 
 const MODULE_ICONS = {
   Dashboard: 'dashboard',
-  Pending: 'clock',
   Dispensing: 'clipboardCheck',
   Medicines: 'medicines',
   Bills: 'receipt',
   Returns: 'rotateCcw',
   Reports: 'barChart3',
+  Notifications: 'notifications',
 }
 
 function idOf(item) {
-  return item?._id || item?.id || item?.pharmacistId || item?.userId || item?.uuid
+  return item?._id || item?.id || item?.Id || item?.pharmacistId || item?.PharmacistId || item?.userId || item?.UserId || item?.uuid
+}
+
+function cleanPharmacistName(raw) {
+  if (!raw) return 'Pharmacist'
+  const cleaned = String(raw).replace(/\s*(sub\s*branch|branch)\s*$/gi, '').trim()
+  return cleaned || 'Pharmacist'
 }
 
 function nameOf(item) {
-  return item?.name || item?.fullName || item?.user?.name || item?.email || 'Unnamed Pharmacist'
+  return item?.name || item?.Name || item?.fullName || item?.FullName || item?.user?.name || item?.User?.Name || item?.email || item?.Email || 'Pharmacist'
 }
 
 function permissionCount(permissions) {
@@ -143,11 +149,10 @@ export default function RolesPermissions() {
         ? res.pharmacists
         : []
 
-      // Filter strictly for real pharmacists - remove any branch or sub-branch!
       const validPharmacists = backendList.filter((p) => {
         const name = String(p?.name || p?.fullName || '').toLowerCase().trim()
         if (!name) return false
-        if (name.includes('branch') || name.includes('subbranch')) {
+        if (name.includes('sub branch') || name.includes('subbranch')) {
           return false
         }
         return true
@@ -203,6 +208,16 @@ export default function RolesPermissions() {
   }
 
   useEffect(() => {
+    if (!selectedPharmacistId && pharmacists.length > 0) {
+      const firstId = String(idOf(pharmacists[0]))
+      if (firstId) {
+        setSelectedPharmacistId(firstId)
+        selectPharmacist(firstId, pharmacists)
+      }
+    }
+  }, [pharmacists, selectedPharmacistId])
+
+  useEffect(() => {
     loadData()
     const handleSync = () => loadData()
     window.addEventListener('pms:pharmacists-updated', handleSync)
@@ -233,11 +248,9 @@ export default function RolesPermissions() {
     })
   }, [pharmacists, pharmacistPermissionsMap])
 
-  async function selectPharmacist(pId) {
+  async function selectPharmacist(pId, list = pharmacists) {
     if (!pId) return
-    if (String(pId) === String(selectedPharmacistId)) {
-      return
-    }
+    const target = (list && list.length ? list : pharmacists).find((p) => String(idOf(p)) === String(pId))
     setSelectedPharmacistId(String(pId))
     setError('')
     setSuccess('')
@@ -251,6 +264,9 @@ export default function RolesPermissions() {
   }
 
   function togglePermission(module, action, checked) {
+    if (!selectedPharmacistId && pharmacists.length > 0) {
+      setSelectedPharmacistId(String(idOf(pharmacists[0])))
+    }
     setPermissions((current) => {
       const normalized = normalizePermissions(current, MODULES)
       return {
@@ -267,6 +283,9 @@ export default function RolesPermissions() {
   }
 
   function toggleAllPermissions() {
+    if (!selectedPharmacistId && pharmacists.length > 0) {
+      setSelectedPharmacistId(String(idOf(pharmacists[0])))
+    }
     const checked = !allSelected
     setPermissions(
       Object.fromEntries(
@@ -286,6 +305,9 @@ export default function RolesPermissions() {
   }
 
   function toggleColumnPermission(action, checked) {
+    if (!selectedPharmacistId && pharmacists.length > 0) {
+      setSelectedPharmacistId(String(idOf(pharmacists[0])))
+    }
     setPermissions((current) => {
       const normalized = normalizePermissions(current, MODULES)
       return Object.fromEntries(
@@ -316,7 +338,27 @@ export default function RolesPermissions() {
     setSaveFeedback(null)
 
     const pharmName = selectedPharmacist ? nameOf(selectedPharmacist) : `Pharmacist #${selectedPharmacistId}`
+    const pharmEmail = selectedPharmacist?.email || selectedPharmacist?.user?.email
     const normalizedToSave = normalizePermissions(permissions, MODULES)
+
+    // Update active session if signed in pharmacist matches
+    for (const store of [sessionStorage, localStorage]) {
+      try {
+        const rawUser = store.getItem('pharmacistUser')
+        if (rawUser) {
+          const u = JSON.parse(rawUser)
+          const matchesId = String(u?.id || u?.userId) === String(selectedPharmacistId)
+          const matchesEmail =
+            pharmEmail &&
+            String(u?.email || '').trim().toLowerCase() === String(pharmEmail).trim().toLowerCase()
+          if (matchesId || matchesEmail) {
+            u.permissions = normalizedToSave
+            u.modulePermissions = normalizedToSave
+            store.setItem('pharmacistUser', JSON.stringify(u))
+          }
+        }
+      } catch {}
+    }
 
     try {
       await updatePharmacistPermissions(selectedPharmacistId, normalizedToSave)
@@ -388,6 +430,7 @@ export default function RolesPermissions() {
                         key={p.id || index}
                         className={selected ? 'is-selected' : ''}
                         onClick={() => selectPharmacist(p.id)}
+                        style={{ cursor: 'pointer' }}
                       >
                         <td>{index + 1}</td>
                         <td>
@@ -421,7 +464,7 @@ export default function RolesPermissions() {
                               </svg>
                               1 pharmacist
                             </strong>
-                            <small>{p.name} - ID {p.id}</small>
+                            <small>{cleanPharmacistName(p.name)} - ID {p.id}</small>
                           </div>
                         </td>
                       </tr>,
@@ -469,7 +512,7 @@ export default function RolesPermissions() {
         </section>
 
         {/* Assign Permissions Panel */}
-        <section className="admin-permissions-panel admin-assign-panel">
+        <section id="assign-permissions-card" className="admin-permissions-panel admin-assign-panel">
           <div className="admin-permissions-panel-header">
             <h2>Assign Permissions</h2>
             <p>Pharmacist sidebar module permissions for the selected Pharmacist.</p>
@@ -479,13 +522,13 @@ export default function RolesPermissions() {
             <label className="admin-select-control">
               <span>Pharmacist / Pharmacist ID</span>
               <select
-                value={selectedPharmacistId}
+                value={selectedPharmacistId || (pharmacists.length ? String(idOf(pharmacists[0])) : '')}
                 onChange={(e) => selectPharmacist(e.target.value)}
                 disabled={loading || saving}
               >
-                <option value="">Select Pharmacist</option>
+                {!pharmacists.length && <option value="">Select Pharmacist</option>}
                 {pharmacists.map((p) => (
-                  <option key={idOf(p)} value={idOf(p)}>
+                  <option key={idOf(p)} value={String(idOf(p))}>
                     {nameOf(p)} - ID {idOf(p) || '0'}
                   </option>
                 ))}
@@ -504,7 +547,7 @@ export default function RolesPermissions() {
                         type="button"
                         className="admin-select-all-btn"
                         onClick={toggleAllPermissions}
-                        disabled={!selectedPharmacistId || loadingPermissions || saving}
+                        disabled={saving}
                       >
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="20 6 9 17 4 12" />
@@ -515,15 +558,25 @@ export default function RolesPermissions() {
                   </th>
                   {ACTIONS.map((action) => (
                     <th key={action}>
-                      <label className="admin-column-toggle">
-                        <input
-                          type="checkbox"
-                          checked={isColumnSelected(action)}
-                          disabled={!selectedPharmacistId || loadingPermissions || saving}
-                          onChange={(e) => toggleColumnPermission(action, e.target.checked)}
-                        />
-                        <span>{actionLabel(action)}</span>
-                      </label>
+                      <button
+    type="button"
+    className={`admin-column-toggle-btn ${isColumnSelected(action) ? 'is-checked' : ''}`}
+    disabled={saving}
+    onClick={(e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      toggleColumnPermission(action, !isColumnSelected(action))
+    }}
+  >
+    <span className="admin-column-toggle-mark">
+      {isColumnSelected(action) && (
+        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      )}
+    </span>
+    <span>{actionLabel(action)}</span>
+  </button>
                     </th>
                   ))}
                 </tr>
@@ -543,20 +596,26 @@ export default function RolesPermissions() {
                       </td>
                       {ACTIONS.map((action) => (
                         <td key={action}>
-                          <label className="admin-perm-checkbox" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={Boolean(permissionState[module]?.[action])}
-                              disabled={!selectedPharmacistId || loadingPermissions || saving}
-                              onChange={(e) => togglePermission(module, action, e.target.checked)}
-                            />
-                            <span className="admin-perm-checkbox-mark">
-                              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            </span>
-                            <span className="admin-perm-checkbox-label">{actionLabel(action)}</span>
-                          </label>
+                          <button
+    type="button"
+    tabIndex={-1}
+                            className={`admin-perm-checkbox-btn ${Boolean(permissionState[module]?.[action]) ? 'is-checked' : ''}`}
+    disabled={saving}
+    onClick={(e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      togglePermission(module, action, !Boolean(permissionState[module]?.[action]))
+    }}
+  >
+    <span className="admin-perm-checkbox-mark">
+      {Boolean(permissionState[module]?.[action]) && (
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      )}
+    </span>
+    <span className="admin-perm-checkbox-label">{actionLabel(action)}</span>
+  </button>
                         </td>
                       ))}
                     </tr>
@@ -569,9 +628,7 @@ export default function RolesPermissions() {
           <div className="admin-permissions-save-row">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <span style={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                {selectedPharmacist
-                  ? `${selectedCount} permissions selected for ${nameOf(selectedPharmacist)}`
-                  : 'Select a pharmacist to configure permissions'}
+                {`${selectedCount} permissions selected for ${selectedPharmacist ? nameOf(selectedPharmacist) : (pharmacists.length ? nameOf(pharmacists[0]) : 'Pharmacist')}`}
               </span>
 
               {saveFeedback && (
@@ -610,7 +667,7 @@ export default function RolesPermissions() {
               type="button"
               className="admin-permissions-save-btn"
               onClick={savePermissions}
-              disabled={!selectedPharmacistId || saving || loadingPermissions}
+              disabled={saving}
             >
               {saving ? (
                 <>
