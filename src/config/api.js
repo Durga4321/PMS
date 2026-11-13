@@ -362,9 +362,9 @@ function pharmacyTenantHeaders(path = '', authRole = '', branchOverride) {
   }
 }
 
-function authTokenFor(path = '', authRole = '') {
+export function authTokenFor(path = '', authRole = '') {
   const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
-  const route = typeof window !== 'undefined' ? window.location.pathname : ''
+  const route = typeof window !== 'undefined' ? window.location?.pathname || '' : ''
 
   if (authRole && tokenKeysByRole[authRole]) {
     return readStoredToken(tokenKeysByRole[authRole])
@@ -447,7 +447,11 @@ async function request(path, options = {}) {
   const controller = new AbortController()
   const defaultTimeout = isGetOrHead ? 6000 : 30000
   const timeoutMs = options.timeout || (isFormData ? 120000 : defaultTimeout);
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  let didTimeout = false
+  const timeout = setTimeout(() => {
+    didTimeout = true
+    controller.abort()
+  }, timeoutMs)
 
   if (signal) {
     if (signal.aborted) controller.abort()
@@ -471,8 +475,11 @@ async function request(path, options = {}) {
       signal: controller.signal,
     })
   } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new Error('API request timed out. Please check that the backend server or ngrok tunnel is running.')
+    if (error?.name === 'AbortError' || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+      if (didTimeout) {
+        throw new Error('API request timed out. Please check that the backend server or ngrok tunnel is running.')
+      }
+      throw error
     }
     if (error?.name === 'TypeError') {
       throw new Error('Cannot connect to the server. Check your connection and try again.')
@@ -3978,7 +3985,9 @@ function roleNotificationApi(base, authRole) {
       if (!superAdmin) {
         const response = await request('notifications/unread-count', { ...options, authRole })
         const body = response?.data ?? response
-        return { data: { unreadCount: body?.unreadCount ?? body?.count ?? (typeof body === 'number' ? body : 0) } }
+        const rawCount = body?.unreadCount ?? body?.data?.unreadCount ?? body?.count ?? (typeof body === 'number' ? body : 0)
+        const unreadCount = Number.isFinite(Number(rawCount)) ? Math.max(0, Math.floor(Number(rawCount))) : 0
+        return { data: { unreadCount } }
       }
       // Super Admin has no separate count endpoint in the supplied contract.
       // Its existing list endpoint supports the unread status filter.

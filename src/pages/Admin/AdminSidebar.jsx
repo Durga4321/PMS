@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { adminNavigation } from './adminNavigation'
 import { hasPermission, readAdminPermissions } from '../../config/permissions'
+import { useNotificationCount } from '../../services/notificationManager'
 import './AdminSidebar.css'
 
 function getStoredAppName() {
@@ -37,6 +38,7 @@ function AdminSidebar({ activeLabel, hospitalName = 'PMS', branchName = 'Admin C
   const [appName, setAppName] = useState(getStoredAppName)
   const [currentPharmacyName, setCurrentPharmacyName] = useState(() => getStoredPharmacyTitle() || branchName || 'Admin Console')
   const [permissions, setPermissions] = useState(readAdminPermissions)
+  const unreadCount = useNotificationCount('pharmacyAdmin')
 
   useEffect(() => {
     function handleSettings(e) {
@@ -107,6 +109,7 @@ function AdminSidebar({ activeLabel, hospitalName = 'PMS', branchName = 'Admin C
       <nav className="branch-admin-nav">
         {visibleNavigation.map(({ label, path, icon, color }) => {
           const isActive = activeLabel === label || location.pathname === path
+          const isNotification = label === 'Notifications'
           return (
             <button
               type="button"
@@ -118,6 +121,9 @@ function AdminSidebar({ activeLabel, hospitalName = 'PMS', branchName = 'Admin C
                 {icon}
               </span>
               <span className="nav-label">{label}</span>
+              {isNotification && unreadCount > 0 ? (
+                <span className="sidebar-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              ) : null}
             </button>
           )
         })}

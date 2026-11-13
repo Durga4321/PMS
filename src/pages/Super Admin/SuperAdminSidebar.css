@@ -369,3 +369,30 @@
   padding: 0 0 8px;
   gap: 0;
 }
+
+.sidebar-unread-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.super-admin-nav-link.is-active .sidebar-unread-badge {
+  background: #ffffff;
+  color: #2563eb;
+}
+
+:is(.super-admin-shell, .admins-page-shell, .profile-super-admin-shell).sidebar-collapsed .sidebar-unread-badge {
+  display: none;
+}
+
