@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { superAdminNavigation } from '../../components/superAdminNavigation'
+import { useNotificationCount } from '../../services/notificationManager'
 import './SuperAdminSidebar.css'
 
 function getStoredAppName() {
@@ -40,6 +41,7 @@ function SuperAdminSidebar({ activeLabel = '' }) {
   const user = readStoredUser()
   const name = user?.name || user?.fullName || user?.email || 'Super Admin'
   const [appName, setAppName] = useState(getStoredAppName)
+  const unreadCount = useNotificationCount('superAdmin')
 
   useEffect(() => {
     function handleSettings(e) {
@@ -75,6 +77,7 @@ function SuperAdminSidebar({ activeLabel = '' }) {
       <nav className="super-admin-nav">
         {superAdminNavigation.map(({ label, path, icon, color }) => {
           const isActive = location.pathname === path || label === activeLabel
+          const isNotification = label === 'Notifications'
           return (
             <button
               type="button"
@@ -89,6 +92,9 @@ function SuperAdminSidebar({ activeLabel = '' }) {
                 {icon}
               </span>
               <span className="nav-label">{label}</span>
+              {isNotification && unreadCount > 0 ? (
+                <span className="sidebar-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              ) : null}
             </button>
           )
         })}

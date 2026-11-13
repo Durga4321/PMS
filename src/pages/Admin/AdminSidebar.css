@@ -282,3 +282,30 @@
 [data-pms-theme] .branch-admin-sidebar .branch-admin-nav-link .nav-icon-badge { background: transparent !important; color: var(--pms-accent-strong) !important; }
 [data-pms-theme] .branch-admin-sidebar .branch-admin-nav-link.is-active .nav-icon-badge { background: #ffffff2e !important; color: #fff !important; }
 [data-pms-theme] .branch-admin-sidebar .branch-admin-nav-link.is-active .nav-icon-badge svg { color: #fff !important; stroke: currentColor !important; }
+
+.sidebar-unread-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.branch-admin-nav-link.is-active .sidebar-unread-badge {
+  background: #ffffff;
+  color: #2563eb;
+}
+
+.branch-admin-page.sidebar-collapsed .sidebar-unread-badge {
+  display: none;
+}
+

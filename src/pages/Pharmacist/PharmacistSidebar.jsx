@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { pharmacistNavigation } from './pharmacistNavigation'
 import { hasPharmacistPermission, readPharmacistPermissions } from '../../config/permissions'
+import { useNotificationCount } from '../../services/notificationManager'
 import '../Admin/AdminSidebar.css'
 import './PharmacistSidebar.css'
 
@@ -23,6 +24,7 @@ function PharmacistSidebar({ activeLabel, onNavigate }) {
   const location = useLocation()
   const [appName, setAppName] = useState(getStoredAppName)
   const [permissions, setPermissions] = useState(readPharmacistPermissions)
+  const unreadCount = useNotificationCount('pharmacist')
 
   function goTo(path) {
     navigate(path)
@@ -78,6 +80,7 @@ function PharmacistSidebar({ activeLabel, onNavigate }) {
       <nav className="branch-admin-nav">
         {visibleNavigation.map(({ label, path, icon, color }) => {
           const isActive = activeLabel === label || location.pathname === path
+          const isNotification = label === 'Notifications'
           return (
             <button
               type="button"
@@ -90,6 +93,9 @@ function PharmacistSidebar({ activeLabel, onNavigate }) {
                 {icon}
               </span>
               <span className="nav-label">{label}</span>
+              {isNotification && unreadCount > 0 ? (
+                <span className="sidebar-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              ) : null}
             </button>
           )
         })}

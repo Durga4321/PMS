@@ -60,6 +60,7 @@ export default function NotificationCenter({ role }) {
         const total = body.total ?? body.totalCount ?? body.pagination?.total ?? response?.total
         setHasMore(body.hasMore ?? (total != null ? page * PAGE_SIZE < Number(total) : incoming.length === PAGE_SIZE))
       } catch (requestError) {
+        if (requestError?.name === 'AbortError' || requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') return
         if (current) setError(notificationError(requestError))
       } finally {
         if (current) setLoading(false)
@@ -85,6 +86,7 @@ export default function NotificationCenter({ role }) {
         const total = body.total ?? body.pagination?.total
         setMoreRecipients(body.hasMore ?? (total != null ? recipientPage * 50 < Number(total) : incoming.length === 50))
       } catch (requestError) {
+        if (requestError?.name === 'AbortError' || requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') return
         if (current) { setRecipientError(notificationError(requestError, 'recipients')); setRecipients([]); setForm((value) => ({ ...value, recipientId: '' })) }
       } finally {
         if (current) setRecipientsLoading(false)

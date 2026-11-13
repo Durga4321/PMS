@@ -362,9 +362,9 @@ function pharmacyTenantHeaders(path = '', authRole = '', branchOverride) {
   }
 }
 
-function authTokenFor(path = '', authRole = '') {
+export function authTokenFor(path = '', authRole = '') {
   const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
-  const route = typeof window !== 'undefined' ? window.location.pathname : ''
+  const route = typeof window !== 'undefined' ? window.location?.pathname || '' : ''
 
   if (authRole && tokenKeysByRole[authRole]) {
     return readStoredToken(tokenKeysByRole[authRole])
@@ -447,7 +447,11 @@ async function request(path, options = {}) {
   const controller = new AbortController()
   const defaultTimeout = isGetOrHead ? 6000 : 30000
   const timeoutMs = options.timeout || (isFormData ? 120000 : defaultTimeout);
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  let didTimeout = false
+  const timeout = setTimeout(() => {
+    didTimeout = true
+    controller.abort()
+  }, timeoutMs)
 
   if (signal) {
     if (signal.aborted) controller.abort()
@@ -471,8 +475,11 @@ async function request(path, options = {}) {
       signal: controller.signal,
     })
   } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new Error('API request timed out. Please check that the backend server or ngrok tunnel is running.')
+    if (error?.name === 'AbortError' || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+      if (didTimeout) {
+        throw new Error('API request timed out. Please check that the backend server or ngrok tunnel is running.')
+      }
+      throw error
     }
     if (error?.name === 'TypeError') {
       throw new Error('Cannot connect to the server. Check your connection and try again.')
@@ -2408,12 +2415,23 @@ function pharmacistReturnRequest(path, options = {}) {
   } })
 }
 export const pharmacistReturnsApi = {
-  list: (params = {}, options = {}) => pharmacistReturnRequest(`pharmacy/returns${queryString(params)}`, options),
-  inventory: (options = {}) => pharmacistReturnRequest('inventory', options),
-  batches: (medicineId, options = {}) => pharmacistReturnRequest(replacePathParams('inventory/{medicineId}/batches', { medicineId }), options),
-  create: (payload) => pharmacistReturnRequest('pharmacy/returns', { method: 'POST', body: JSON.stringify(payload) }),
-  approve: (id, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(payload) }),
-  cancel: (id) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify({ reason: 'Cancelled by pharmacist before approval.' }) }),
+  // Fresh Returns APIs
+  options: (options = {}) => pharmacistReturnRequest('pharmacy/returns/options', { method: 'GET', ...options }),
+  billItems: (billId, options = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/bills/{billId}/items', { billId }), { method: 'GET', ...options }),
+  eligibleMedicines: (params = {}, options = {}) => pharmacistReturnRequest(`pharmacy/returns/eligible-medicines${queryString(params)}`, { method: 'GET', ...options }),
+  createPatientReturn: (payload) => pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
+  history: (params = {}, options = {}) => pharmacistReturnRequest(`pharmacy/returns/history${queryString(params)}`, { method: 'GET', ...options }),
+  historyItem: (requestId, options = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}', { requestId }), { method: 'GET', ...options }),
+  approveHistoryItem: (requestId, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}/approve', { requestId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
+  cancelHistoryItem: (requestId, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}/cancel', { requestId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
+
+  // Seamless alias methods for Returns.jsx UI
+  list: (params = {}, options = {}) => pharmacistReturnRequest(`pharmacy/returns/history${queryString(params)}`, { method: 'GET', ...options }),
+  inventory: (options = {}) => pharmacistReturnRequest('pharmacy/returns/eligible-medicines', { method: 'GET', ...options }),
+  batches: (medicineId, options = {}) => pharmacistReturnRequest(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { method: 'GET', ...options }),
+  create: (payload) => pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
+  approve: (id, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
+  cancel: (id, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload || { reason: 'Cancelled by pharmacist before approval.' })) }),
 }
 
 export const listStockTransfers = (params = {}) => request(`inventory/transfers${queryString(params)}`)
@@ -2765,7 +2783,6 @@ export async function listPharmacists(params = {}) {
     query.set('pharmacyId', String(pharmacyId))
   }
 
-  const localList = readLocalPharmacists()
   try {
     const headers = {
       ...(pharmacyId ? {
@@ -2791,48 +2808,10 @@ export async function listPharmacists(params = {}) {
       return true
     })
 
-    const localByIdOrEmail = new Map()
-    localList.forEach((p) => {
-      const pid = String(p?._id || p?.id || p?.pharmacistId || '')
-      const pemail = String(p?.email || '').trim().toLowerCase()
-      if (pid) localByIdOrEmail.set(`id:${pid}`, p)
-      if (pemail) localByIdIdOrEmailSet(localByIdOrEmail, `email:${pemail}`, p)
-    })
-
-    const apiIds = new Set()
-    const apiEmails = new Set()
-    const enrichedApi = apiList.map((item) => {
-      const id = String(item?._id || item?.id || item?.pharmacistId || '')
-      const email = String(item?.email || item?.user?.email || '').trim().toLowerCase()
-      if (id) apiIds.add(id)
-      if (email) apiEmails.add(email)
-      const cached = (id && localByIdOrEmail.get(`id:${id}`)) || (email && localByIdOrEmail.get(`email:${email}`))
-      if (!cached) return item
-      return {
-        ...cached,
-        ...item,
-        phone: item?.phone || item?.mobileNumber || cached?.phone || cached?.mobileNumber || '',
-        mobileNumber: item?.mobileNumber || item?.phone || cached?.mobileNumber || cached?.phone || '',
-        branchId: item?.branchId || item?.BranchId || cached?.branchId || '',
-        branchName: item?.branchName || item?.pharmacy?.name || item?.pharmacyName || cached?.branchName || '',
-      }
-    })
-
-    const remainingLocal = localList.filter((p) => {
-      const pid = String(p?._id || p?.id || p?.pharmacistId || '')
-      const pemail = String(p?.email || '').trim().toLowerCase()
-      if (pid && apiIds.has(pid)) return false
-      if (pemail && apiEmails.has(pemail)) return false
-      return true
-    })
-
-    const merged = [...enrichedApi, ...remainingLocal]
-    writeLocalPharmacists(merged)
-
-    const result = [...merged]
-    result.data = merged
-    result.pharmacists = merged
-    result.users = merged
+    const result = [...apiList]
+    result.data = apiList
+    result.pharmacists = apiList
+    result.users = apiList
     if (typeof response === 'object' && response && !Array.isArray(response)) {
       Object.keys(response).forEach((key) => {
         if (!['data', 'pharmacists', 'users'].includes(key)) {
@@ -2842,11 +2821,11 @@ export async function listPharmacists(params = {}) {
     }
     return result
   } catch (err) {
-    console.warn('Backend listPharmacists notice (using local cached pharmacists):', err.message)
-    const result = [...localList]
-    result.data = localList
-    result.pharmacists = localList
-    result.users = localList
+    console.warn('Backend listPharmacists notice:', err.message)
+    const result = []
+    result.data = []
+    result.pharmacists = []
+    result.users = []
     return result
   }
 }
@@ -2992,37 +2971,13 @@ export async function createPharmacist(payload = {}) {
       },
     })
 
-    const created = response?.pharmacist || response?.data?.pharmacist || response?.data || response || {}
-    const id = created?.pharmacistId || created?.PharmacistId || created?.id || created?._id || created?.userId || created?.UserId
-
-    if (id) {
-      const record = {
-        id,
-        pharmacistId: id,
-        name: cleanPayload.name,
-        email: cleanPayload.email,
-        phone: cleanPayload.mobileNumber || '',
-        mobileNumber: cleanPayload.mobileNumber || '',
-        branchId: fallbackBranchId,
-        status: 'Active',
-        isActive: true,
-        ...created,
-      }
-      const updatedList = readLocalPharmacists().filter((p) => String(p?.id || p?.pharmacistId) !== String(id) && p.email !== cleanPayload.email)
-      writeLocalPharmacists([record, ...updatedList])
-    }
-
     return response
 }
 
 export async function getPharmacist(id) {
-  try {
-    return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }))
-  } catch (err) {
-    const found = readLocalPharmacists().find((p) => String(p?._id || p?.id || p?.pharmacistId) === String(id))
-    if (found) return { data: found, pharmacist: found }
-    throw err
-  }
+  return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+    authRole: 'pharmacyAdmin',
+  })
 }
 
 export async function updatePharmacist(id, payload = {}) {
@@ -3035,37 +2990,24 @@ export async function updatePharmacist(id, payload = {}) {
     ...(numericBranchId ? { branchId: numericBranchId } : {}),
   }
 
-  const response = await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+  return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
     authRole: 'pharmacyAdmin',
     method: 'PUT',
     body: JSON.stringify(cleanPayload),
   })
-
-  const updated = response?.pharmacist || response?.data?.pharmacist || response?.data || response || {}
-  const list = readLocalPharmacists()
-  const idx = list.findIndex((p) => String(p?._id || p?.id || p?.pharmacistId) === String(id))
-  const merged = { ...(idx >= 0 ? list[idx] : {}), ...cleanPayload, ...updated, id, pharmacistId: id }
-  if (idx >= 0) list[idx] = merged
-  else list.push(merged)
-  writeLocalPharmacists(list)
-
-  return response
 }
 
 export async function deletePharmacist(id) {
-  const filtered = readLocalPharmacists().filter((p) => String(p?._id || p?.id || p?.pharmacistId) !== String(id))
-  writeLocalPharmacists(filtered)
-  try {
-    return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
-      method: 'DELETE',
-    })
-  } catch {
-    return { message: 'Pharmacist deleted successfully.' }
-  }
+  return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+    authRole: 'pharmacyAdmin',
+    method: 'DELETE',
+  })
 }
 
 export function getPharmacistPermissions(id) {
-  return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }))
+  return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }), {
+    authRole: 'pharmacyAdmin',
+  })
 }
 
 export function updatePharmacistPermissions(id, payload) {
@@ -3107,6 +3049,7 @@ export function updatePharmacistPermissions(id, payload) {
   }))
 
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'PUT',
     body: JSON.stringify(cleanList),
   })
@@ -3117,6 +3060,7 @@ export function assignPharmacistToAdminPharmacy(id, payload = {}) {
   const numericBranchId = parsePositiveInt(rawBranch)
   const cleanPayload = numericBranchId ? { branchId: numericBranchId, BranchId: numericBranchId } : {}
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/pharmacy-assignment', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'PUT',
     body: JSON.stringify(apiPayload(cleanPayload)),
   })
@@ -3125,21 +3069,19 @@ export function assignPharmacistToAdminPharmacy(id, payload = {}) {
 export const transferPharmacistBranch = assignPharmacistToAdminPharmacy
 
 export function resetPharmacistPassword(id, payload) {
+  const newPassword = payload?.newPassword || payload?.NewPassword || (typeof payload === 'string' ? payload : '')
+  const cleanPayload = newPassword ? { newPassword } : passwordResetPayload(payload)
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/reset-password', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'POST',
-    body: JSON.stringify(apiPayload(passwordResetPayload(payload))),
+    body: JSON.stringify(apiPayload(cleanPayload)),
   })
 }
 
 export async function changePharmacistStatus(id, payload) {
   const statusPayload = superAdminStatusPayload(payload)
-  const list = readLocalPharmacists().map((p) =>
-    String(p?._id || p?.id || p?.pharmacistId) === String(id)
-      ? { ...p, status: statusPayload.status || (statusPayload.isActive ? 'Active' : 'Inactive'), isActive: statusPayload.isActive }
-      : p
-  )
-  writeLocalPharmacists(list)
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/status', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'PATCH',
     body: JSON.stringify(apiPayload(statusPayload)),
   })
@@ -3416,6 +3358,117 @@ export function createManualPharmacyPrescription(payload) {
   })
 }
 
+// 2. Prescription & Dispensing APIs
+export const getDispensingPatients = (params = {}) =>
+  request(`pharmacy/dispensing/patients${queryString(params)}`, { authRole: 'pharmacist' })
+export const getDispensingMedicines = (params = {}) =>
+  request(`pharmacy/dispensing/medicines${queryString(params)}`, { authRole: 'pharmacist' })
+export const createDispensingDraft = (payload) =>
+  request('pharmacy/dispensing/drafts', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const updateDispensingDraft = (id, payload) =>
+  request(replacePathParams('pharmacy/dispensing/drafts/{id}', { id }), { authRole: 'pharmacist', method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+export const listDispensingDrafts = (params = {}) =>
+  request(`pharmacy/dispensing/drafts${queryString(params)}`, { authRole: 'pharmacist' })
+export const getDispensingDraft = (id) =>
+  request(replacePathParams('pharmacy/dispensing/drafts/{id}', { id }), { authRole: 'pharmacist' })
+export const getDispensingPrescriptionDetails = (prescriptionId) =>
+  request(replacePathParams('pharmacy/dispensing/prescriptions/{prescriptionId}/details', { prescriptionId }), { authRole: 'pharmacist' })
+export const submitDispensingDraft = (id, payload = {}) =>
+  request(replacePathParams('pharmacy/dispensing/drafts/{id}/submit', { id }), { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+
+// 3. Prescription & Receipt Image APIs
+export const uploadDraftPrescriptionPhoto = (draftId, fileOrFormData) => {
+  const body = fileOrFormData instanceof FormData ? fileOrFormData : (() => {
+    const fd = new FormData()
+    fd.append('file', fileOrFormData)
+    fd.append('photo', fileOrFormData)
+    return fd
+  })()
+  return request(replacePathParams('pharmacy/dispensing/drafts/{draftId}/prescription-photo', { draftId }), { authRole: 'pharmacist', method: 'POST', body })
+}
+export const uploadPrescriptionPhoto = (prescriptionId, fileOrFormData) => {
+  const body = fileOrFormData instanceof FormData ? fileOrFormData : (() => {
+    const fd = new FormData()
+    fd.append('file', fileOrFormData)
+    fd.append('photo', fileOrFormData)
+    return fd
+  })()
+  return request(replacePathParams('pharmacy/prescriptions/{prescriptionId}/photo', { prescriptionId }), { authRole: 'pharmacist', method: 'POST', body })
+}
+export const uploadBillReceiptPhoto = (billId, fileOrFormData) => {
+  const body = fileOrFormData instanceof FormData ? fileOrFormData : (() => {
+    const fd = new FormData()
+    fd.append('file', fileOrFormData)
+    fd.append('photo', fileOrFormData)
+    return fd
+  })()
+  return request(replacePathParams('pharmacy/bills/{billId}/receipt-photo', { billId }), { authRole: 'pharmacist', method: 'POST', body })
+}
+export const getPharmacyEvidence = (id) =>
+  request(replacePathParams('pharmacy/evidence/{id}', { id }), { authRole: 'pharmacist' })
+export const listPharmacyEvidence = (params = {}) =>
+  request(`pharmacy/evidence${queryString(params)}`, { authRole: 'pharmacist' })
+
+// 4. Branch Payment Settings APIs
+export const listBranchPaymentSettings = (params = {}) =>
+  request(`payment-settings/branches${queryString(params)}`)
+export const getBranchPaymentSettings = (branchId) =>
+  request(replacePathParams('payment-settings/branches/{branchId}', { branchId }))
+export const updateBranchPaymentSettings = (branchId, payload) =>
+  request(replacePathParams('payment-settings/branches/{branchId}', { branchId }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+
+// 5. Payment Gateway APIs
+export const getBillPaymentStatus = (billId) =>
+  request(replacePathParams('payments/bills/{billId}/status', { billId }))
+export const getGatewayInvoiceStatus = (billId) =>
+  request(replacePathParams('payments/gateway/invoice-status/{billId}', { billId }))
+export const getBillInvoicePdf = (billId) =>
+  request(replacePathParams('payments/bills/{billId}/invoice-pdf', { billId }))
+export const getBillPaymentHistory = (billId) =>
+  request(replacePathParams('payments/bills/{billId}/history', { billId }))
+export const createPaymentGatewayOrder = (payload) =>
+  request('payments/gateway/create-order', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const createPaymentGatewayQr = (payload) =>
+  request('payments/gateway/create-qr', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const getPaymentGatewayAttemptStatus = (id) =>
+  request(replacePathParams('payments/gateway/attempts/{id}/status', { id }))
+export const verifyPaymentGateway = (payload) =>
+  request('payments/gateway/verify', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const postPaymentGatewayWebhook = (merchantKey, payload) =>
+  request(replacePathParams('payments/gateway/webhook/{merchantKey}', { merchantKey }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const recordManualCashPayment = (payload) =>
+  request('payments/manual', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const submitBankTransferPayment = (payload) =>
+  request('payments/bank-transfers', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const confirmBankTransferPayment = (id, payload = {}) =>
+  request(replacePathParams('payments/bank-transfers/{id}/confirm', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const listPaymentTransactions = (params = {}) =>
+  request(`payments/transactions${queryString(params)}`)
+export const exportPaymentTransactions = (params = {}) =>
+  request(`payments/transactions/export${queryString(params)}`)
+export const exportGatewayExcel = (params = {}) =>
+  request(`payments/gateway/export-excel${queryString(params)}`)
+export const simulateQrPayment = (billId, payload = {}) =>
+  request(replacePathParams('payments/gateway/simulate-qr-payment/{billId}', { billId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+
+// 6. Medicine Return APIs (Direct Functions)
+export const getPharmacyReturnOptions = () =>
+  request('pharmacy/returns/options', { authRole: 'pharmacist' })
+export const getPharmacyReturnBillItems = (billId) =>
+  request(replacePathParams('pharmacy/returns/bills/{billId}/items', { billId }), { authRole: 'pharmacist' })
+export const getPharmacyEligibleReturnMedicines = (params = {}) =>
+  request(`pharmacy/returns/eligible-medicines${queryString(params)}`, { authRole: 'pharmacist' })
+export const createPharmacyPatientReturn = (payload) =>
+  request('pharmacy/returns/patient', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const getPharmacyReturnHistory = (params = {}) =>
+  request(`pharmacy/returns/history${queryString(params)}`, { authRole: 'pharmacist' })
+export const getPharmacyReturnHistoryItem = (requestId) =>
+  request(replacePathParams('pharmacy/returns/history/{requestId}', { requestId }), { authRole: 'pharmacist' })
+export const approvePharmacyReturnHistoryItem = (requestId, payload = {}) =>
+  request(replacePathParams('pharmacy/returns/history/{requestId}/approve', { requestId }), { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const cancelPharmacyReturnHistoryItem = (requestId, payload = {}) =>
+  request(replacePathParams('pharmacy/returns/history/{requestId}/cancel', { requestId }), { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+
 // The pharmacist prescription workspace uses only the signed-in pharmacist's
 // credentials. It does not deduct cached stock before a server confirmation.
 function pharmacistPrescriptionRequest(path, payload) {
@@ -3428,9 +3481,18 @@ function pharmacistPrescriptionRequest(path, payload) {
   })
 }
 export const pharmacistPrescriptionApi = {
-  create: (payload) => pharmacistPrescriptionRequest('pharmacy/prescriptions/manual', payload),
+  create: (payload) => createDispensingDraft(payload),
+  update: (id, payload) => updateDispensingDraft(id, payload),
+  submit: (id, payload) => submitDispensingDraft(id, payload),
+  listDrafts: (params) => listDispensingDrafts(params),
+  getDraft: (id) => getDispensingDraft(id),
+  patients: (params) => getDispensingPatients(params),
+  medicines: (params) => getDispensingMedicines(params),
+  prescriptionDetails: (id) => getDispensingPrescriptionDetails(id),
+  uploadDraftPhoto: (draftId, file) => uploadDraftPrescriptionPhoto(draftId, file),
+  uploadPrescriptionPhoto: (prescriptionId, file) => uploadPrescriptionPhoto(prescriptionId, file),
   bill: (payload) => pharmacistPrescriptionRequest('pharmacy/generate-bill', payload),
-  pay: (payload) => pharmacistPrescriptionRequest('pharmacy/payment', payload),
+  pay: (payload) => recordManualCashPayment(payload),
 }
 export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-auth/permissions', { authRole: 'pharmacyAdmin' })
 export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
@@ -3923,7 +3985,9 @@ function roleNotificationApi(base, authRole) {
       if (!superAdmin) {
         const response = await request('notifications/unread-count', { ...options, authRole })
         const body = response?.data ?? response
-        return { data: { unreadCount: body?.unreadCount ?? body?.count ?? (typeof body === 'number' ? body : 0) } }
+        const rawCount = body?.unreadCount ?? body?.data?.unreadCount ?? body?.count ?? (typeof body === 'number' ? body : 0)
+        const unreadCount = Number.isFinite(Number(rawCount)) ? Math.max(0, Math.floor(Number(rawCount))) : 0
+        return { data: { unreadCount } }
       }
       // Super Admin has no separate count endpoint in the supplied contract.
       // Its existing list endpoint supports the unread status filter.
