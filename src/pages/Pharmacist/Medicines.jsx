@@ -83,7 +83,7 @@ function getId(item) {
 }
 
 export default function PharmacistMedicines() {
-  const [allMedicines, setAllMedicines] = useState(() => (typeof readLocalMedicines === 'function' ? readLocalMedicines() : []))
+  const [allMedicines, setAllMedicines] = useState([])
   const [loading, setLoading] = useState(false)
   const [assignedBranch, setAssignedBranch] = useState(() => getPharmacistAssignedBranch())
 
@@ -160,10 +160,7 @@ export default function PharmacistMedicines() {
     loadMedicinesData()
 
     function handleSync() {
-      const local = readLocalMedicines() || []
-      if (local.length > 0) {
-        setAllMedicines(local)
-      }
+      loadMedicinesData()
     }
     window.addEventListener('pms:medicines-updated', handleSync)
     window.addEventListener('pms:stock-updated', handleSync)
@@ -177,34 +174,8 @@ export default function PharmacistMedicines() {
 
   // Filter medicines STRICTLY for the pharmacist's assigned branch
   const branchMedicines = useMemo(() => {
-    const branchId = assignedBranch?.id || assignedBranch?.branchId || '1'
-    const branchName = assignedBranch?.name || assignedBranch?.branchName || 'Main Branch'
-    const pharmacyId = assignedBranch?.pharmacyId || ''
-
-    const matched = allMedicines.filter((m) => {
-      return matchesMedicineBranch(m, branchId, branchName, pharmacyId)
-    })
-
-    // Fail-safe: if standard branch matching returned 0, but allMedicines has items,
-    // match medicines for this sub branch by fuzzy name, ID, or fallback
-    if (matched.length === 0 && allMedicines.length > 0) {
-      const bNameClean = String(branchName).toLowerCase().replace(/\s*(sub\s*branch|branch)\s*$/i, '').trim()
-      const fallbackMatches = allMedicines.filter(m => {
-        const mName = String(m?.branchName || m?.BranchName || '').toLowerCase()
-        const mId = String(m?.branchId || m?.BranchId || '')
-        if (bNameClean && (mName.includes(bNameClean) || bNameClean.includes(mName))) return true
-        if (branchId && mId && String(mId) === String(branchId)) return true
-        if (mName.includes('ntr nagar') && bNameClean.includes('raju')) return true
-        // If there is only 1 branch of medicines and pharmacist is assigned to it
-        if (!mName.includes('main branch') && bNameClean) return true
-        return false
-      })
-      if (fallbackMatches.length > 0) return fallbackMatches
-      return allMedicines
-    }
-
-    return matched
-  }, [allMedicines, assignedBranch])
+    return allMedicines
+  }, [allMedicines])
 
   // Dynamic categories & dosage forms for this branch
   const branchCategories = useMemo(() => {
@@ -246,7 +217,7 @@ export default function PharmacistMedicines() {
     }
   }, [branchMedicines, branchCategories])
 
-  // Filtered list matching search query, category, dosage, status
+  // Filtered list matching search query directly for branch
   const filteredMedicines = useMemo(() => {
     return branchMedicines.filter((m) => {
       const nameVal = String(getName(m) || '').toLowerCase()
@@ -257,28 +228,15 @@ export default function PharmacistMedicines() {
       const mfgVal = String(m?.manufacturer || m?.Manufacturer || '').toLowerCase()
       const q = String(query || '').toLowerCase().trim()
 
-      const matchesSearch = !q ||
+      return !q ||
         nameVal.includes(q) ||
         genVal.includes(q) ||
         brandVal.includes(q) ||
         codeVal.includes(q) ||
         batchVal.includes(q) ||
         mfgVal.includes(q)
-
-      const matchesCat = !categoryFilter || getCategory(m) === categoryFilter
-      const matchesDosage = !dosageFilter || getDosageForm(m) === dosageFilter
-
-      const qty = getStock(m)
-      const reorder = getReorderLevel(m)
-      let matchesStatus = true
-      if (statusFilter === 'in stock') matchesStatus = qty > reorder
-      else if (statusFilter === 'low stock') matchesStatus = qty > 0 && qty <= reorder
-      else if (statusFilter === 'out of stock') matchesStatus = qty <= 0
-      else if (statusFilter === 'active') matchesStatus = String(getStatus(m)).toLowerCase().includes('active') && qty > 0
-
-      return matchesSearch && matchesCat && matchesDosage && matchesStatus
     })
-  }, [branchMedicines, query, categoryFilter, dosageFilter, statusFilter])
+  }, [branchMedicines, query])
 
   const branchDisplayName = assignedBranch?.name || assignedBranch?.branchName || 'Main Branch'
 
@@ -385,9 +343,9 @@ export default function PharmacistMedicines() {
 
         {/* Medicines Table Card */}
         <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-          {/* Search & Filter Toolbar */}
-          <div className="med-toolbar med-catalogue-filters" style={{ margin: 0, borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', padding: '16px 20px' }}>
-            <div className="med-search-wrap">
+          {/* Search Toolbar */}
+          <div className="med-toolbar" style={{ margin: 0, borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
+            <div className="med-search-wrap" style={{ flex: 1, maxWidth: '480px' }}>
               <svg viewBox="0 0 24 24" aria-hidden="true" className="search-icon"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
               <input
                 value={query}
@@ -395,51 +353,17 @@ export default function PharmacistMedicines() {
                 placeholder="Search by medicine name, generic name, code, brand, batch..."
               />
             </div>
-            <div className="med-filters">
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
-                <option value="">All Categories</option>
-                {branchCategories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-
-              <select
-                value={dosageFilter}
-                onChange={(e) => setDosageFilter(e.target.value)}
-              >
-                <option value="">All Dosage Forms</option>
-                {branchDosageForms.map((df) => (
-                  <option key={df} value={df}>{df}</option>
-                ))}
-              </select>
-
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="all">All Status</option>
-                <option value="in stock">In Stock</option>
-                <option value="low stock">Low Stock</option>
-                <option value="out of stock">Out of Stock</option>
-              </select>
-
+            {query && (
               <button
                 type="button"
                 className="med-btn med-btn-secondary"
-                onClick={() => {
-                  setQuery('')
-                  setCategoryFilter('')
-                  setDosageFilter('')
-                  setStatusFilter('all')
-                }}
+                onClick={() => setQuery('')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '15px', height: '15px' }}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                Clear Filters
+                Clear Search
               </button>
-            </div>
+            )}
           </div>
 
           {/* Table */}
