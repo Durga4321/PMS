@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import AdminLayout from './AdminLayout'
 import {
   listPharmacists,
-  readLocalPharmacists,
   getPharmacistPermissions,
   updatePharmacistPermissions,
 } from '../../config/api'
@@ -77,50 +76,12 @@ function extractValidPermissionSource(response) {
   )
 }
 
-function readStoredPermissionsForPharmacist(pharmacistId, email) {
-  if (!pharmacistId && !email) return null
-  try {
-    const idKey = pharmacistId
-      ? localStorage.getItem(`pms_pharmacist_permissions_${pharmacistId}`) ||
-        sessionStorage.getItem(`pms_pharmacist_permissions_${pharmacistId}`)
-      : null
-    const emailKey = email
-      ? localStorage.getItem(`pms_pharmacist_permissions_${String(email).trim().toLowerCase()}`) ||
-        sessionStorage.getItem(`pms_pharmacist_permissions_${String(email).trim().toLowerCase()}`)
-      : null
-    const raw = idKey || emailKey
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed === 'object') return normalizePermissions(parsed, MODULES)
-    }
-  } catch {}
-  return null
-}
-
-function savePermissionsLocallyForPharmacist(pharmacistId, perms, email) {
-  try {
-    const json = JSON.stringify(perms)
-    if (pharmacistId) {
-      localStorage.setItem(`pms_pharmacist_permissions_${pharmacistId}`, json)
-      sessionStorage.setItem(`pms_pharmacist_permissions_${pharmacistId}`, json)
-    }
-    if (email) {
-      const normalizedEmail = String(email).trim().toLowerCase()
-      localStorage.setItem(`pms_pharmacist_permissions_${normalizedEmail}`, json)
-      sessionStorage.setItem(`pms_pharmacist_permissions_${normalizedEmail}`, json)
-    }
-    const all = JSON.parse(localStorage.getItem('pms_all_pharmacist_permissions') || '{}')
-    if (pharmacistId) all[String(pharmacistId)] = perms
-    if (email) all[String(email).trim().toLowerCase()] = perms
-    localStorage.setItem('pms_all_pharmacist_permissions', JSON.stringify(all))
-  } catch {}
-}
-
 export default function RolesPermissions() {
   const { showToast } = useToast()
   const [pharmacists, setPharmacists] = useState([])
   const [selectedPharmacistId, setSelectedPharmacistId] = useState('')
   const [permissions, setPermissions] = useState(defaultFullPermissions())
+  const [pharmacistPermissionsMap, setPharmacistPermissionsMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [loadingPermissions, setLoadingPermissions] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -141,23 +102,11 @@ export default function RolesPermissions() {
     return () => window.clearTimeout(timeoutId)
   }, [success])
 
-  async function loadPharmacistPermissions(targetId, targetEmail) {
+  async function loadPharmacistPermissions(targetId) {
     if (!targetId) {
       setPermissions(EMPTY_PERMISSIONS)
       return
     }
-
-    const cached = readStoredPermissionsForPharmacist(targetId, targetEmail)
-    const isCustomized = localStorage.getItem(`pms_pharmacist_custom_${targetId}`) === 'true'
-
-    let initialPerms
-    if (cached && (permissionCount(cached) >= 2 || isCustomized)) {
-      initialPerms = cached
-    } else {
-      initialPerms = defaultFullPermissions()
-      savePermissionsLocallyForPharmacist(targetId, initialPerms, targetEmail)
-    }
-    setPermissions(initialPerms)
 
     setLoadingPermissions(true)
     try {
@@ -165,14 +114,17 @@ export default function RolesPermissions() {
       const src = extractValidPermissionSource(response)
       if (src && (Array.isArray(src) ? src.length > 0 : Object.keys(src).length > 0)) {
         const normalized = normalizePermissions(src, MODULES)
-        const count = permissionCount(normalized)
-        if (count >= 2 || isCustomized) {
-          setPermissions(normalized)
-          savePermissionsLocallyForPharmacist(targetId, normalized, targetEmail)
-        }
+        setPermissions(normalized)
+        setPharmacistPermissionsMap((prev) => ({
+          ...prev,
+          [String(targetId)]: normalized,
+        }))
+      } else {
+        const fallback = pharmacistPermissionsMap[String(targetId)] || defaultFullPermissions()
+        setPermissions(fallback)
       }
-    } catch {
-      // Backend unavailable or offline - preserve full initial permissions
+    } catch (err) {
+      console.warn('Failed to fetch permissions for pharmacist ID:', targetId, err?.message || err)
     } finally {
       setLoadingPermissions(false)
     }
@@ -182,49 +134,17 @@ export default function RolesPermissions() {
     setLoading(true)
     setError('')
     try {
-      const activePharmacyId = String(
-        sessionStorage.getItem('workingPharmacyId') ||
-        localStorage.getItem('workingPharmacyId') ||
-        ''
-      )
-
-      let localList = typeof readLocalPharmacists === 'function' ? readLocalPharmacists(activePharmacyId) : []
-      if ((!localList || !localList.length) && typeof readLocalPharmacists === 'function') {
-        localList = readLocalPharmacists()
-      }
-      if (!localList || !localList.length) {
-        try {
-          const directRaw =
-            localStorage.getItem('pms_pharmacy_pharmacists') ||
-            sessionStorage.getItem('pms_pharmacy_pharmacists')
-          if (directRaw) {
-            const parsed = JSON.parse(directRaw)
-            if (Array.isArray(parsed)) localList = parsed
-          }
-        } catch {}
-      }
-
-      const pharmMap = new Map()
-      localList.forEach((p) => {
-        const id = idOf(p)
-        if (id) pharmMap.set(String(id), p)
-      })
-
-      try {
-        const res = await listPharmacists()
-        const backendList = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
-        backendList.forEach((p) => {
-          const id = idOf(p)
-          if (id) pharmMap.set(String(id), { ...pharmMap.get(String(id)), ...p })
-        })
-      } catch (err) {
-        console.warn('Backend listPharmacists notice:', err?.message || err)
-      }
-
-      const merged = Array.from(pharmMap.values())
+      const res = await listPharmacists()
+      const backendList = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.pharmacists)
+        ? res.pharmacists
+        : []
 
       // Filter strictly for real pharmacists - remove any branch or sub-branch!
-      const validPharmacists = merged.filter((p) => {
+      const validPharmacists = backendList.filter((p) => {
         const name = String(p?.name || p?.fullName || '').toLowerCase().trim()
         if (!name) return false
         if (name.includes('branch') || name.includes('subbranch')) {
@@ -233,37 +153,46 @@ export default function RolesPermissions() {
         return true
       })
 
-      // Clean local storage if any branch was mistakenly saved as a pharmacist
-      try {
-        const raw = localStorage.getItem('pms_pharmacy_pharmacists')
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          if (Array.isArray(parsed)) {
-            const cleaned = parsed.filter((p) => {
-              const name = String(p?.name || p?.fullName || '').toLowerCase().trim()
-              return !name.includes('branch') && !name.includes('subbranch')
-            })
-            if (cleaned.length !== parsed.length) {
-              localStorage.setItem('pms_pharmacy_pharmacists', JSON.stringify(cleaned))
+      setPharmacists(validPharmacists)
+
+      // Fetch permissions for all pharmacists directly from backend API
+      const permsMap = {}
+      await Promise.allSettled(
+        validPharmacists.map(async (p) => {
+          const pId = idOf(p)
+          if (!pId) return
+          try {
+            const inlineSrc = extractValidPermissionSource(p)
+            if (inlineSrc && (Array.isArray(inlineSrc) ? inlineSrc.length > 0 : Object.keys(inlineSrc).length > 0)) {
+              permsMap[String(pId)] = normalizePermissions(inlineSrc, MODULES)
+              return
             }
+            const permRes = await getPharmacistPermissions(pId)
+            const src = extractValidPermissionSource(permRes)
+            if (src && (Array.isArray(src) ? src.length > 0 : Object.keys(src).length > 0)) {
+              permsMap[String(pId)] = normalizePermissions(src, MODULES)
+            } else {
+              permsMap[String(pId)] = defaultFullPermissions()
+            }
+          } catch {
+            permsMap[String(pId)] = defaultFullPermissions()
           }
-        }
-      } catch {}
+        })
+      )
+      setPharmacistPermissionsMap(permsMap)
 
-      const finalPharmacists = validPharmacists.length > 0 ? validPharmacists : [
-        { id: '1', name: 'Raju', email: 'pharma.raju@gmail.com', role: 'Pharmacist' },
-      ]
-      setPharmacists(finalPharmacists)
-
-      setSelectedPharmacistId((prev) => {
-        if (prev && finalPharmacists.some((p) => String(idOf(p)) === String(prev))) return prev
-        const first = finalPharmacists[0]
-        const firstId = idOf(first) || '1'
-        if (firstId) {
-          loadPharmacistPermissions(firstId, first?.email || first?.user?.email)
-        }
-        return String(firstId)
-      })
+      if (validPharmacists.length > 0) {
+        setSelectedPharmacistId((prev) => {
+          const exists = prev && validPharmacists.some((p) => String(idOf(p)) === String(prev))
+          const targetId = exists ? String(prev) : String(idOf(validPharmacists[0]))
+          const initial = permsMap[targetId] || defaultFullPermissions()
+          setPermissions(initial)
+          return targetId
+        })
+      } else {
+        setSelectedPharmacistId('')
+        setPermissions(EMPTY_PERMISSIONS)
+      }
     } catch (requestError) {
       setError(requestError.message || 'Unable to load pharmacists and permissions.')
       setPharmacists([])
@@ -277,10 +206,8 @@ export default function RolesPermissions() {
     loadData()
     const handleSync = () => loadData()
     window.addEventListener('pms:pharmacists-updated', handleSync)
-    window.addEventListener('storage', handleSync)
     return () => {
       window.removeEventListener('pms:pharmacists-updated', handleSync)
-      window.removeEventListener('storage', handleSync)
     }
   }, [])
 
@@ -295,28 +222,32 @@ export default function RolesPermissions() {
     return pharmacists.map((p, index) => {
       const pId = idOf(p) || String(index + 1)
       const pEmail = p?.email || p?.user?.email || '-'
-      const cached = readStoredPermissionsForPharmacist(pId, pEmail)
+      const saved = pharmacistPermissionsMap[String(pId)] || defaultFullPermissions()
       return {
         id: pId,
         name: nameOf(p),
         email: pEmail,
         branchName: p?.branchName || p?.BranchName || p?.branch?.name || 'Main Branch',
-        savedPermissions: cached && permissionCount(cached) >= 2 ? cached : defaultFullPermissions(),
+        savedPermissions: saved,
       }
     })
-  }, [pharmacists])
+  }, [pharmacists, pharmacistPermissionsMap])
 
   async function selectPharmacist(pId) {
     if (!pId) return
     if (String(pId) === String(selectedPharmacistId)) {
       return
     }
-    const target = pharmacists.find((p) => String(idOf(p)) === String(pId))
     setSelectedPharmacistId(String(pId))
     setError('')
     setSuccess('')
     setSaveFeedback(null)
-    await loadPharmacistPermissions(pId, target?.email || target?.user?.email)
+
+    if (pharmacistPermissionsMap[String(pId)]) {
+      setPermissions(pharmacistPermissionsMap[String(pId)])
+    }
+
+    await loadPharmacistPermissions(pId)
   }
 
   function togglePermission(module, action, checked) {
@@ -385,55 +316,34 @@ export default function RolesPermissions() {
     setSaveFeedback(null)
 
     const pharmName = selectedPharmacist ? nameOf(selectedPharmacist) : `Pharmacist #${selectedPharmacistId}`
-    const pharmEmail = selectedPharmacist?.email || selectedPharmacist?.user?.email
-
-    const localSavedPermissions = normalizePermissions(permissions, MODULES)
-    setPermissions(localSavedPermissions)
-
-    localStorage.setItem(`pms_pharmacist_custom_${selectedPharmacistId}`, 'true')
-    savePermissionsLocallyForPharmacist(selectedPharmacistId, localSavedPermissions, pharmEmail)
-
-    // Update active session if signed in pharmacist matches
-    for (const store of [sessionStorage, localStorage]) {
-      try {
-        const rawUser = store.getItem('pharmacistUser')
-        if (rawUser) {
-          const u = JSON.parse(rawUser)
-          const matchesId = String(u?.id || u?.userId) === String(selectedPharmacistId)
-          const matchesEmail =
-            pharmEmail &&
-            String(u?.email || '').trim().toLowerCase() === String(pharmEmail).trim().toLowerCase()
-          if (matchesId || matchesEmail) {
-            u.permissions = localSavedPermissions
-            u.modulePermissions = localSavedPermissions
-            store.setItem('pharmacistUser', JSON.stringify(u))
-          }
-        }
-      } catch {}
-    }
-
-    window.dispatchEvent(
-      new CustomEvent('pms:permissions-updated', {
-        detail: {
-          pharmacistId: selectedPharmacistId,
-          email: pharmEmail,
-          permissions: localSavedPermissions,
-        },
-      })
-    )
+    const normalizedToSave = normalizePermissions(permissions, MODULES)
 
     try {
-      await updatePharmacistPermissions(selectedPharmacistId, { permissions: localSavedPermissions })
+      await updatePharmacistPermissions(selectedPharmacistId, normalizedToSave)
+      setPermissions(normalizedToSave)
+      setPharmacistPermissionsMap((prev) => ({
+        ...prev,
+        [String(selectedPharmacistId)]: normalizedToSave,
+      }))
+
+      window.dispatchEvent(
+        new CustomEvent('pms:permissions-updated', {
+          detail: {
+            pharmacistId: selectedPharmacistId,
+            permissions: normalizedToSave,
+          },
+        })
+      )
+
       const successMsg = `Permissions for ${pharmName} saved successfully!`
       setSuccess(successMsg)
       setSaveFeedback({ type: 'success', message: successMsg })
       showToast(successMsg, 'success')
     } catch (requestError) {
-      console.warn('Backend updatePharmacistPermissions fallback notice:', requestError?.message || requestError)
-      const successMsg = `Permissions for ${pharmName} saved locally!`
-      setSuccess(successMsg)
-      setSaveFeedback({ type: 'success', message: successMsg })
-      showToast(successMsg, 'success')
+      const errorMsg = requestError?.message || `Failed to save permissions for ${pharmName}.`
+      setError(errorMsg)
+      setSaveFeedback({ type: 'error', message: errorMsg })
+      showToast(errorMsg, 'error')
     } finally {
       setSaving(false)
     }

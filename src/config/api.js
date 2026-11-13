@@ -2950,25 +2950,9 @@ export function readLocalPharmacists(targetPharmacyId) {
       return true
     })
 
-    // If empty, retrieve the active pharmacist user
+    // If empty, return empty list (no fake mock users)
     if (!list.length) {
-      const pUser = readStoredJson('pharmacistUser') || {}
-      const pName = pUser.name || pUser.fullName
-      if (pName && !pName.toLowerCase().includes('branch')) {
-        list = [{
-          id: String(pUser.id || pUser.pharmacistId || '1'),
-          name: pName,
-          email: pUser.email || 'pharma.raju@gmail.com',
-          role: 'Pharmacist'
-        }]
-      } else {
-        list = [{
-          id: '1',
-          name: 'Raju',
-          email: 'pharma.raju@gmail.com',
-          role: 'Pharmacist'
-        }]
-      }
+      return []
     }
 
     // Isolate by pharmacyId if known
@@ -3044,52 +3028,11 @@ export async function listPharmacists(params = {}) {
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
 
-  const localList = readLocalPharmacists()
-  try {
-    const response = await request(`pharmacy-admin/pharmacists${query.toString() ? `?${query}` : ''}`)
-    const apiList = extractPharmacistsArray(response)
-    const localByIdOrEmail = new Map()
-    localList.forEach((p) => {
-      const pid = String(p?._id || p?.id || p?.pharmacistId || '')
-      const pemail = String(p?.email || '').trim().toLowerCase()
-      if (pid) localByIdOrEmail.set(`id:${pid}`, p)
-      if (pemail) localByIdIdOrEmailSet(localByIdOrEmail, `email:${pemail}`, p)
-    })
-
-    const apiIds = new Set()
-    const apiEmails = new Set()
-    const enrichedApi = apiList.map((item) => {
-      const id = String(item?._id || item?.id || item?.pharmacistId || '')
-      const email = String(item?.email || item?.user?.email || '').trim().toLowerCase()
-      if (id) apiIds.add(id)
-      if (email) apiEmails.add(email)
-      const cached = (id && localByIdOrEmail.get(`id:${id}`)) || (email && localByIdOrEmail.get(`email:${email}`))
-      if (!cached) return item
-      return {
-        ...cached,
-        ...item,
-        phone: item?.phone || item?.mobileNumber || cached?.phone || cached?.mobileNumber || '',
-        mobileNumber: item?.mobileNumber || item?.phone || cached?.mobileNumber || cached?.phone || '',
-        branchId: item?.branchId || item?.BranchId || cached?.branchId || '',
-        branchName: item?.branchName || item?.pharmacy?.name || item?.pharmacyName || cached?.branchName || '',
-      }
-    })
-
-    const remainingLocal = localList.filter((p) => {
-      const pid = String(p?._id || p?.id || p?.pharmacistId || '')
-      const pemail = String(p?.email || '').trim().toLowerCase()
-      if (pid && apiIds.has(pid)) return false
-      if (pemail && apiEmails.has(pemail)) return false
-      return true
-    })
-
-    const merged = [...enrichedApi, ...remainingLocal]
-    writeLocalPharmacists(merged)
-    return { ...(typeof response === 'object' && response ? response : {}), data: merged, pharmacists: merged }
-  } catch (err) {
-    console.warn('Backend listPharmacists notice (using local cached pharmacists):', err.message)
-    return { data: localList, pharmacists: localList }
-  }
+  const response = await request(`pharmacy-admin/pharmacists${query.toString() ? `?${query}` : ''}`, {
+    authRole: 'pharmacyAdmin',
+  })
+  const apiList = extractPharmacistsArray(response)
+  return { ...(typeof response === 'object' && response ? response : {}), data: apiList, pharmacists: apiList }
 }
 
 function localByIdIdOrEmailSet(map, key, val) {
@@ -3234,37 +3177,13 @@ export async function createPharmacist(payload = {}) {
       },
     })
 
-    const created = response?.pharmacist || response?.data?.pharmacist || response?.data || response || {}
-    const id = created?.pharmacistId || created?.PharmacistId || created?.id || created?._id || created?.userId || created?.UserId
-
-    if (id) {
-      const record = {
-        id,
-        pharmacistId: id,
-        name: cleanPayload.name,
-        email: cleanPayload.email,
-        phone: cleanPayload.mobileNumber || '',
-        mobileNumber: cleanPayload.mobileNumber || '',
-        branchId: fallbackBranchId,
-        status: 'Active',
-        isActive: true,
-        ...created,
-      }
-      const updatedList = readLocalPharmacists().filter((p) => String(p?.id || p?.pharmacistId) !== String(id) && p.email !== cleanPayload.email)
-      writeLocalPharmacists([record, ...updatedList])
-    }
-
     return response
 }
 
 export async function getPharmacist(id) {
-  try {
-    return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }))
-  } catch (err) {
-    const found = readLocalPharmacists().find((p) => String(p?._id || p?.id || p?.pharmacistId) === String(id))
-    if (found) return { data: found, pharmacist: found }
-    throw err
-  }
+  return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+    authRole: 'pharmacyAdmin',
+  })
 }
 
 export async function updatePharmacist(id, payload = {}) {
@@ -3277,37 +3196,24 @@ export async function updatePharmacist(id, payload = {}) {
     ...(numericBranchId ? { branchId: numericBranchId } : {}),
   }
 
-  const response = await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+  return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
     authRole: 'pharmacyAdmin',
     method: 'PUT',
     body: JSON.stringify(cleanPayload),
   })
-
-  const updated = response?.pharmacist || response?.data?.pharmacist || response?.data || response || {}
-  const list = readLocalPharmacists()
-  const idx = list.findIndex((p) => String(p?._id || p?.id || p?.pharmacistId) === String(id))
-  const merged = { ...(idx >= 0 ? list[idx] : {}), ...cleanPayload, ...updated, id, pharmacistId: id }
-  if (idx >= 0) list[idx] = merged
-  else list.push(merged)
-  writeLocalPharmacists(list)
-
-  return response
 }
 
 export async function deletePharmacist(id) {
-  const filtered = readLocalPharmacists().filter((p) => String(p?._id || p?.id || p?.pharmacistId) !== String(id))
-  writeLocalPharmacists(filtered)
-  try {
-    return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
-      method: 'DELETE',
-    })
-  } catch {
-    return { message: 'Pharmacist deleted successfully.' }
-  }
+  return await request(replacePathParams('pharmacy-admin/pharmacists/{id}', { id }), {
+    authRole: 'pharmacyAdmin',
+    method: 'DELETE',
+  })
 }
 
 export function getPharmacistPermissions(id) {
-  return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }))
+  return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }), {
+    authRole: 'pharmacyAdmin',
+  })
 }
 
 export function updatePharmacistPermissions(id, payload) {
@@ -3349,6 +3255,7 @@ export function updatePharmacistPermissions(id, payload) {
   }))
 
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/permissions', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'PUT',
     body: JSON.stringify(cleanList),
   })
@@ -3359,6 +3266,7 @@ export function assignPharmacistToAdminPharmacy(id, payload = {}) {
   const numericBranchId = parsePositiveInt(rawBranch)
   const cleanPayload = numericBranchId ? { branchId: numericBranchId, BranchId: numericBranchId } : {}
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/pharmacy-assignment', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'PUT',
     body: JSON.stringify(apiPayload(cleanPayload)),
   })
@@ -3367,21 +3275,19 @@ export function assignPharmacistToAdminPharmacy(id, payload = {}) {
 export const transferPharmacistBranch = assignPharmacistToAdminPharmacy
 
 export function resetPharmacistPassword(id, payload) {
+  const newPassword = payload?.newPassword || payload?.NewPassword || (typeof payload === 'string' ? payload : '')
+  const cleanPayload = newPassword ? { newPassword } : passwordResetPayload(payload)
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/reset-password', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'POST',
-    body: JSON.stringify(apiPayload(passwordResetPayload(payload))),
+    body: JSON.stringify(apiPayload(cleanPayload)),
   })
 }
 
 export async function changePharmacistStatus(id, payload) {
   const statusPayload = superAdminStatusPayload(payload)
-  const list = readLocalPharmacists().map((p) =>
-    String(p?._id || p?.id || p?.pharmacistId) === String(id)
-      ? { ...p, status: statusPayload.status || (statusPayload.isActive ? 'Active' : 'Inactive'), isActive: statusPayload.isActive }
-      : p
-  )
-  writeLocalPharmacists(list)
   return request(replacePathParams('pharmacy-admin/pharmacists/{id}/status', { id }), {
+    authRole: 'pharmacyAdmin',
     method: 'PATCH',
     body: JSON.stringify(apiPayload(statusPayload)),
   })
