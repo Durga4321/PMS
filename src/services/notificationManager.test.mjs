@@ -130,3 +130,4 @@ test('handles AbortError gracefully as expected lifecycle event without clearing
   const result = await fetchNotificationCount('pharmacyAdmin', { force: true, signal: controller.signal })
   assert.equal(result, 5, 'Should preserve existing count on AbortError')
 })
+
