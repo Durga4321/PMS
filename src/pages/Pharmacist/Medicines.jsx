@@ -97,7 +97,7 @@ export default function PharmacistMedicines() {
   const [viewingMedicine, setViewingMedicine] = useState(null)
 
   // Load medicines - merge local admin-added medicines with backend medicines
-  function loadMedicinesData(forceFresh = false) {
+  async function loadMedicinesData(forceFresh = false) {
     try {
       const currentAssigned = getPharmacistAssignedBranch()
       setAssignedBranch(currentAssigned)
@@ -121,36 +121,28 @@ export default function PharmacistMedicines() {
         setAllMedicines(local)
       }
 
-      // Fast background fetch without blocking screen
-      const fastFetch = Promise.race([
-        listMedicines({ branchId: currentAssigned?.id }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-      ])
-
-      fastFetch
-        .then(async (res) => {
-          const serverList = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
-          if (serverList.length > 0) {
-            serverList.forEach(m => {
-              const k = String(getId(m) || m?.name || '').trim().toLowerCase()
-              if (k) localMap.set(k, { ...localMap.get(k), ...m })
-            })
-            setAllMedicines(Array.from(localMap.values()))
-          } else if (local.length > 0) {
-            setAllMedicines(local)
-          }
-          try {
-            const inventory = returnList(await getPharmacistInventory({ branchId: currentAssigned?.id }))
-            setAllMedicines((current) => applyReturnedInventory(current, inventory))
-          } catch { /* Keep catalogue data when live inventory is unavailable. */ }
-        })
-        .catch((err) => {
-          console.warn('Pharmacist listMedicines fallback:', err?.message || err)
-          if (local.length > 0) setAllMedicines(local)
-        })
-        .finally(() => {
-          setLoading(false)
-        })
+      try {
+        const res = await listMedicines({ branchId: currentAssigned?.id })
+        const serverList = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
+        if (serverList.length > 0) {
+          serverList.forEach(m => {
+            const k = String(getId(m) || m?.name || '').trim().toLowerCase()
+            if (k) localMap.set(k, { ...localMap.get(k), ...m })
+          })
+          setAllMedicines(Array.from(localMap.values()))
+        } else if (local.length > 0) {
+          setAllMedicines(local)
+        }
+        try {
+          const inventory = returnList(await getPharmacistInventory({ branchId: currentAssigned?.id }))
+          setAllMedicines((current) => applyReturnedInventory(current, inventory))
+        } catch { /* Keep catalogue data when live inventory is unavailable. */ }
+      } catch (err) {
+        console.warn('Pharmacist listMedicines fallback:', err?.message || err)
+        if (local.length > 0) setAllMedicines(local)
+      } finally {
+        setLoading(false)
+      }
     } catch {
       setLoading(false)
     }

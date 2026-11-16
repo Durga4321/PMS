@@ -141,17 +141,19 @@ export default function Settings() {
         const nonNullMapped = Object.fromEntries(
           Object.entries(mapped).filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
         )
+        const nonNullSavedLocal = Object.fromEntries(
+          Object.entries(savedLocal).filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+        )
         setSettings((prev) => ({
           ...prev,
+          ...nonNullSavedLocal,
           ...nonNullMapped,
-          // Saved local edits take precedence over stale backend fields so user changes are never lost
-          ...savedLocal,
         }))
       } else {
         const user = readStoredValue('pharmacyAdminUser') || {}
         const assignment = readStoredValue('pharmacyAdminAssignment') || {}
         const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || assignment?.pharmacyId || user?.pharmacyId)
-        if (!isAssigned) {
+        if (!isAssigned && !savedLocal.pharmacyName && !savedLocal.address) {
           setSettings((prev) => ({
             ...prev,
             pharmacyName: '',

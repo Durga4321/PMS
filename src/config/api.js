@@ -482,6 +482,17 @@ async function request(path, options = {}) {
       throw error
     }
     if (error?.name === 'TypeError') {
+      const currentRetries = options.__retries || 0
+      const maxRetries = options.maxRetries ?? (isGetOrHead ? 2 : 1)
+      if (currentRetries < maxRetries && (!signal || !signal.aborted)) {
+        await new Promise((resolve) => setTimeout(resolve, 800 * (currentRetries + 1)))
+        if (!signal?.aborted) {
+          return request(path, {
+            ...options,
+            __retries: currentRetries + 1,
+          })
+        }
+      }
       throw new Error('Cannot connect to the server. Check your connection and try again.')
     }
     throw error
@@ -519,6 +530,17 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
+    const isGatewayError = response.status === 502 || response.status === 503 || response.status === 504
+    const currentRetries = options.__retries || 0
+    const maxRetries = options.maxRetries ?? (isGetOrHead ? 2 : 1)
+    if (isGatewayError && currentRetries < maxRetries && (!signal || !signal.aborted)) {
+      await new Promise((resolve) => setTimeout(resolve, 800 * (currentRetries + 1)))
+      if (signal?.aborted) throw new Error('Request was cancelled')
+      return request(path, {
+        ...options,
+        __retries: currentRetries + 1,
+      })
+    }
     let errorMsg =
       data?.message ||
       data?.Message ||
@@ -1525,7 +1547,14 @@ export async function listMedicines(params = {}) {
 
   // When backend responds successfully (HTTP 200)
   if (backendResponded) {
-    const normalizedBackend = backendList.map(b => normalizeMedicineRecord(b))
+    const normalizedBackend = backendList.map(b => {
+      const norm = normalizeMedicineRecord(b)
+      if (!norm.branchId && branchId) {
+        norm.branchId = String(branchId)
+        norm.BranchId = String(branchId)
+      }
+      return norm
+    })
     const localItems = readLocalMedicines()
 
     // If backend database is empty or has 0 medicines, NEVER wipe out user's locally uploaded medicines!
@@ -2663,20 +2692,47 @@ export const getPharmacistInventory = (params = {}) => request(`inventory${query
 export const getPharmacistInventoryBatches = (medicineId) => request(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
 export const getPharmacistInventoryAlerts = (params = {}) => request(`pharmacist/inventory/alerts${queryString(params)}`, { authRole: 'pharmacist' })
 
-export async function getPharmacyAdminAssignmentStatus() {
-  try {
-    const res = await request('pharmacy-admin-auth/assignment-status', { authRole: 'pharmacyAdmin' })
-    return res
-  } catch (err) {
-    return {
-      data: {
-        isPharmacyAssigned: false,
-        pharmacyId: '',
-        branchId: '',
-        pharmacyName: '',
-      }
-    }
+let assignmentStatusInFlight = null
+let lastAssignmentFetchTime = 0
+let lastAssignmentData = null
+
+export async function getPharmacyAdminAssignmentStatus(options = {}) {
+  const { force = false } = options
+  const existing = readStoredJson('pharmacyAdminAssignment') || {}
+
+  const now = Date.now()
+  if (!force && lastAssignmentData && (now - lastAssignmentFetchTime < 15000)) {
+    return lastAssignmentData
   }
+
+  if (assignmentStatusInFlight) {
+    return assignmentStatusInFlight
+  }
+
+  assignmentStatusInFlight = (async () => {
+    try {
+      const res = await request('pharmacy-admin-auth/assignment-status', { authRole: 'pharmacyAdmin' })
+      lastAssignmentData = res
+      lastAssignmentFetchTime = Date.now()
+      return res
+    } catch (err) {
+      if (existing && (existing.pharmacyId || existing.isPharmacyAssigned)) {
+        return { data: existing, ...existing }
+      }
+      return {
+        data: {
+          isPharmacyAssigned: false,
+          pharmacyId: '',
+          branchId: '',
+          pharmacyName: '',
+        }
+      }
+    } finally {
+      assignmentStatusInFlight = null
+    }
+  })()
+
+  return assignmentStatusInFlight
 }
 
 export function changePharmacyAdminPassword(payload) {
@@ -3229,14 +3285,22 @@ export async function getPharmacySettings(options = {}) {
     const res = await request('pharmacy/settings', options)
     const data = res?.settings || res?.data?.settings || res?.data || res
     if (data && typeof data === 'object') {
+      const nonNullSaved = Object.fromEntries(
+        Object.entries(saved).filter(([, val]) => val !== undefined && val !== null && String(val).trim() !== '')
+      )
+      const nonNullData = Object.fromEntries(
+        Object.entries(data).filter(([, val]) => val !== undefined && val !== null && String(val).trim() !== '')
+      )
       const mergedSettings = {
-        ...data,
         ...saved,
-        ...(saved.status ? {
-          pharmacyStatus: saved.status,
-          status: saved.status,
-          isActive: saved.status === 'Active',
-          IsActive: saved.status === 'Active',
+        ...data,
+        ...nonNullSaved,
+        ...nonNullData,
+        ...(data.status || saved.status ? {
+          pharmacyStatus: data.status || saved.status,
+          status: data.status || saved.status,
+          isActive: (data.status || saved.status) === 'Active',
+          IsActive: (data.status || saved.status) === 'Active',
         } : {}),
       }
       return {
