@@ -561,23 +561,17 @@ export default function Medicines() {
         setMedicines([])
       }
 
-      // Fast background sync without blocking UI
-      Promise.race([
-        (query ? searchMedicines({ search: query, q: query, category, dosageForm }) : listMedicines({ search: query, q: query, category, dosageForm })),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-      ])
-        .then((response) => {
-          const list = normalizeList(response)
-          if (list && list.length > 0) {
-            writeLocalMedicines(fullMergedList)
-            setMedicines(list)
-          }
-        })
-        .catch(() => {})
-        .finally(() => {
-          setLoading(false)
-        })
+      const response = await (query
+        ? searchMedicines({ search: query, q: query, category, dosageForm })
+        : listMedicines({ search: query, q: query, category, dosageForm }))
+      const list = normalizeList(response)
+      if (Array.isArray(list)) {
+        writeLocalMedicines(list)
+        setMedicines(list)
+      }
     } catch (error) {
+      console.warn('loadMedicines error:', error?.message || error)
+    } finally {
       setLoading(false)
     }
   }
@@ -617,7 +611,7 @@ export default function Medicines() {
           return norm
         })
         if (updatedAny) {
-          writeLocalMedicines(fullMergedList)
+          writeLocalMedicines(healed)
         }
         setMedicines(healed)
       }

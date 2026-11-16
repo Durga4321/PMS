@@ -188,7 +188,7 @@ function AdminDashboard() {
 
     const fast = (p) => Promise.race([
       p,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000))
     ])
 
     Promise.allSettled([

@@ -1547,7 +1547,14 @@ export async function listMedicines(params = {}) {
 
   // When backend responds successfully (HTTP 200)
   if (backendResponded) {
-    const normalizedBackend = backendList.map(b => normalizeMedicineRecord(b))
+    const normalizedBackend = backendList.map(b => {
+      const norm = normalizeMedicineRecord(b)
+      if (!norm.branchId && branchId) {
+        norm.branchId = String(branchId)
+        norm.BranchId = String(branchId)
+      }
+      return norm
+    })
     const localItems = readLocalMedicines()
 
     // If backend database is empty or has 0 medicines, NEVER wipe out user's locally uploaded medicines!
