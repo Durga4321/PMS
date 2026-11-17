@@ -1,12 +1,44 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiPlus, FiRefreshCw, FiRotateCcw, FiTrash2 } from 'react-icons/fi'
-import { pharmacistReturnsApi } from '../../config/api'
+import { getPharmacistAssignedBranch, pharmacistReturnsApi } from '../../config/api'
 import PharmacistLayout from './PharmacistLayout'
 import { useToast } from '../../components/ToastProvider'
 import { confirmAction } from '../../components/confirmAction'
 import { isReturnApproved, matchingReturnMedicine, medicineIdentity, medicineOptions, newReturnLine, returnList, returnMedicineLabel, returnPayload, returnedRecord } from './returnsModel'
 import './Returns.css'
+
+function isAbortError(err) {
+  return (
+    err?.name === 'AbortError' ||
+    err?.code === 20 ||
+    err?.isCanceled === true ||
+    /aborted|canceled/i.test(err?.message || '')
+  )
+}
+
+function classifyError(err, fallback = 'An unexpected error occurred.') {
+  if (!err) return null
+  if (isAbortError(err)) return { type: 'canceled', isAbort: true, message: '' }
+  const status = err.status || err.response?.status
+  const rawMsg = String(err.message || '')
+  if (status === 401 || /401|unauthorized/i.test(rawMsg)) {
+    return { type: '401', status: 401, message: 'Your session has expired. Please log in again to continue.' }
+  }
+  if (status === 403 || /403|forbidden|access denied/i.test(rawMsg)) {
+    return { type: '403', status: 403, message: 'Access denied for this pharmacist account. Verify your permissions and branch assignment.' }
+  }
+  if (status === 404 || /404|not found/i.test(rawMsg)) {
+    return { type: '404', status: 404, message: 'The requested returns service endpoint was not found on the server (404).' }
+  }
+  if (status === 500 || status === 502 || status === 503 || /500|502|503|internal server error/i.test(rawMsg)) {
+    return { type: '500', status: status || 500, message: `Server error (${status || 500}). The backend service encountered an issue. Please retry.` }
+  }
+  if (/network|failed to fetch|unable to connect/i.test(rawMsg)) {
+    return { type: 'network', message: 'Unable to connect to the server. Check your connection and retry.' }
+  }
+  return { type: 'general', status, message: rawMsg || fallback }
+}
 
 export default function Returns() {
   const { showToast } = useToast()
@@ -18,6 +50,7 @@ export default function Returns() {
   const [medicineSearch, setMedicineSearch] = useState({})
   const [returnReasons, setReturnReasons] = useState(['Unused medicines', 'Incorrect supply', 'Damaged packaging', 'Expired medicine', 'Other'])
   const [form, setForm] = useState({ patientName: '', billId: '', reason: '', notes: '', verified: false })
+  const [billStatus, setBillStatus] = useState({ checking: false, verified: false, error: '', patientName: '', bill: null })
   const [lines, setLines] = useState(() => [newReturnLine()])
   const latestLines = useRef(lines)
   const [loading, setLoading] = useState(true)
@@ -43,47 +76,148 @@ export default function Returns() {
   useEffect(() => {
     const controller = new AbortController()
     let active = true
+
     async function load() {
       setLoading(true)
-      const results = await Promise.allSettled([
-        pharmacistReturnsApi.inventory({ signal: controller.signal }),
-        pharmacistReturnsApi.list({ page: 1, pageSize: 100 }, { signal: controller.signal }),
-        pharmacistReturnsApi.options({ signal: controller.signal }),
-      ])
-      if (!active) return
-      if (results[0].status === 'fulfilled') { setInventory(returnList(results[0].value)); setInventoryError('') }
-      else setInventoryError(results[0].reason?.message || 'Unable to load medicines.')
-      if (results[1].status === 'fulfilled') { setHistory(returnList(results[1].value)); setHistoryError('') }
-      else setHistoryError(results[1].reason?.message || 'Unable to load medicine returns.')
-      if (results[2].status === 'fulfilled') {
-        const optData = results[2].value?.data || results[2].value
-        const reasons = optData?.reasons || optData?.returnReasons || (Array.isArray(optData) ? optData : null)
-        if (Array.isArray(reasons) && reasons.length > 0) {
-          setReturnReasons(reasons.map((r) => typeof r === 'string' ? r : r?.label || r?.name || String(r)))
+      try {
+        const results = await Promise.allSettled([
+          pharmacistReturnsApi.inventory({ signal: controller.signal }),
+          pharmacistReturnsApi.list({ page: 1, pageSize: 100 }, { signal: controller.signal }),
+          pharmacistReturnsApi.options({ signal: controller.signal }),
+        ])
+        if (!active || controller.signal.aborted) return
+
+        if (results[0].status === 'fulfilled') {
+          setInventory(returnList(results[0].value))
+          setInventoryError('')
+        } else {
+          const err = results[0].reason
+          if (!isAbortError(err)) {
+            const classified = classifyError(err, 'Unable to load medicines.')
+            setInventoryError(classified.message)
+          }
         }
+
+        if (results[1].status === 'fulfilled') {
+          setHistory(returnList(results[1].value))
+          setHistoryError('')
+        } else {
+          const err = results[1].reason
+          if (!isAbortError(err)) {
+            const classified = classifyError(err, 'Unable to load medicine returns.')
+            setHistoryError(classified.message)
+          }
+        }
+
+        if (results[2].status === 'fulfilled') {
+          const optData = results[2].value?.data || results[2].value
+          const reasons = optData?.reasons || optData?.returnReasons || (Array.isArray(optData) ? optData : null)
+          if (Array.isArray(reasons) && reasons.length > 0) {
+            setReturnReasons(reasons.map((r) => typeof r === 'string' ? r : r?.label || r?.name || String(r)))
+          }
+        }
+      } catch (failure) {
+        if (!active || isAbortError(failure)) return
+        const classified = classifyError(failure)
+        setError(classified.message)
+      } finally {
+        if (active) setLoading(false)
       }
-      setLoading(false)
     }
+
     load()
     return () => { active = false; controller.abort() }
   }, [revision])
 
-  async function handleBillLookup(billIdVal) {
-    const rawBillId = String(billIdVal || '').trim()
-    if (!rawBillId) return
+  async function retryInventory() {
+    setLoading(true)
+    setInventoryError('')
     try {
-      const response = await pharmacistReturnsApi.billItems(rawBillId)
-      const items = returnList(response)
-      if (Array.isArray(items) && items.length > 0) {
-        const pName = items[0]?.patientName || response?.patientName || response?.patient?.name || ''
-        if (pName && !form.patientName) {
-          setForm((prev) => ({ ...prev, patientName: pName }))
-        }
+      const res = await pharmacistReturnsApi.inventory()
+      setInventory(returnList(res))
+      setInventoryError('')
+    } catch (failure) {
+      if (!isAbortError(failure)) {
+        const classified = classifyError(failure, 'Unable to load medicines.')
+        setInventoryError(classified.message)
       }
-    } catch {
-      // Optional enhancement: if bill lookup fails, user enters details manually
+    } finally {
+      setLoading(false)
     }
   }
+
+  async function retryHistory() {
+    setLoading(true)
+    setHistoryError('')
+    try {
+      const res = await pharmacistReturnsApi.list({ page: 1, pageSize: 100 })
+      setHistory(returnList(res))
+      setHistoryError('')
+    } catch (failure) {
+      if (!isAbortError(failure)) {
+        const classified = classifyError(failure, 'Unable to load medicine returns.')
+        setHistoryError(classified.message)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleBillLookup(billIdVal) {
+    const rawBillId = String(billIdVal || '').trim()
+    if (!rawBillId) {
+      setBillStatus({ checking: false, verified: false, error: '', patientName: '', bill: null })
+      return
+    }
+    setBillStatus((current) => ({ ...current, checking: true, error: '' }))
+    try {
+      const response = await pharmacistReturnsApi.billItems(rawBillId)
+      const assigned = getPharmacistAssignedBranch()
+      const currentBranchId = String(assigned?.branchId || assigned?.id || '').trim()
+
+      const billData = response?.data || response
+      const billBranchId = String(
+        billData?.branchId ??
+        billData?.BranchId ??
+        billData?.branch?.id ??
+        billData?.branch?.branchId ??
+        (Array.isArray(billData?.items) ? billData.items[0]?.branchId : '') ??
+        ''
+      ).trim()
+
+      if (currentBranchId && billBranchId && currentBranchId !== billBranchId) {
+        setBillStatus({ checking: false, verified: false, error: 'Bill not found in this branch.', patientName: '', bill: null })
+        return
+      }
+
+      const items = returnList(billData)
+      const pName = billData?.patientName || billData?.patient?.name || (items.length ? items[0]?.patientName : '') || ''
+      if (pName && !form.patientName) {
+        setForm((prev) => ({ ...prev, patientName: pName }))
+      }
+      setBillStatus({ checking: false, verified: true, error: '', patientName: pName, bill: billData })
+    } catch (failure) {
+      if (isAbortError(failure)) return
+      const status = failure?.status || failure?.response?.status
+      const msg = String(failure?.message || '')
+      let userMsg
+      if (status === 404 || /not found/i.test(msg)) {
+        userMsg = 'Bill not found. Please verify the Bill ID.'
+      } else if (status === 401 || /unauthorized|401/i.test(msg)) {
+        userMsg = 'Session expired. Please log in again to verify the bill.'
+      } else if (status === 403 || /forbidden|403|access denied/i.test(msg)) {
+        userMsg = 'Access denied while verifying bill in this branch.'
+      } else if (status === 500 || /500|server error/i.test(msg)) {
+        userMsg = 'Server error (500) while verifying bill. Please try again.'
+      } else if (/network|failed to fetch|unable to connect/i.test(msg)) {
+        userMsg = 'Unable to connect to the server to verify the bill.'
+      } else {
+        userMsg = msg || 'Unable to verify the bill.'
+      }
+      setBillStatus({ checking: false, verified: false, error: userMsg, patientName: '', bill: null })
+    }
+  }
+
   async function selectMedicine(key, medicineId) {
     updateLine(key, { medicineId, batchId: '', batchNumber: '', expiryDate: '', error: '' })
     if (!medicineId || batches[medicineId]) return
@@ -94,6 +228,7 @@ export default function Returns() {
       const embedded = inventory.filter((item) => String(medicineIdentity(item)) === medicineId && item.batchNumber)
       setBatches((current) => ({ ...current, [medicineId]: loaded.length ? loaded : embedded }))
     } catch (failure) {
+      if (isAbortError(failure)) return
       setBatches((current) => ({ ...current, [medicineId]: inventory.filter((item) => String(medicineIdentity(item)) === medicineId && item.batchNumber) }))
       setBatchErrors((current) => ({ ...current, [medicineId]: failure.message }))
     }
@@ -165,14 +300,15 @@ export default function Returns() {
     <header className="pr-heading"><div><p>Pharmacist / Returns</p><h1>Medicine Returns</h1><p>Record tablets returned by a customer or patient and add approved quantities back to medicine stock.</p></div><button type="button" disabled={loading || busy} onClick={() => setRevision((value) => value + 1)}><FiRefreshCw />Refresh</button></header>
     <nav className="pr-tabs" aria-label="Medicine return views"><button type="button" aria-pressed={tab === 'new'} onClick={() => setTab('new')}>New Return</button><button type="button" aria-pressed={tab === 'history'} onClick={() => setTab('history')}>Return History</button><Link to="/pharmacist/medicines">View Medicines</Link></nav>
     {error ? <p className="pr-error" role="alert">{error}</p> : null}{notice ? <p className="pr-notice" role="status">{notice}</p> : null}
-    {tab === 'new' ? <form className="pr-card" onSubmit={submit}><header className="pr-card-heading"><div><h2><FiRotateCcw />Return Medicines</h2><p>Select the medicine name and the number of tablets being returned.</p></div>{completed ? <button type="button" onClick={() => { changeLines([newReturnLine()]); setForm({ patientName: '', billId: '', reason: '', notes: '', verified: false }); setNotice(''); setError(''); setLinePage(0) }}>Start New Return</button> : null}</header>
-      {inventoryError ? <p className="pr-error" role="alert">{inventoryError}</p> : null}
-      <fieldset disabled={busy || completed}><div className="pr-details"><label>Patient / Customer Name<input value={form.patientName} maxLength={150} onChange={(event) => setForm((current) => ({ ...current, patientName: event.target.value }))} placeholder="Optional" /></label><label>Original Bill ID *<input required value={form.billId} disabled={lines.some((row) => row.returnId)} onBlur={(event) => handleBillLookup(event.target.value)} onChange={(event) => setForm((current) => ({ ...current, billId: event.target.value }))} placeholder="Enter the bill ID from Bills" /></label><label>Reason for Return *<select required value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}><option value="">Select a reason</option>{returnReasons.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</select></label></div>
+    {tab === 'new' ? <form className="pr-card" onSubmit={submit}><header className="pr-card-heading"><div><h2><FiRotateCcw />Return Medicines</h2><p>Select the medicine name and the number of tablets being returned.</p></div>{completed ? <button type="button" onClick={() => { changeLines([newReturnLine()]); setForm({ patientName: '', billId: '', reason: '', notes: '', verified: false }); setBillStatus({ checking: false, verified: false, error: '', patientName: '', bill: null }); setNotice(''); setError(''); setLinePage(0) }}>Start New Return</button> : null}</header>
+      {inventoryError ? <div className="pr-error-card" role="alert"><span>{inventoryError}</span><button type="button" onClick={retryInventory}><FiRefreshCw />Retry Medicines</button></div> : null}
+      <fieldset disabled={busy || completed}><div className="pr-details"><label>Patient / Customer Name<input value={form.patientName} maxLength={150} onChange={(event) => setForm((current) => ({ ...current, patientName: event.target.value }))} placeholder="Optional" /></label><label>Original Bill ID *<input required value={form.billId} disabled={lines.some((row) => row.returnId)} onBlur={(event) => handleBillLookup(event.target.value)} onChange={(event) => { const val = event.target.value; setForm((current) => ({ ...current, billId: val })); if (!val.trim()) setBillStatus({ checking: false, verified: false, error: '', patientName: '', bill: null }) }} placeholder="Enter the bill ID from Bills" />{billStatus.checking ? <small className="pr-hint">Verifying bill with branch records...</small> : billStatus.error ? <small className="pr-error" role="alert">{billStatus.error}</small> : billStatus.verified ? <small className="pr-success">Bill verified for this branch.{billStatus.patientName ? ` Patient: ${billStatus.patientName}` : ''}</small> : null}</label><label>Reason for Return *<select required value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}><option value="">Select a reason</option>{returnReasons.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</select></label></div>
       <div className="pr-lines-heading"><h3>Returned Medicines</h3><button type="button" onClick={() => { changeLines((current) => [...current, newReturnLine()]); setLinePage(Math.floor(lines.length / 3)) }}><FiPlus />Add Medicine</button></div>
+      {medicines.length === 0 && !loading && !inventoryError ? <p className="pr-empty">No eligible medicines found in branch catalog.</p> : null}
       <div className="pr-table-scroll"><table><thead><tr><th>Medicine Name *</th><th>Original Batch *</th><th>Returning Quantity *</th><th>Condition</th><th>Action</th></tr></thead><tbody>{lines.slice(visibleLinePage * 3, visibleLinePage * 3 + 3).map((row, localIndex) => { const index = visibleLinePage * 3 + localIndex; const availableBatches = batches[row.medicineId] || []; return <tr key={row.key}><td><input type="search" aria-label={`Medicine ${index + 1}`} required autoComplete="off" list={`return-medicines-${row.key}`} placeholder="Search medicine by name..." disabled={Boolean(row.returnId) || loading} value={medicineSearch[row.key] ?? returnMedicineLabel(medicines.find((medicine) => medicine.id === row.medicineId) || { name: '' })} onChange={(event) => { const value = event.target.value; setMedicineSearch((current) => ({ ...current, [row.key]: value })); const match = matchingReturnMedicine(medicines, value); if ((match?.id || '') !== row.medicineId) selectMedicine(row.key, match?.id || '') }} /><datalist id={`return-medicines-${row.key}`}>{medicines.filter((medicine) => returnMedicineLabel(medicine).toLocaleLowerCase().includes((medicineSearch[row.key] || '').trim().toLocaleLowerCase())).map((medicine) => <option key={medicine.id} value={returnMedicineLabel(medicine)} translate="no" />)}</datalist>{row.error ? <small className="pr-error">{row.error}</small> : null}</td><td>{availableBatches.length ? <select aria-label={`Batch ${index + 1}`} required disabled={Boolean(row.returnId)} value={row.batchNumber} onChange={(event) => { const batch = availableBatches.find((item) => String(item.batchNumber ?? item.batchNo) === event.target.value); updateLine(row.key, { batchNumber: event.target.value, batchId: batch?.batchId ?? batch?.id ?? '', expiryDate: batch?.expiryDate ?? batch?.expiry ?? '' }) }}><option value="">Select batch</option>{availableBatches.map((batch, batchIndex) => <option key={batch.batchId ?? batch.id ?? batchIndex} value={batch.batchNumber ?? batch.batchNo} translate="no">{batch.batchNumber ?? batch.batchNo}</option>)}</select> : <input aria-label={`Batch ${index + 1}`} required disabled={Boolean(row.returnId)} value={row.batchNumber} onChange={(event) => updateLine(row.key, { batchNumber: event.target.value })} placeholder="Original batch number" />}{batchErrors[row.medicineId] ? <small>Batch lookup unavailable. Verify the original batch number.</small> : null}</td><td><input aria-label={`Returned quantity ${index + 1}`} required type="number" min={1} step={1} disabled={Boolean(row.returnId)} value={row.quantity} onChange={(event) => updateLine(row.key, { quantity: event.target.value })} /></td><td><select aria-label={`Condition ${index + 1}`} disabled={Boolean(row.returnId)} value={row.condition} onChange={(event) => updateLine(row.key, { condition: event.target.value })}><option value="restock">Eligible for restocking</option><option value="damaged">Damaged — keep separate</option><option value="expired">Expired — keep separate</option></select></td><td>{row.completed ? <span className="pr-status">Recorded</span> : <button type="button" aria-label={`Remove return medicine ${index + 1}`} disabled={lines.length === 1 || Boolean(row.returnId)} onClick={() => changeLines((current) => current.filter((item) => item.key !== row.key))}><FiTrash2 /></button>}</td></tr> })}</tbody></table></div>
       {lines.length > 3 ? <nav className="pr-pagination"><button type="button" disabled={visibleLinePage === 0} onClick={() => setLinePage(visibleLinePage - 1)}>Previous</button><span>Page {visibleLinePage + 1} / {Math.ceil(lines.length / 3)}</span><button type="button" disabled={(visibleLinePage + 1) * 3 >= lines.length} onClick={() => setLinePage(visibleLinePage + 1)}>Next</button></nav> : null}
       <div className="pr-bottom"><label>Notes<textarea rows={2} maxLength={2000} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional return details" /></label><label className="pr-check"><input type="checkbox" checked={form.verified} onChange={(event) => setForm((current) => ({ ...current, verified: event.target.checked }))} /><span>I verified the batch, expiry, packaging, and condition of medicines marked for restocking.</span></label></div></fieldset>
       <footer className="pr-footer"><div><strong>{lines.length} medicines</strong><span>Total returned quantity: {lines.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0)}</span></div><button className="pr-primary" type="submit" disabled={busy || loading || completed || Boolean(inventoryError)}>{busy ? 'Processing return...' : completed ? 'Return Recorded' : lines.some((row) => row.condition === 'restock') ? 'Return & Add to Stock' : 'Record Return'}</button></footer><p className="pr-help">Stock is updated only after server approval. Damaged and expired medicines are not added to available stock.</p>
-    </form> : <section className="pr-card"><header className="pr-card-heading"><h2>Return History</h2><input className="pr-search" aria-label="Search medicine returns" placeholder="Search medicine, patient or bill ID..." value={search} onChange={(event) => { setSearch(event.target.value); setPage(0) }} /></header>{historyError ? <p className="pr-error" role="alert">{historyError}</p> : null}<div className="pr-table-scroll"><table><thead><tr>{['Return ID', 'Patient', 'Bill ID', 'Medicine', 'Quantity', 'Status', 'Actions'].map((label) => <th key={label}>{label}</th>)}</tr></thead><tbody>{filteredHistory.slice(visibleHistoryPage * 5, visibleHistoryPage * 5 + 5).map((row, index) => { const status = String(row.status ?? row.state ?? 'Pending'); const pending = /pending|requested/i.test(status); const held = /damaged|expired/i.test(String(row.condition ?? '')); return <tr key={row.returnId ?? row.id ?? index}><td>{row.returnId ?? row.id ?? '—'}</td><td translate="no">{row.patientName || '—'}</td><td>{row.billId || '—'}</td><td translate="no">{row.medicineName ?? row.medicine?.name ?? '—'}</td><td>{row.quantity ?? row.returnQuantity ?? '—'}</td><td><span className={`pr-status ${pending ? 'is-pending' : ''}`}>{status}</span></td><td><div className="pr-row-actions">{pending && !held ? <button type="button" disabled={busy} onClick={() => historyAction(row, 'approve')}>Approve & Restock</button> : null}{pending ? <button type="button" disabled={busy} onClick={() => historyAction(row, 'cancel')}>Cancel</button> : null}</div></td></tr> })}</tbody></table></div>{loading ? <p role="status">Loading returns...</p> : !historyError && !filteredHistory.length ? <p className="pr-empty">No medicine returns found.</p> : null}<nav className="pr-pagination"><button type="button" disabled={visibleHistoryPage === 0} onClick={() => setPage(visibleHistoryPage - 1)}>Previous</button><span>Page {visibleHistoryPage + 1} / {Math.max(1, Math.ceil(filteredHistory.length / 5))}</span><button type="button" disabled={(visibleHistoryPage + 1) * 5 >= filteredHistory.length} onClick={() => setPage(visibleHistoryPage + 1)}>Next</button></nav></section>}
+    </form> : <section className="pr-card"><header className="pr-card-heading"><h2>Return History</h2><input className="pr-search" aria-label="Search medicine returns" placeholder="Search medicine, patient or bill ID..." value={search} onChange={(event) => { setSearch(event.target.value); setPage(0) }} /></header>{historyError ? <div className="pr-error-card" role="alert"><span>{historyError}</span><button type="button" onClick={retryHistory}><FiRefreshCw />Retry History</button></div> : null}<div className="pr-table-scroll"><table><thead><tr>{['Return ID', 'Patient', 'Bill ID', 'Medicine', 'Quantity', 'Status', 'Actions'].map((label) => <th key={label}>{label}</th>)}</tr></thead><tbody>{filteredHistory.slice(visibleHistoryPage * 5, visibleHistoryPage * 5 + 5).map((row, index) => { const status = String(row.status ?? row.state ?? 'Pending'); const pending = /pending|requested/i.test(status); const held = /damaged|expired/i.test(String(row.condition ?? '')); return <tr key={row.returnId ?? row.id ?? index}><td>{row.returnId ?? row.id ?? '—'}</td><td translate="no">{row.patientName || '—'}</td><td>{row.billId || '—'}</td><td translate="no">{row.medicineName ?? row.medicine?.name ?? '—'}</td><td>{row.quantity ?? row.returnQuantity ?? '—'}</td><td><span className={`pr-status ${pending ? 'is-pending' : ''}`}>{status}</span></td><td><div className="pr-row-actions">{pending && !held ? <button type="button" disabled={busy} onClick={() => historyAction(row, 'approve')}>Approve & Restock</button> : null}{pending ? <button type="button" disabled={busy} onClick={() => historyAction(row, 'cancel')}>Cancel</button> : null}</div></td></tr> })}</tbody></table></div>{loading ? <p role="status">Loading returns...</p> : !historyError && !filteredHistory.length ? <p className="pr-empty">No medicine returns found.</p> : null}<nav className="pr-pagination"><button type="button" disabled={visibleHistoryPage === 0} onClick={() => setPage(visibleHistoryPage - 1)}>Previous</button><span>Page {visibleHistoryPage + 1} / {Math.max(1, Math.ceil(filteredHistory.length / 5))}</span><button type="button" disabled={(visibleHistoryPage + 1) * 5 >= filteredHistory.length} onClick={() => setPage(visibleHistoryPage + 1)}>Next</button></nav></section>}
   </div></PharmacistLayout>
 }

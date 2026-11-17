@@ -111,3 +111,4 @@ test('Error classification maps HTTP status codes to user-friendly messages', ()
   assert.equal(errNet.type, 'network')
   assert.equal(errNet.message, 'Unable to connect to the server. Check your connection and retry.')
 })
+
