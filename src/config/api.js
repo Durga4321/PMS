@@ -1,4 +1,4 @@
-import medicineCatalogReference from '../data/medicineCatalogReference.json'
+import medicineCatalogReference from '../data/medicineCatalogReference.json' with { type: 'json' }
 const DEFAULT_API_BASE_URL = 'https://jackpot-citrus-compare.ngrok-free.dev';
 //const DEFAULT_API_BASE_URL = ' https://irritant-kilobyte-until.ngrok-free.dev'
 const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
@@ -6,14 +6,14 @@ const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
 const env = typeof process !== 'undefined' ? process.env : {}
 
 // Local API calls use Vite's server proxy so the browser stays on the same origin.
-export const API_BASE_URL = import.meta.env.DEV ? '' : (
-  import.meta.env.VITE_API_BASE_URL ||
+export const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.DEV) ? '' : (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
   env.REACT_APP_API_BASE_URL ||
   DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '')
 
 export const API_ASSET_BASE_URL = (
-  import.meta.env.VITE_API_ASSET_BASE_URL ||
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_ASSET_BASE_URL) ||
   env.REACT_APP_API_ASSET_BASE_URL ||
   DEFAULT_API_ASSET_BASE_URL
 ).replace(/\/+$/, '')
@@ -40,7 +40,7 @@ const tokenKeysByRole = {
   pharmacist: 'pharmacistToken',
 }
 
-function readStoredToken(name) {
+export function readStoredToken(name) {
   return sessionStorage.getItem(name) || localStorage.getItem(name)
 }
 
@@ -126,9 +126,12 @@ export function pharmacyTenantContext(authRole = '') {
   if (pharmacistSession) {
     const assignment = readStoredJson('pharmacistAssignment') || {}
     const user = readStoredJson('pharmacistUser') || {}
+    const rawWorking = readStoredJson('workingBranch') || {}
+    const storedWorkingBranchId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingBranchId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingBranchId') : null) || ''
+    const storedWorkingPharmacyId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || ''
     return {
-      pharmacyId: pickValidPharmacyId(assignment.pharmacyId, assignment.PharmacyId, assignment.pharmacy?.id, user.pharmacyId, user.PharmacyId, user.pharmacy?.id),
-      branchId: pickValidBranchId(assignment.branchId, assignment.BranchId, assignment.mainBranchId, assignment.branch?.id, user.branchId, user.BranchId, user.mainBranchId),
+      pharmacyId: pickValidPharmacyId(assignment.pharmacyId, assignment.PharmacyId, assignment.pharmacy?.id, user.pharmacyId, user.PharmacyId, user.pharmacy?.id, storedWorkingPharmacyId),
+      branchId: pickValidBranchId(assignment.branchId, assignment.BranchId, assignment.mainBranchId, assignment.branch?.id, user.branchId, user.BranchId, user.mainBranchId, rawWorking.id, rawWorking.branchId, storedWorkingBranchId),
       hospitalId: '', cmsBranchId: '',
     }
   }
@@ -1444,18 +1447,19 @@ export async function syncDeletedMedicinesWithBackend() {
 const medicineBranchChecks = new Map()
 const rejectedMedicineBranches = new Set()
 
-async function validateMedicineBranch(params) {
-  const context = pharmacyTenantContext()
-  const token = authTokenFor('medicine')
-  const isPharmacist = token === readStoredToken('pharmacistToken') ||
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))
+async function validateMedicineBranch(params = {}) {
+  const isPharmacist = params?.authRole === 'pharmacist' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist')) ||
+    readStoredToken('pharmacistToken') === authTokenFor('medicine')
+  const context = pharmacyTenantContext(isPharmacist ? 'pharmacist' : '')
+  const token = authTokenFor('medicine', isPharmacist ? 'pharmacist' : '')
 
   // Platform catalogue requests do not require a pharmacy branch.
   // Pharmacists already have their branch determined from their session/assignment and cannot access admin branch validation.
   if (!context.pharmacyId || token === readStoredToken('superAdminToken') || isPharmacist) {
     return params.branchId !== undefined && params.branchId !== null && params.branchId !== ''
       ? String(params.branchId)
-      : (context.branchId || '1')
+      : (context.branchId || '')
   }
 
   const key = JSON.stringify([token, context.pharmacyId])
@@ -1484,7 +1488,7 @@ async function validateMedicineBranch(params) {
   }
   let branchId = selected && idOf(selected)
   if (!branchId || !/^\d+$/.test(branchId) || Number(branchId) <= 0) {
-    branchId = params.branchId ? String(params.branchId) : (context.branchId || '1')
+    branchId = params.branchId ? String(params.branchId) : (context.branchId || '')
   }
   const rejectionKey = JSON.stringify([token, context.pharmacyId, branchId])
   if (rejectedMedicineBranches.has(rejectionKey)) {
@@ -1497,8 +1501,10 @@ async function validateMedicineBranch(params) {
 }
 
 export async function listMedicines(params = {}) {
-  const context = pharmacyTenantContext()
-  const token = authTokenFor('medicine')
+  const isPharmacistCaller = params.authRole === 'pharmacist' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))
+  const context = pharmacyTenantContext(isPharmacistCaller ? 'pharmacist' : '')
+  const token = authTokenFor('medicine', isPharmacistCaller ? 'pharmacist' : '')
   const isSuperAdmin = token === readStoredToken('superAdminToken')
 
   // If this is an admin who has no assigned or created pharmacy yet, return empty list!
@@ -1510,16 +1516,20 @@ export async function listMedicines(params = {}) {
   const query = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
+    if (key === 'authRole') return
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
 
-  const branchId = await validateMedicineBranch(params)
+  const branchId = await validateMedicineBranch({ ...params, authRole: isPharmacistCaller ? 'pharmacist' : undefined })
   if (branchId) query.set('branchId', branchId)
 
   let backendList = []
   let backendResponded = false
   try {
-    const response = await request(`medicine${query.toString() ? `?${query}` : ''}`, { tenantBranchId: branchId })
+    const response = await request(`medicine${query.toString() ? `?${query}` : ''}`, {
+      tenantBranchId: branchId,
+      ...(isPharmacistCaller ? { authRole: 'pharmacist' } : {})
+    })
     backendResponded = true
     const normalized = normalizeMedicineResponse(response)
     if (Array.isArray(normalized)) {
@@ -2688,8 +2698,33 @@ export const getPharmacyStockSummaryReport = () => request('pharmacy/reports/sto
 export const getPharmacyTopSellingReport = (params = {}) => request(`pharmacy/reports/top-selling${queryString(params)}`)
 export const getPharmacyAdminDashboard = () => request('pharmacy/dashboard', { authRole: 'pharmacyAdmin' })
 export const getPharmacistDashboard = () => request('pharmacist/dashboard', { authRole: 'pharmacist' })
-export const getPharmacistInventory = (params = {}) => request(`inventory${queryString(params)}`, { authRole: 'pharmacist' })
-export const getPharmacistInventoryBatches = (medicineId) => request(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
+export const getPharmacistInventory = async (params = {}) => {
+  const branchId = params.branchId || params.BranchId
+  try {
+    return await request(`pharmacist/inventory${queryString(params)}`, {
+      authRole: 'pharmacist',
+      ...(branchId ? { tenantBranchId: branchId } : {})
+    })
+  } catch (err) {
+    if (err.status === 404) {
+      return await request(`inventory${queryString(params)}`, {
+        authRole: 'pharmacist',
+        ...(branchId ? { tenantBranchId: branchId } : {})
+      })
+    }
+    throw err
+  }
+}
+export const getPharmacistInventoryBatches = async (medicineId) => {
+  try {
+    return await request(replacePathParams('pharmacist/inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
+  } catch (err) {
+    if (err.status === 404) {
+      return await request(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
+    }
+    throw err
+  }
+}
 export const getPharmacistInventoryAlerts = (params = {}) => request(`pharmacist/inventory/alerts${queryString(params)}`, { authRole: 'pharmacist' })
 
 let assignmentStatusInFlight = null
@@ -4233,12 +4268,12 @@ export function getPharmacistAssignedBranch() {
       (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyName') : null) ||
       ''
 
-    // Strip any prefix like "star - Main Branch" -> clean "Main Branch"
+    // Avoid hardcoding branchId=1 for unassigned pharmacists
     if (!finalId && !rawName) {
-      finalId = '1'
-      rawName = 'Main Branch'
+      finalId = ''
+      rawName = ''
     } else if (!rawName || rawName.includes(' - Main Branch') || (finalId === '1' && rawName.toLowerCase().includes('main'))) {
-      rawName = 'Main Branch'
+      rawName = rawName || 'Main Branch'
     }
 
     return {
