@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { applyReturnedInventory, isReturnApproved, matchingReturnMedicine, medicineOptions, newReturnLine, returnList, returnMedicineLabel, returnPayload, returnedRecord } from './returnsModel.js'
+import { applyReturnedInventory, isReturnApproved, matchingReturnMedicine, medicineOptions, newReturnLine, patientReturnPayload, returnList, returnMedicineLabel, returnPayload, returnedRecord } from './returnsModel.js'
 
 const medicines = medicineOptions([{ medicineId: 7, medicineName: 'Medicine A', batchNumber: 'B-1', quantity: 20 }])
 const form = { billId: '42', patientName: 'Example Patient', reason: 'Unused medicines', notes: '', verified: true }
@@ -54,4 +54,74 @@ test('return responses require real IDs and approval is distinguished from pendi
   assert.equal(isReturnApproved({ status: 'Pending' }), false)
   assert.throws(() => returnedRecord({ success: true }), /return ID/)
   assert.equal(returnList({ data: { items: [] } }).length, 0)
+})
+
+test('patientReturnPayload constructs backend contract structure with verifiedRestocking and medicines array', () => {
+  const customForm = {
+    billId: '25',
+    patientName: 'Test Patient',
+    reason: 'Unused medicines',
+    notes: 'Sample note',
+    verified: true,
+  }
+  const customLines = [
+    {
+      medicineId: '10',
+      originalBatch: 'BATCH001',
+      quantity: '2',
+      condition: 'restock',
+      returnableQuantity: 5,
+    },
+    {
+      medicineId: '12',
+      originalBatch: 'BATCH999',
+      quantity: '1',
+      condition: 'damaged',
+      returnableQuantity: 2,
+    },
+  ]
+  const payload = patientReturnPayload(customForm, customLines)
+  assert.deepEqual(payload, {
+    billId: 25,
+    patientName: 'Test Patient',
+    reason: 'Unused medicines',
+    notes: 'Sample note',
+    verifiedForRestocking: true,
+    medicines: [
+      {
+        medicineId: 10,
+        originalBatch: 'BATCH001',
+        quantity: 2,
+        condition: 'EligibleForRestocking',
+      },
+      {
+        medicineId: 12,
+        originalBatch: 'BATCH999',
+        quantity: 1,
+        condition: 'Damaged',
+      },
+    ],
+  })
+})
+
+test('patientReturnPayload validates return quantity against returnableQuantity', () => {
+  const customForm = {
+    billId: '25',
+    patientName: 'Test Patient',
+    reason: 'Unused medicines',
+    verified: true,
+  }
+  const excessLines = [
+    {
+      medicineId: '10',
+      originalBatch: 'BATCH001',
+      quantity: '6',
+      condition: 'restock',
+      returnableQuantity: 5,
+    },
+  ]
+  assert.throws(
+    () => patientReturnPayload(customForm, excessLines),
+    /exceeds returnable quantity \(5\)/
+  )
 })

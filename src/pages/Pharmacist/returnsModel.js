@@ -58,6 +58,76 @@ export function returnPayload(form, row, medicines) {
   return { billId, patientName: form.patientName.trim(), medicineId: medicine.apiId, medicineName: medicine.name, batchNumber: row.batchNumber.trim(), ...(row.batchId ? { batchId: row.batchId } : {}), quantity, reason: form.reason, notes: form.notes.trim(), condition: row.condition, restock: row.condition === 'restock', clientRequestId: row.key }
 }
 
+export function patientReturnPayload(form, lines, medicines = []) {
+  const rawBillId = String(form?.billId ?? '').trim()
+  const billId = Number(rawBillId)
+  if (!rawBillId || !Number.isInteger(billId) || billId <= 0) {
+    throw new Error('Enter a valid numeric Bill ID.')
+  }
+  const reason = String(form?.reason || '').trim()
+  if (!reason) {
+    throw new Error('Select a reason for the return.')
+  }
+  const validLines = (lines || []).filter((row) => !row.completed)
+  if (!validLines.length) {
+    throw new Error('Please add at least one medicine to return.')
+  }
+
+  const mappedMedicines = validLines.map((row, index) => {
+    const medIdRaw = row.medicineId || (Array.isArray(medicines) ? medicines.find((m) => String(m.id) === String(row.medicineId))?.apiId : null) || row.medicineId
+    const medId = Number(medIdRaw)
+    if (!medId || !Number.isInteger(medId) || medId <= 0) {
+      throw new Error(`Select an eligible medicine for row ${index + 1}.`)
+    }
+    const batch = String(row.originalBatch || row.batchNumber || '').trim()
+    if (!batch) {
+      throw new Error(`Enter or select the original batch number for row ${index + 1}.`)
+    }
+    const quantity = Number(row.quantity)
+    if (!Number.isSafeInteger(quantity) || quantity < 1) {
+      throw new Error(`Returned quantity for row ${index + 1} must be a positive whole number.`)
+    }
+    if (row.returnableQuantity != null && Number.isFinite(Number(row.returnableQuantity))) {
+      const maxReturnable = Number(row.returnableQuantity)
+      if (quantity > maxReturnable) {
+        throw new Error(`Returned quantity (${quantity}) exceeds returnable quantity (${maxReturnable}) for row ${index + 1}.`)
+      }
+    }
+
+    let condition = 'EligibleForRestocking'
+    if (row.condition === 'damaged' || row.condition === 'Damaged') {
+      condition = 'Damaged'
+    } else if (row.condition === 'expired' || row.condition === 'Expired') {
+      condition = 'Expired'
+    } else if (row.condition === 'restock' || row.condition === 'EligibleForRestocking') {
+      condition = 'EligibleForRestocking'
+      if (!form?.verified) {
+        throw new Error('Confirm that the returned medicines have been inspected before restocking.')
+      }
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+      if (row.expiryDate && String(row.expiryDate).slice(0, 10) <= today) {
+        throw new Error('Expired medicines cannot be added to available stock. Select Expired instead.')
+      }
+    }
+
+    return {
+      medicineId: medId,
+      originalBatch: batch,
+      quantity,
+      condition,
+    }
+  })
+
+  return {
+    billId,
+    patientName: String(form?.patientName || '').trim(),
+    reason,
+    notes: String(form?.notes || '').trim(),
+    verifiedForRestocking: Boolean(form?.verified),
+    medicines: mappedMedicines,
+  }
+}
+
 export function returnedRecord(response) {
   const data = response?.data ?? response
   const record = data?.return ?? data?.medicineReturn ?? data
