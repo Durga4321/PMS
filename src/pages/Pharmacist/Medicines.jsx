@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PharmacistLayout from './PharmacistLayout'
 import {
   readLocalMedicines,
@@ -7,7 +8,8 @@ import {
   matchesMedicineBranch,
   formatExcelDate,
   clearLocalMedicinesCache,
-  getPharmacistInventory
+  getPharmacistInventory,
+  readStoredToken
 } from '../../config/api'
 import { applyReturnedInventory, returnList } from './returnsModel'
 import '../Admin/Medicines.css'
@@ -83,9 +85,12 @@ function getId(item) {
 }
 
 export default function PharmacistMedicines() {
+  const navigate = useNavigate()
   const [allMedicines, setAllMedicines] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState(null)
   const [assignedBranch, setAssignedBranch] = useState(() => getPharmacistAssignedBranch())
+  const inFlightRef = useRef(false)
 
   // Search & Filter state
   const [query, setQuery] = useState('')
@@ -96,9 +101,28 @@ export default function PharmacistMedicines() {
   // View Modal state
   const [viewingMedicine, setViewingMedicine] = useState(null)
 
-  // Load medicines - merge local admin-added medicines with backend medicines
+  // Load medicines - fetch from backend API with authenticated pharmacist token & assigned branch
   async function loadMedicinesData(forceFresh = false) {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
+
     try {
+      setLoading(true)
+      setApiError(null)
+
+      const token = readStoredToken('pharmacistToken')
+      if (!token) {
+        setApiError({
+          status: 401,
+          message: 'Your session has expired. Please log in again.',
+          type: '401'
+        })
+        setAllMedicines([])
+        setLoading(false)
+        inFlightRef.current = false
+        return
+      }
+
       const currentAssigned = getPharmacistAssignedBranch()
       setAssignedBranch(currentAssigned)
 
@@ -106,45 +130,61 @@ export default function PharmacistMedicines() {
         clearLocalMedicinesCache()
       }
 
-      const local = readLocalMedicines() || []
-      if (!allMedicines.length && !local.length) {
-        setLoading(true)
-      }
+      const branchId = currentAssigned?.id || currentAssigned?.branchId || ''
+      const listParams = { authRole: 'pharmacist' }
+      if (branchId) listParams.branchId = branchId
 
-      const localMap = new Map()
-      local.forEach(m => {
-        const k = String(getId(m) || m?.name || '').trim().toLowerCase()
-        if (k) localMap.set(k, m)
-      })
-
-      if (local.length > 0) {
-        setAllMedicines(local)
-      }
+      const res = await listMedicines(listParams)
+      const serverList = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
+      let combined = serverList
 
       try {
-        const res = await listMedicines({ branchId: currentAssigned?.id })
-        const serverList = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
-        if (serverList.length > 0) {
-          serverList.forEach(m => {
-            const k = String(getId(m) || m?.name || '').trim().toLowerCase()
-            if (k) localMap.set(k, { ...localMap.get(k), ...m })
-          })
-          setAllMedicines(Array.from(localMap.values()))
-        } else if (local.length > 0) {
-          setAllMedicines(local)
+        const invParams = branchId ? { branchId } : {}
+        const invRes = await getPharmacistInventory(invParams)
+        const inventory = returnList(invRes)
+        if (inventory.length > 0) {
+          combined = applyReturnedInventory(combined, inventory)
         }
-        try {
-          const inventory = returnList(await getPharmacistInventory({ branchId: currentAssigned?.id }))
-          setAllMedicines((current) => applyReturnedInventory(current, inventory))
-        } catch { /* Keep catalogue data when live inventory is unavailable. */ }
-      } catch (err) {
-        console.warn('Pharmacist listMedicines fallback:', err?.message || err)
-        if (local.length > 0) setAllMedicines(local)
-      } finally {
-        setLoading(false)
+      } catch (invErr) {
+        console.warn('Live inventory sync note:', invErr?.message || invErr)
+        if ((invErr?.status === 401 || invErr?.status === 403) && combined.length === 0) {
+          throw invErr
+        }
       }
-    } catch {
+
+      setAllMedicines(combined)
+      setApiError(null)
+    } catch (err) {
+      console.error('Pharmacist Medicines fetch error:', err?.status || err?.message || err)
+      const status = Number(err?.status || err?.statusCode || 0)
+      let errorType = 'other'
+      let errorMessage = 'Unable to load medicines. Please try again later.'
+
+      if (status === 401) {
+        errorType = '401'
+        errorMessage = 'Your session has expired. Please log in again.'
+      } else if (status === 403) {
+        errorType = '403'
+        errorMessage = "You do not have permission to access this branch's inventory. Please contact your administrator."
+      } else if (status >= 500) {
+        errorType = '500'
+        errorMessage = 'Unable to load medicines. Please try again later.'
+      } else if (err?.name === 'TypeError' || /connect|network|offline|failed to fetch/i.test(err?.message || '')) {
+        errorType = 'network'
+        errorMessage = 'Unable to connect to the server. Check your connection and retry.'
+      } else if (err?.message) {
+        errorMessage = err.message
+      }
+
+      setApiError({
+        status,
+        message: errorMessage,
+        type: errorType,
+      })
+      setAllMedicines([])
+    } finally {
       setLoading(false)
+      inFlightRef.current = false
     }
   }
 
@@ -171,25 +211,36 @@ export default function PharmacistMedicines() {
 
   // Dynamic categories & dosage forms for this branch
   const branchCategories = useMemo(() => {
+    if (apiError) return []
     const set = new Set()
     branchMedicines.forEach(m => {
       const cat = getCategory(m)
       if (cat && cat !== '-') set.add(cat)
     })
     return Array.from(set).sort()
-  }, [branchMedicines])
+  }, [branchMedicines, apiError])
 
   const branchDosageForms = useMemo(() => {
+    if (apiError) return []
     const set = new Set()
     branchMedicines.forEach(m => {
       const df = getDosageForm(m)
       if (df && df !== '-') set.add(df)
     })
     return Array.from(set).sort()
-  }, [branchMedicines])
+  }, [branchMedicines, apiError])
 
   // Summary Metrics for this pharmacist's branch
   const metrics = useMemo(() => {
+    if (apiError) {
+      return {
+        total: '—',
+        active: '—',
+        lowStock: '—',
+        outStock: '—',
+        categoriesCount: '—'
+      }
+    }
     const total = branchMedicines.length
     const active = branchMedicines.filter(m => {
       const st = String(getStatus(m)).toLowerCase()
@@ -207,10 +258,11 @@ export default function PharmacistMedicines() {
       outStock,
       categoriesCount: branchCategories.length
     }
-  }, [branchMedicines, branchCategories])
+  }, [branchMedicines, branchCategories, apiError])
 
   // Filtered list matching search query directly for branch
   const filteredMedicines = useMemo(() => {
+    if (apiError) return []
     return branchMedicines.filter((m) => {
       const nameVal = String(getName(m) || '').toLowerCase()
       const genVal = String(m?.genericName || m?.GenericName || '').toLowerCase()
@@ -228,9 +280,9 @@ export default function PharmacistMedicines() {
         batchVal.includes(q) ||
         mfgVal.includes(q)
     })
-  }, [branchMedicines, query])
+  }, [branchMedicines, query, apiError])
 
-  const branchDisplayName = assignedBranch?.name || assignedBranch?.branchName || 'Main Branch'
+  const branchDisplayName = assignedBranch?.name || assignedBranch?.branchName || (assignedBranch?.id ? `Branch ${assignedBranch.id}` : 'Unassigned Branch')
 
   return (
     <PharmacistLayout
@@ -242,13 +294,24 @@ export default function PharmacistMedicines() {
           type="button"
           className="btn-secondary"
           onClick={() => loadMedicinesData(true)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          disabled={loading}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
         >
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ animation: loading ? 'medSpin 0.8s linear infinite' : 'none' }}
+          >
             <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
             <polyline points="3 3 3 8 8 8"/>
           </svg>
-          Refresh
+          {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       }
     >
@@ -361,12 +424,106 @@ export default function PharmacistMedicines() {
           {/* Table */}
           <div className="med-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
             {loading && !allMedicines.length ? (
-              <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-                <div style={{ width: '32px', height: '32px', border: '3px solid #e2e8f0', borderTopColor: '#16a34a', borderRadius: '50%', animation: 'medSpin 0.8s linear infinite', margin: '0 auto 12px auto' }}></div>
-                Loading medicines for {branchDisplayName}...
+              <div className="med-state-box" style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+                <div style={{ width: '36px', height: '36px', border: '3px solid #e2e8f0', borderTopColor: '#0284c7', borderRadius: '50%', animation: 'medSpin 0.8s linear infinite', margin: '0 auto 14px auto' }}></div>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>Loading Medicines &amp; Inventory</h4>
+                <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                  Fetching live stock and catalogue for {branchDisplayName}...
+                </p>
+              </div>
+            ) : apiError ? (
+              <div className={`med-state-box med-error-box med-error-${apiError.type}`} style={{ padding: '60px 20px', textAlign: 'center' }}>
+                <div style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '50%',
+                  background: apiError.type === '403' ? '#fef2f2' : apiError.type === '401' ? '#fffbeb' : '#f8fafc',
+                  color: apiError.type === '403' ? '#dc2626' : apiError.type === '401' ? '#d97706' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px auto',
+                  border: `1px solid ${apiError.type === '403' ? '#fecaca' : apiError.type === '401' ? '#fde68a' : '#e2e8f0'}`
+                }}>
+                  {apiError.type === '403' ? (
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                  ) : apiError.type === '401' ? (
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                  )}
+                </div>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                  {apiError.type === '403'
+                    ? 'Access Denied (403 Forbidden)'
+                    : apiError.type === '401'
+                    ? 'Session Expired (401 Unauthorized)'
+                    : apiError.type === 'network'
+                    ? 'Connection Error'
+                    : 'Unable to Load Medicines'}
+                </h4>
+                <p style={{ margin: '0 auto 20px auto', maxWidth: '460px', fontSize: '14px', color: '#475569', lineHeight: 1.5 }}>
+                  {apiError.message}
+                </p>
+                {apiError.type === '401' ? (
+                  <button
+                    type="button"
+                    className="med-btn med-btn-primary"
+                    onClick={() => navigate('/login')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '9px 20px',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Log In Again
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="med-btn med-btn-primary"
+                    onClick={() => loadMedicinesData(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '9px 20px',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                      <polyline points="3 3 3 8 8 8"/>
+                    </svg>
+                    Retry
+                  </button>
+                )}
               </div>
             ) : filteredMedicines.length === 0 ? (
-              <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
+              <div className="med-state-box" style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
                 <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#94a3b8" strokeWidth="1.5" style={{ margin: '0 auto 12px auto', display: 'block' }}>
                   <path d="m14.5 4.5 5 5a4.24 4.24 0 0 1-6 6l-5-5a4.24 4.24 0 0 1 6-6Z"/>
                   <path d="m10 9 5 5"/>

@@ -1,4 +1,4 @@
-import medicineCatalogReference from '../data/medicineCatalogReference.json'
+import medicineCatalogReference from '../data/medicineCatalogReference.json' with { type: 'json' }
 const DEFAULT_API_BASE_URL = 'https://jackpot-citrus-compare.ngrok-free.dev';
 //const DEFAULT_API_BASE_URL = ' https://irritant-kilobyte-until.ngrok-free.dev'
 const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
@@ -6,14 +6,14 @@ const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
 const env = typeof process !== 'undefined' ? process.env : {}
 
 // Local API calls use Vite's server proxy so the browser stays on the same origin.
-export const API_BASE_URL = import.meta.env.DEV ? '' : (
-  import.meta.env.VITE_API_BASE_URL ||
+export const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.DEV) ? '' : (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
   env.REACT_APP_API_BASE_URL ||
   DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '')
 
 export const API_ASSET_BASE_URL = (
-  import.meta.env.VITE_API_ASSET_BASE_URL ||
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_ASSET_BASE_URL) ||
   env.REACT_APP_API_ASSET_BASE_URL ||
   DEFAULT_API_ASSET_BASE_URL
 ).replace(/\/+$/, '')
@@ -40,7 +40,7 @@ const tokenKeysByRole = {
   pharmacist: 'pharmacistToken',
 }
 
-function readStoredToken(name) {
+export function readStoredToken(name) {
   return sessionStorage.getItem(name) || localStorage.getItem(name)
 }
 
@@ -126,9 +126,12 @@ export function pharmacyTenantContext(authRole = '') {
   if (pharmacistSession) {
     const assignment = readStoredJson('pharmacistAssignment') || {}
     const user = readStoredJson('pharmacistUser') || {}
+    const rawWorking = readStoredJson('workingBranch') || {}
+    const storedWorkingBranchId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingBranchId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingBranchId') : null) || ''
+    const storedWorkingPharmacyId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('workingPharmacyId') : null) || (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyId') : null) || ''
     return {
-      pharmacyId: pickValidPharmacyId(assignment.pharmacyId, assignment.PharmacyId, assignment.pharmacy?.id, user.pharmacyId, user.PharmacyId, user.pharmacy?.id),
-      branchId: pickValidBranchId(assignment.branchId, assignment.BranchId, assignment.mainBranchId, assignment.branch?.id, user.branchId, user.BranchId, user.mainBranchId),
+      pharmacyId: pickValidPharmacyId(assignment.pharmacyId, assignment.PharmacyId, assignment.pharmacy?.id, user.pharmacyId, user.PharmacyId, user.pharmacy?.id, storedWorkingPharmacyId),
+      branchId: pickValidBranchId(assignment.branchId, assignment.BranchId, assignment.mainBranchId, assignment.branch?.id, user.branchId, user.BranchId, user.mainBranchId, rawWorking.id, rawWorking.branchId, storedWorkingBranchId),
       hospitalId: '', cmsBranchId: '',
     }
   }
@@ -445,7 +448,7 @@ async function request(path, options = {}) {
   const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
   const isGetOrHead = !fetchOptions.method || fetchOptions.method === 'GET' || fetchOptions.method === 'HEAD'
   const controller = new AbortController()
-  const defaultTimeout = isGetOrHead ? 6000 : 30000
+  const defaultTimeout = isGetOrHead ? 20000 : 30000
   const timeoutMs = options.timeout || (isFormData ? 120000 : defaultTimeout);
   let didTimeout = false
   const timeout = setTimeout(() => {
@@ -1444,18 +1447,19 @@ export async function syncDeletedMedicinesWithBackend() {
 const medicineBranchChecks = new Map()
 const rejectedMedicineBranches = new Set()
 
-async function validateMedicineBranch(params) {
-  const context = pharmacyTenantContext()
-  const token = authTokenFor('medicine')
-  const isPharmacist = token === readStoredToken('pharmacistToken') ||
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))
+async function validateMedicineBranch(params = {}) {
+  const isPharmacist = params?.authRole === 'pharmacist' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist')) ||
+    readStoredToken('pharmacistToken') === authTokenFor('medicine')
+  const context = pharmacyTenantContext(isPharmacist ? 'pharmacist' : '')
+  const token = authTokenFor('medicine', isPharmacist ? 'pharmacist' : '')
 
   // Platform catalogue requests do not require a pharmacy branch.
   // Pharmacists already have their branch determined from their session/assignment and cannot access admin branch validation.
   if (!context.pharmacyId || token === readStoredToken('superAdminToken') || isPharmacist) {
     return params.branchId !== undefined && params.branchId !== null && params.branchId !== ''
       ? String(params.branchId)
-      : (context.branchId || '1')
+      : (context.branchId || '')
   }
 
   const key = JSON.stringify([token, context.pharmacyId])
@@ -1484,7 +1488,7 @@ async function validateMedicineBranch(params) {
   }
   let branchId = selected && idOf(selected)
   if (!branchId || !/^\d+$/.test(branchId) || Number(branchId) <= 0) {
-    branchId = params.branchId ? String(params.branchId) : (context.branchId || '1')
+    branchId = params.branchId ? String(params.branchId) : (context.branchId || '')
   }
   const rejectionKey = JSON.stringify([token, context.pharmacyId, branchId])
   if (rejectedMedicineBranches.has(rejectionKey)) {
@@ -1497,8 +1501,10 @@ async function validateMedicineBranch(params) {
 }
 
 export async function listMedicines(params = {}) {
-  const context = pharmacyTenantContext()
-  const token = authTokenFor('medicine')
+  const isPharmacistCaller = params.authRole === 'pharmacist' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))
+  const context = pharmacyTenantContext(isPharmacistCaller ? 'pharmacist' : '')
+  const token = authTokenFor('medicine', isPharmacistCaller ? 'pharmacist' : '')
   const isSuperAdmin = token === readStoredToken('superAdminToken')
 
   // If this is an admin who has no assigned or created pharmacy yet, return empty list!
@@ -1510,16 +1516,20 @@ export async function listMedicines(params = {}) {
   const query = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
+    if (key === 'authRole') return
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
 
-  const branchId = await validateMedicineBranch(params)
+  const branchId = await validateMedicineBranch({ ...params, authRole: isPharmacistCaller ? 'pharmacist' : undefined })
   if (branchId) query.set('branchId', branchId)
 
   let backendList = []
   let backendResponded = false
   try {
-    const response = await request(`medicine${query.toString() ? `?${query}` : ''}`, { tenantBranchId: branchId })
+    const response = await request(`medicine${query.toString() ? `?${query}` : ''}`, {
+      tenantBranchId: branchId,
+      ...(isPharmacistCaller ? { authRole: 'pharmacist' } : {})
+    })
     backendResponded = true
     const normalized = normalizeMedicineResponse(response)
     if (Array.isArray(normalized)) {
@@ -2050,12 +2060,13 @@ export function quarantineInventoryBatch(batchId, payload) {
   })
 }
 
-export function getExpiredInventory() {
-  return request('inventory/expired')
+export function getExpiredInventory(options = {}) {
+  return request('inventory/expired', { authRole: 'pharmacist', ...options })
 }
 
-export function getNearExpiryInventoryDetails() {
-  return request('inventory/near-expiry-details')
+export function getNearExpiryInventoryDetails(params = {}, options = {}) {
+  const query = typeof params === 'object' ? params : { days: params }
+  return request(`inventory/near-expiry-details${queryString(query)}`, { authRole: 'pharmacist', ...options })
 }
 
 export function getInventorySummary() {
@@ -2382,7 +2393,7 @@ export const updateDoctorPrescription = (id, payload) => request(replacePathPara
 export const cancelDoctorPrescription = (id, payload = {}) => request(replacePathParams('doctor/prescriptions/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const completeDoctorPrescription = (id, payload = {}) => request(replacePathParams('doctor/prescriptions/{id}/complete', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
-export const dispensePrescription = (payload = {}) => {
+export const dispensePrescription = (payload = {}, options = {}) => {
   const prescriptionId = Number(payload.prescriptionId ?? payload.PrescriptionId ?? payload.id ?? 0)
 
   let rawMedicines = []
@@ -2406,32 +2417,26 @@ export const dispensePrescription = (payload = {}) => {
     medicines: medicines.length > 0 ? medicines : [{ prescriptionItemId: 1, quantity: 1 }]
   }
 
-  try {
-    rawMedicines.forEach(m => {
-      deductMedicineStock(m, Number(m?.quantity || m?.Quantity || m?.qty || 1), 'dispense')
-    })
-  } catch (err) {
-    console.warn('dispensePrescription stock deduct notice:', err)
-  }
-
   return request('pharmacy/dispense', {
+    authRole: 'pharmacist',
     method: 'POST',
-    body: JSON.stringify(cleanPayload)
+    body: JSON.stringify(cleanPayload),
+    ...options
   })
 }
-export const generateBill = (payload) => request('pharmacy/generate-bill', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const getInvoice = (billId) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }))
-export const recordPayment = (payload) => request('pharmacy/payment', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const getPendingPharmacyPrescriptions = () => request('pharmacy/pending')
-export const getPharmacyPrescription = (id) => request(replacePathParams('pharmacy/prescriptions/{id}', { id }))
-export const getDailySalesReport = (params = {}) => request(`pharmacy/reports/daily-sales${queryString(params)}`)
+export const generateBill = (payload, options = {}) => request('pharmacy/generate-bill', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options })
+export const getInvoice = (billId, options = {}) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }), { authRole: 'pharmacist', ...options })
+export const recordPayment = (payload, options = {}) => request('pharmacy/payment', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options })
+export const getPendingPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/pending${queryString(params)}`, { authRole: 'pharmacist', ...options })
+export const getPharmacyPrescription = (id, options = {}) => request(replacePathParams('pharmacy/prescriptions/{id}', { id }), { authRole: 'pharmacist', ...options })
+export const getDailySalesReport = (params = {}, options = {}) => request(`pharmacy/reports/daily-sales${queryString(params)}`, { authRole: 'pharmacist', ...options })
 
-export const listBills = (params = {}) => request(`pharmacy/bills${queryString(params)}`)
-export const getBill = (id) => request(replacePathParams('pharmacy/bills/{id}', { id }))
+export const listBills = (params = {}, options = {}) => request(`pharmacy/bills${queryString(params)}`, { authRole: 'pharmacist', ...options })
+export const getBill = (id, options = {}) => request(replacePathParams('pharmacy/bills/{id}', { id }), { authRole: 'pharmacist', ...options })
 export const cancelBill = (id, payload = {}) => request(replacePathParams('pharmacy/bills/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const refundPayment = (id, payload = {}) => request(replacePathParams('pharmacy/payments/{id}/refund', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
-export const listMedicineReturns = (params = {}) => request(`pharmacy/returns${queryString(params)}`)
+export const listMedicineReturns = (params = {}, options = {}) => request(`pharmacy/returns${queryString(params)}`, { authRole: 'pharmacist', ...options })
 export const createMedicineReturn = (payload) => request('pharmacy/returns', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const getMedicineReturn = (id) => request(replacePathParams('pharmacy/returns/{id}', { id }))
 export const approveMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
@@ -2445,22 +2450,144 @@ function pharmacistReturnRequest(path, options = {}) {
 }
 export const pharmacistReturnsApi = {
   // Fresh Returns APIs
-  options: (options = {}) => pharmacistReturnRequest('pharmacy/returns/options', { method: 'GET', ...options }),
-  billItems: (billId, options = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/bills/{billId}/items', { billId }), { method: 'GET', ...options }),
-  eligibleMedicines: (params = {}, options = {}) => pharmacistReturnRequest(`pharmacy/returns/eligible-medicines${queryString(params)}`, { method: 'GET', ...options }),
-  createPatientReturn: (payload) => pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
-  history: (params = {}, options = {}) => pharmacistReturnRequest(`pharmacy/returns/history${queryString(params)}`, { method: 'GET', ...options }),
+  options: async (options = {}) => {
+    try {
+      return await pharmacistReturnRequest('pharmacy/returns/options', { method: 'GET', ...options })
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      return { reasons: ['Unused medicines', 'Incorrect supply', 'Damaged packaging', 'Expired medicine', 'Other'] }
+    }
+  },
+  billItems: async (billId, options = {}) => {
+    const rawBillId = String(billId ?? '').trim()
+    try {
+      return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/bills/{billId}/items', { billId: rawBillId }), { method: 'GET', ...options })
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      if (err.status === 404 || err.status === 405 || /not found/i.test(err.message)) {
+        return await getBill(rawBillId, { authRole: 'pharmacist', signal: options.signal })
+      }
+      throw err
+    }
+  },
+  eligibleMedicines: async (params = {}, options = {}) => {
+    try {
+      return await pharmacistReturnRequest(`pharmacy/returns/eligible-medicines${queryString(params)}`, { method: 'GET', ...options })
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      if (err.status === 404 || err.status === 405 || /not found/i.test(err.message)) {
+        return await listMedicines({ authRole: 'pharmacist', ...params, signal: options.signal })
+      }
+      throw err
+    }
+  },
+  createPatientReturn: async (payload) => {
+    try {
+      return await pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+    } catch (err) {
+      if (err.status === 404 || err.status === 405) {
+        return await pharmacistReturnRequest('pharmacy/returns', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+      }
+      throw err
+    }
+  },
+  history: async (params = {}, options = {}) => {
+    try {
+      return await pharmacistReturnRequest(`pharmacy/returns/history${queryString(params)}`, { method: 'GET', ...options })
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      if (err.status === 500 || err.status === 404 || err.status === 405) {
+        try {
+          return await pharmacistReturnRequest(`pharmacy/returns${queryString(params)}`, { method: 'GET', ...options })
+        } catch (fallbackErr) {
+          if (fallbackErr.name === 'AbortError') throw fallbackErr
+          throw err
+        }
+      }
+      throw err
+    }
+  },
   historyItem: (requestId, options = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}', { requestId }), { method: 'GET', ...options }),
-  approveHistoryItem: (requestId, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}/approve', { requestId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
-  cancelHistoryItem: (requestId, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}/cancel', { requestId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
+  approveHistoryItem: async (requestId, payload = {}) => {
+    try {
+      return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}/approve', { requestId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+    } catch (err) {
+      if (err.status === 404 || err.status === 405) {
+        return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/{requestId}/approve', { requestId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+      }
+      throw err
+    }
+  },
+  cancelHistoryItem: async (requestId, payload = {}) => {
+    try {
+      return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}/cancel', { requestId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+    } catch (err) {
+      if (err.status === 404 || err.status === 405) {
+        return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/{requestId}/cancel', { requestId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+      }
+      throw err
+    }
+  },
 
   // Seamless alias methods for Returns.jsx UI
-  list: (params = {}, options = {}) => pharmacistReturnRequest(`pharmacy/returns/history${queryString(params)}`, { method: 'GET', ...options }),
-  inventory: (options = {}) => pharmacistReturnRequest('pharmacy/returns/eligible-medicines', { method: 'GET', ...options }),
+  list: async (params = {}, options = {}) => {
+    try {
+      return await pharmacistReturnRequest(`pharmacy/returns/history${queryString(params)}`, { method: 'GET', ...options })
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      if (err.status === 500 || err.status === 404 || err.status === 405) {
+        try {
+          return await pharmacistReturnRequest(`pharmacy/returns${queryString(params)}`, { method: 'GET', ...options })
+        } catch (fallbackErr) {
+          if (fallbackErr.name === 'AbortError') throw fallbackErr
+          throw err
+        }
+      }
+      throw err
+    }
+  },
+  inventory: async (options = {}) => {
+    try {
+      return await pharmacistReturnRequest('pharmacy/returns/eligible-medicines', { method: 'GET', ...options })
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      if (err.status === 404 || err.status === 405 || /not found/i.test(err.message)) {
+        return await listMedicines({ authRole: 'pharmacist', signal: options.signal })
+      }
+      throw err
+    }
+  },
   batches: (medicineId, options = {}) => pharmacistReturnRequest(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { method: 'GET', ...options }),
-  create: (payload) => pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
-  approve: (id, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) }),
-  cancel: (id, payload = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload || { reason: 'Cancelled by pharmacist before approval.' })) }),
+  create: async (payload) => {
+    try {
+      return await pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+    } catch (err) {
+      if (err.status === 404 || err.status === 405) {
+        return await pharmacistReturnRequest('pharmacy/returns', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+      }
+      throw err
+    }
+  },
+  approve: async (id, payload = {}) => {
+    try {
+      return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+    } catch (err) {
+      if (err.status === 404 || err.status === 405) {
+        return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+      }
+      throw err
+    }
+  },
+  cancel: async (id, payload = {}) => {
+    try {
+      return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload || { reason: 'Cancelled by pharmacist before approval.' })) })
+    } catch (err) {
+      if (err.status === 404 || err.status === 405) {
+        return await pharmacistReturnRequest(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload || { reason: 'Cancelled by pharmacist before approval.' })) })
+      }
+      throw err
+    }
+  },
 }
 
 export const listStockTransfers = (params = {}) => request(`inventory/transfers${queryString(params)}`)
@@ -2688,8 +2815,33 @@ export const getPharmacyStockSummaryReport = () => request('pharmacy/reports/sto
 export const getPharmacyTopSellingReport = (params = {}) => request(`pharmacy/reports/top-selling${queryString(params)}`)
 export const getPharmacyAdminDashboard = () => request('pharmacy/dashboard', { authRole: 'pharmacyAdmin' })
 export const getPharmacistDashboard = () => request('pharmacist/dashboard', { authRole: 'pharmacist' })
-export const getPharmacistInventory = (params = {}) => request(`inventory${queryString(params)}`, { authRole: 'pharmacist' })
-export const getPharmacistInventoryBatches = (medicineId) => request(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
+export const getPharmacistInventory = async (params = {}) => {
+  const branchId = params.branchId || params.BranchId
+  try {
+    return await request(`pharmacist/inventory${queryString(params)}`, {
+      authRole: 'pharmacist',
+      ...(branchId ? { tenantBranchId: branchId } : {})
+    })
+  } catch (err) {
+    if (err.status === 404) {
+      return await request(`inventory${queryString(params)}`, {
+        authRole: 'pharmacist',
+        ...(branchId ? { tenantBranchId: branchId } : {})
+      })
+    }
+    throw err
+  }
+}
+export const getPharmacistInventoryBatches = async (medicineId) => {
+  try {
+    return await request(replacePathParams('pharmacist/inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
+  } catch (err) {
+    if (err.status === 404) {
+      return await request(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { authRole: 'pharmacist' })
+    }
+    throw err
+  }
+}
 export const getPharmacistInventoryAlerts = (params = {}) => request(`pharmacist/inventory/alerts${queryString(params)}`, { authRole: 'pharmacist' })
 
 let assignmentStatusInFlight = null
@@ -3560,8 +3712,8 @@ export const pharmacistPrescriptionApi = {
 }
 export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-auth/permissions', { authRole: 'pharmacyAdmin' })
 export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
-export const getPharmacyPrescriptions = (params = {}) => request(`pharmacy/prescriptions${queryString(params)}`)
-export const getPharmacyDispensingOverview = (params = {}) => request(`pharmacy/dispensing${queryString(params)}`)
+export const getPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/prescriptions${queryString(params)}`, { authRole: 'pharmacist', ...options })
+export const getPharmacyDispensingOverview = (params = {}, options = {}) => request(`pharmacy/dispensing${queryString(params)}`, { authRole: 'pharmacist', ...options })
 export const getSuperAdminAuditLogs = (params = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`)
 export const getSuperAdminAuditLogSummary = () => request('pharmacy-super-admin/audit-logs/summary')
 const SUB_BRANCHES_CACHE_KEY = 'pms_pharmacy_sub_branches'
@@ -4249,12 +4401,12 @@ export function getPharmacistAssignedBranch() {
       (typeof localStorage !== 'undefined' ? localStorage.getItem('workingPharmacyName') : null) ||
       ''
 
-    // Strip any prefix like "star - Main Branch" -> clean "Main Branch"
+    // Avoid hardcoding branchId=1 for unassigned pharmacists
     if (!finalId && !rawName) {
-      finalId = '1'
-      rawName = 'Main Branch'
+      finalId = ''
+      rawName = ''
     } else if (!rawName || rawName.includes(' - Main Branch') || (finalId === '1' && rawName.toLowerCase().includes('main'))) {
-      rawName = 'Main Branch'
+      rawName = rawName || 'Main Branch'
     }
 
     return {
