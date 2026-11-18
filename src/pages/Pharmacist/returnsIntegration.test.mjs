@@ -128,3 +128,4 @@ test('pharmacistReturnsApi defines required fresh return methods with seamless a
   assert.equal(typeof pharmacistReturnsApi.approve, 'function')
   assert.equal(typeof pharmacistReturnsApi.cancel, 'function')
 })
+

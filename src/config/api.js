@@ -2060,12 +2060,13 @@ export function quarantineInventoryBatch(batchId, payload) {
   })
 }
 
-export function getExpiredInventory() {
-  return request('inventory/expired')
+export function getExpiredInventory(options = {}) {
+  return request('inventory/expired', { authRole: 'pharmacist', ...options })
 }
 
-export function getNearExpiryInventoryDetails() {
-  return request('inventory/near-expiry-details')
+export function getNearExpiryInventoryDetails(params = {}, options = {}) {
+  const query = typeof params === 'object' ? params : { days: params }
+  return request(`inventory/near-expiry-details${queryString(query)}`, { authRole: 'pharmacist', ...options })
 }
 
 export function getInventorySummary() {
@@ -2392,7 +2393,7 @@ export const updateDoctorPrescription = (id, payload) => request(replacePathPara
 export const cancelDoctorPrescription = (id, payload = {}) => request(replacePathParams('doctor/prescriptions/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const completeDoctorPrescription = (id, payload = {}) => request(replacePathParams('doctor/prescriptions/{id}/complete', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
-export const dispensePrescription = (payload = {}) => {
+export const dispensePrescription = (payload = {}, options = {}) => {
   const prescriptionId = Number(payload.prescriptionId ?? payload.PrescriptionId ?? payload.id ?? 0)
 
   let rawMedicines = []
@@ -2416,32 +2417,26 @@ export const dispensePrescription = (payload = {}) => {
     medicines: medicines.length > 0 ? medicines : [{ prescriptionItemId: 1, quantity: 1 }]
   }
 
-  try {
-    rawMedicines.forEach(m => {
-      deductMedicineStock(m, Number(m?.quantity || m?.Quantity || m?.qty || 1), 'dispense')
-    })
-  } catch (err) {
-    console.warn('dispensePrescription stock deduct notice:', err)
-  }
-
   return request('pharmacy/dispense', {
+    authRole: 'pharmacist',
     method: 'POST',
-    body: JSON.stringify(cleanPayload)
+    body: JSON.stringify(cleanPayload),
+    ...options
   })
 }
-export const generateBill = (payload) => request('pharmacy/generate-bill', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const getInvoice = (billId) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }))
-export const recordPayment = (payload) => request('pharmacy/payment', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const getPendingPharmacyPrescriptions = () => request('pharmacy/pending')
-export const getPharmacyPrescription = (id) => request(replacePathParams('pharmacy/prescriptions/{id}', { id }))
-export const getDailySalesReport = (params = {}) => request(`pharmacy/reports/daily-sales${queryString(params)}`)
+export const generateBill = (payload, options = {}) => request('pharmacy/generate-bill', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options })
+export const getInvoice = (billId, options = {}) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }), { authRole: 'pharmacist', ...options })
+export const recordPayment = (payload, options = {}) => request('pharmacy/payment', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options })
+export const getPendingPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/pending${queryString(params)}`, { authRole: 'pharmacist', ...options })
+export const getPharmacyPrescription = (id, options = {}) => request(replacePathParams('pharmacy/prescriptions/{id}', { id }), { authRole: 'pharmacist', ...options })
+export const getDailySalesReport = (params = {}, options = {}) => request(`pharmacy/reports/daily-sales${queryString(params)}`, { authRole: 'pharmacist', ...options })
 
-export const listBills = (params = {}) => request(`pharmacy/bills${queryString(params)}`)
+export const listBills = (params = {}, options = {}) => request(`pharmacy/bills${queryString(params)}`, { authRole: 'pharmacist', ...options })
 export const getBill = (id, options = {}) => request(replacePathParams('pharmacy/bills/{id}', { id }), { authRole: 'pharmacist', ...options })
 export const cancelBill = (id, payload = {}) => request(replacePathParams('pharmacy/bills/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const refundPayment = (id, payload = {}) => request(replacePathParams('pharmacy/payments/{id}/refund', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
-export const listMedicineReturns = (params = {}) => request(`pharmacy/returns${queryString(params)}`)
+export const listMedicineReturns = (params = {}, options = {}) => request(`pharmacy/returns${queryString(params)}`, { authRole: 'pharmacist', ...options })
 export const createMedicineReturn = (payload) => request('pharmacy/returns', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const getMedicineReturn = (id) => request(replacePathParams('pharmacy/returns/{id}', { id }))
 export const approveMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
@@ -3717,8 +3712,8 @@ export const pharmacistPrescriptionApi = {
 }
 export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-auth/permissions', { authRole: 'pharmacyAdmin' })
 export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
-export const getPharmacyPrescriptions = (params = {}) => request(`pharmacy/prescriptions${queryString(params)}`)
-export const getPharmacyDispensingOverview = (params = {}) => request(`pharmacy/dispensing${queryString(params)}`)
+export const getPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/prescriptions${queryString(params)}`, { authRole: 'pharmacist', ...options })
+export const getPharmacyDispensingOverview = (params = {}, options = {}) => request(`pharmacy/dispensing${queryString(params)}`, { authRole: 'pharmacist', ...options })
 export const getSuperAdminAuditLogs = (params = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`)
 export const getSuperAdminAuditLogSummary = () => request('pharmacy-super-admin/audit-logs/summary')
 const SUB_BRANCHES_CACHE_KEY = 'pms_pharmacy_sub_branches'

@@ -5,7 +5,9 @@ import {
   getPendingPharmacyPrescriptions,
   getPharmacistInventoryAlerts,
   listBills,
-  listMedicineReturns,
+  pharmacistReturnsApi,
+  getPharmacyDispensingOverview,
+  getNearExpiryInventoryDetails,
   dispensePrescription,
   getPharmacyPrescription,
 } from '../../config/api'
@@ -30,12 +32,15 @@ const formatTime = (value) => {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
+
 const sources = [
-  getPharmacistDashboard,
-  getPendingPharmacyPrescriptions,
-  getPharmacistInventoryAlerts,
-  listBills,
-  listMedicineReturns,
+  () => getPharmacistDashboard(),
+  () => getPendingPharmacyPrescriptions(),
+  () => getPharmacistInventoryAlerts(),
+  () => listBills(),
+  () => pharmacistReturnsApi.list({ page: 1, pageSize: 100 }),
+  () => getPharmacyDispensingOverview(),
+  () => getNearExpiryInventoryDetails({ days: 30 }),
 ]
 
 function Icon({ name }) {
@@ -61,7 +66,7 @@ function Empty({ error, loading, label = 'No records available.' }) {
 
 export default function Dashboard() {
   const { showToast } = useToast()
-  const [data, setData] = useState([null, null, null, null, null])
+  const [data, setData] = useState([null, null, null, null, null, null, null])
   const [errors, setErrors] = useState([])
   const [loading, setLoading] = useState(true)
   const [updated, setUpdated] = useState(null)
@@ -106,21 +111,17 @@ export default function Dashboard() {
     const rxId = field(row, ['prescriptionId', 'id', 'externalPrescriptionId']) || ''
     setDispenseTargetRx(row)
     setDispenseModalOpen(true)
-    setDispensingLoading(false)
+    setDispensingLoading(true)
+    setDispenseItems([])
 
     const existingMeds = rows(row, ['medicines', 'items', 'prescriptionItems'])
     if (existingMeds.length > 0) {
       setDispenseItems(existingMeds.map((m, idx) => ({
         prescriptionItemId: Number(m.prescriptionItemId || m.id || idx + 1),
-        medicineName: m.medicineName || m.name || `Medicine #${idx + 1}`,
+        medicineName: m.medicineName || m.name || m.medicine?.name || `Item #${idx + 1}`,
         quantity: Number(m.quantity || m.qty || 1)
       })))
-    } else {
-      setDispenseItems([{
-        prescriptionItemId: 1,
-        medicineName: field(row, ['medicineName', 'medicine']) || 'Prescribed Medicine',
-        quantity: Number(field(row, ['quantity', 'qty']) || 1)
-      }])
+      setDispensingLoading(false)
     }
 
     if (rxId) {
@@ -131,11 +132,17 @@ export default function Dashboard() {
         if (detailedMeds.length > 0) {
           setDispenseItems(detailedMeds.map((m, idx) => ({
             prescriptionItemId: Number(m.prescriptionItemId || m.id || idx + 1),
-            medicineName: m.medicineName || m.name || `Medicine #${idx + 1}`,
+            medicineName: m.medicineName || m.name || m.medicine?.name || `Item #${idx + 1}`,
             quantity: Number(m.quantity || m.qty || 1)
           })))
         }
-      } catch {}
+      } catch (err) {
+        console.warn('Prescription details fetch notice:', err)
+      } finally {
+        setDispensingLoading(false)
+      }
+    } else {
+      setDispensingLoading(false)
     }
   }
 
@@ -166,15 +173,27 @@ export default function Dashboard() {
   const dashboard = data[0] || {}
   const summary = dashboard.summary || dashboard.stats || dashboard.counts || dashboard
   const queue = rows(data[1], ['prescriptions', 'pendingPrescriptions', 'items', 'data'])
-  const alerts = rows(data[2], ['alerts', 'items', 'data'])
+  const primaryAlerts = rows(data[2], ['alerts', 'items', 'data'])
   const liveBills = rows(data[3], ['bills', 'items', 'data'])
   const liveReturns = rows(data[4], ['returns', 'items', 'data'])
+  const liveDispensing = rows(data[5], ['items', 'dispensing', 'records', 'data'])
+  const nearExpiryRows = rows(data[6], ['items', 'medicines', 'records', 'data'])
+
+  const fallbackAlerts = nearExpiryRows.map((item) => ({
+    title: 'Near Expiry Alert',
+    medicineName: item.medicineName || item.name || 'Medicine',
+    message: `${item.name || item.medicineName || 'Medicine'} expires within 30 days${item.batchNumber || item.batchNo ? ` (Batch: ${item.batchNumber || item.batchNo})` : ''}`,
+    type: 'expiry'
+  }))
+  const alerts = primaryAlerts.length > 0 ? primaryAlerts : fallbackAlerts
+
   const statusOf = (row) => text(field(row, ['status', 'prescriptionStatus']), 'Pending')
   const urgent = (row) => /urgent|high|critical/i.test(text(field(row, ['priority', 'urgency']), ''))
   const visibleQueue = queue.filter((row) => (filter === 'All' || (filter === 'Urgent' ? urgent(row) : /progress|processing/i.test(statusOf(row)))) && [row.prescriptionId, row.id, row.patientName, row.patient?.name].some((value) => String(value || '').toLowerCase().includes(search.toLowerCase())))
 
   const pendingVal = data[1] !== null ? queue.length : field(summary, ['pendingPrescriptions', 'pendingCount', 'pendingPrescriptionsCount'])
-  const dispensedVal = field(summary, ['todayDispensed', 'dispensedToday', 'dispensedCount'])
+  const liveDispensedCount = data[5] !== null ? liveDispensing.filter((d) => /dispensed|completed/i.test(d?.dispensingStatus || d?.status || '')).length : undefined
+  const dispensedVal = field(summary, ['todayDispensed', 'dispensedToday', 'dispensedCount']) ?? liveDispensedCount
   const billsVal = field(summary, ['totalBills', 'billsCount', 'paidBillsCount']) ?? (data[3] !== null ? liveBills.length : undefined)
   const returnsVal = field(summary, ['todayReturns', 'returnsToday', 'todayReturnsCount']) ?? (data[4] !== null ? liveReturns.length : undefined)
 
@@ -282,37 +301,47 @@ export default function Dashboard() {
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '8px' }}>
                 Medicines to Dispense & Reduce Stock (POST /api/pharmacy/dispense):
               </label>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
-                      <th style={{ padding: '8px 12px' }}>Item ID</th>
-                      <th style={{ padding: '8px 12px' }}>Medicine</th>
-                      <th style={{ padding: '8px 12px', width: '90px' }}>Quantity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dispenseItems.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: idx < dispenseItems.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                        <td style={{ padding: '8px 12px' }}>#{item.prescriptionItemId}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>{item.medicineName}</td>
-                        <td style={{ padding: '8px 12px' }}>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const val = Math.max(1, parseInt(e.target.value, 10) || 1)
-                              setDispenseItems(prev => prev.map((p, i) => i === idx ? { ...p, quantity: val } : p))
-                            }}
-                            style={{ width: '60px', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '12px' }}
-                          />
-                        </td>
+              {dispensingLoading ? (
+                <p style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                  Loading prescription medicines from server…
+                </p>
+              ) : dispenseItems.length > 0 ? (
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                        <th style={{ padding: '8px 12px' }}>Item ID</th>
+                        <th style={{ padding: '8px 12px' }}>Medicine</th>
+                        <th style={{ padding: '8px 12px', width: '90px' }}>Quantity</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {dispenseItems.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: idx < dispenseItems.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <td style={{ padding: '8px 12px' }}>#{item.prescriptionItemId}</td>
+                          <td style={{ padding: '8px 12px', fontWeight: 500 }}>{item.medicineName}</td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = Math.max(1, parseInt(e.target.value, 10) || 1)
+                                setDispenseItems(prev => prev.map((p, i) => i === idx ? { ...p, quantity: val } : p))
+                              }}
+                              style={{ width: '60px', padding: '4px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '12px' }}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{ padding: '20px', textAlign: 'center', color: '#e11d48', fontSize: '13px' }}>
+                  No medicine items recorded on this prescription.
+                </p>
+              )}
             </div>
             <div className="pd-dispense-modal-footer">
               <button
@@ -327,7 +356,7 @@ export default function Dashboard() {
                 type="button"
                 onClick={handleConfirmDispense}
                 style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-                disabled={dispensingLoading}
+                disabled={dispensingLoading || !dispenseItems.length}
               >
                 {dispensingLoading ? 'Dispensing...' : 'Dispense & Reduce Stock'}
               </button>
