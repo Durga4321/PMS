@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiPlus, FiRefreshCw, FiRotateCcw, FiTrash2 } from 'react-icons/fi'
+import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import { pharmacistReturnsApi } from '../../config/api'
 import PharmacistLayout from './PharmacistLayout'
 import { useToast } from '../../components/ToastProvider'
@@ -162,10 +162,10 @@ export default function Returns() {
   }
 
   return <PharmacistLayout activeLabel="Returns"><div className="pr-returns">
-    <header className="pr-heading"><div><p>Pharmacist / Returns</p><h1>Medicine Returns</h1><p>Record tablets returned by a customer or patient and add approved quantities back to medicine stock.</p></div><button type="button" disabled={loading || busy} onClick={() => setRevision((value) => value + 1)}><FiRefreshCw />Refresh</button></header>
-    <nav className="pr-tabs" aria-label="Medicine return views"><button type="button" aria-pressed={tab === 'new'} onClick={() => setTab('new')}>New Return</button><button type="button" aria-pressed={tab === 'history'} onClick={() => setTab('history')}>Return History</button><Link to="/pharmacist/medicines">View Medicines</Link></nav>
+    <header className="pr-heading"><div><h1>Medicine Returns</h1><p>Record tablets returned by a customer or patient and add approved quantities back to medicine stock.</p></div></header>
+    <nav className="pr-tabs" aria-label="Medicine return views"><button type="button" className={tab === 'new' ? 'is-active' : ''} aria-pressed={tab === 'new'} onClick={() => setTab('new')}>New Return</button><button type="button" className={tab === 'history' ? 'is-active' : ''} aria-pressed={tab === 'history'} onClick={() => setTab('history')}>Return History</button><Link to="/pharmacist/medicines">View Medicines</Link></nav>
     {error ? <p className="pr-error" role="alert">{error}</p> : null}{notice ? <p className="pr-notice" role="status">{notice}</p> : null}
-    {tab === 'new' ? <form className="pr-card" onSubmit={submit}><header className="pr-card-heading"><div><h2><FiRotateCcw />Return Medicines</h2><p>Select the medicine name and the number of tablets being returned.</p></div>{completed ? <button type="button" onClick={() => { changeLines([newReturnLine()]); setForm({ patientName: '', billId: '', reason: '', notes: '', verified: false }); setNotice(''); setError(''); setLinePage(0) }}>Start New Return</button> : null}</header>
+    {tab === 'new' ? <form className="pr-card" onSubmit={submit}>{completed ? <header className="pr-card-heading"><button type="button" onClick={() => { changeLines([newReturnLine()]); setForm({ patientName: '', billId: '', reason: '', notes: '', verified: false }); setNotice(''); setError(''); setLinePage(0) }}>Start New Return</button></header> : null}
       {inventoryError ? <p className="pr-error" role="alert">{inventoryError}</p> : null}
       <fieldset disabled={busy || completed}><div className="pr-details"><label>Patient / Customer Name<input value={form.patientName} maxLength={150} onChange={(event) => setForm((current) => ({ ...current, patientName: event.target.value }))} placeholder="Optional" /></label><label>Original Bill ID *<input required value={form.billId} disabled={lines.some((row) => row.returnId)} onBlur={(event) => handleBillLookup(event.target.value)} onChange={(event) => setForm((current) => ({ ...current, billId: event.target.value }))} placeholder="Enter the bill ID from Bills" /></label><label>Reason for Return *<select required value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}><option value="">Select a reason</option>{returnReasons.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</select></label></div>
       <div className="pr-lines-heading"><h3>Returned Medicines</h3><button type="button" onClick={() => { changeLines((current) => [...current, newReturnLine()]); setLinePage(Math.floor(lines.length / 3)) }}><FiPlus />Add Medicine</button></div>

@@ -185,9 +185,16 @@ export default function Dashboard() {
     ['returns', 'Returns today', returnsVal],
   ]
 
+  const pharmacistUser = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('pharmacistUser') || localStorage.getItem('pharmacistUser') || '{}')
+    } catch { return {} }
+  })()
+  const pharmacistName = pharmacistUser?.name || pharmacistUser?.fullName || (pharmacistUser?.email ? pharmacistUser.email.split('@')[0] : '') || 'Pharmacist'
+
   return <PharmacistLayout activeLabel="Dashboard" title="Pharmacist Dashboard">
     <div className="pd-dashboard">
-      <DashboardGreetingCard role="Pharmacist" subtitle="Your daily dispensing and pharmacy overview" />
+      <DashboardGreetingCard role="Pharmacist" name={pharmacistName} subtitle="Your daily dispensing and pharmacy overview" />
       <header className="pd-heading">
         <span className={`pd-sync${errors.some(Boolean) ? ' is-warning' : ''}`}>{loading ? 'Syncing…' : errors.some(Boolean) ? 'Some data unavailable' : 'Live data'}</span>
         <small className="pd-last-refreshed">{updated ? `Last refreshed ${updated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Waiting for live data'}</small>

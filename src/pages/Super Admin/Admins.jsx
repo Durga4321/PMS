@@ -369,10 +369,6 @@ function Admins() {
               <h1>Admin Management</h1>
               <p>{filteredAdmins.length} admins found</p>
             </div>
-            <button type="button" className="admins-primary-button" onClick={openCreate}>
-              <span>＋</span>
-              Create Pharmacy Admin
-            </button>
           </div>
 
           <div className="admins-toolbar">
@@ -435,6 +431,10 @@ function Admins() {
                 </div>
               )}
             </div>
+            <button type="button" className="admins-primary-button" onClick={openCreate}>
+              <span>＋</span>
+              Create Pharmacy Admin
+            </button>
           </div>
 
           <div className="admins-table-card">

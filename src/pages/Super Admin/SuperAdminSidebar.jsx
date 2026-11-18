@@ -70,7 +70,7 @@ function SuperAdminSidebar({ activeLabel = '' }) {
         </span>
         <div className="super-admin-brand-copy">
           <strong>{appName || 'PMS'}</strong>
-          <small>Admin Console</small>
+          <small>Super Admin Console</small>
         </div>
       </div>
 
