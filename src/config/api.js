@@ -2442,6 +2442,18 @@ export const getMedicineReturn = (id) => request(replacePathParams('pharmacy/ret
 export const approveMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const cancelMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
+let returnsOptionsInFlight = null
+let returnsOptionsCache = null
+let returnsOptionsTimestamp = 0
+const RETURNS_OPTIONS_TTL = 60000 // 1 minute
+
+let returnsHistoryInFlight = null
+let returnsHistoryInFlightKey = ''
+let returnsHistoryCache = null
+let returnsHistoryCacheKey = ''
+let returnsHistoryTimestamp = 0
+const RETURNS_HISTORY_TTL = 10000 // 10 seconds
+
 function pharmacistReturnRequest(path, options = {}) {
   return request(path, { ...options, authRole: 'pharmacist', validateResponse: (data, response) => {
     if ((response.headers.get('content-type') || '').includes('text/html') || /Backend server returned an HTML/i.test(data?.message || '')) throw new Error('The returns service returned an invalid response. Please try again later.')
@@ -2451,12 +2463,30 @@ function pharmacistReturnRequest(path, options = {}) {
 export const pharmacistReturnsApi = {
   // Fresh Returns APIs
   options: async (options = {}) => {
-    try {
-      return await pharmacistReturnRequest('pharmacy/returns/options', { method: 'GET', ...options })
-    } catch (err) {
-      if (err.name === 'AbortError') throw err
-      return { reasons: ['Unused medicines', 'Incorrect supply', 'Damaged packaging', 'Expired medicine', 'Other'] }
+    const { force = false } = options
+    const now = Date.now()
+    if (!force && returnsOptionsCache && now - returnsOptionsTimestamp < RETURNS_OPTIONS_TTL) {
+      return returnsOptionsCache
     }
+    if (returnsOptionsInFlight) {
+      return returnsOptionsInFlight
+    }
+    const fetchPromise = (async () => {
+      try {
+        const res = await pharmacistReturnRequest('pharmacy/returns/options', { method: 'GET' })
+        returnsOptionsCache = res
+        returnsOptionsTimestamp = Date.now()
+        return res
+      } finally {
+        returnsOptionsInFlight = null
+      }
+    })()
+    returnsOptionsInFlight = fetchPromise
+    return fetchPromise
+  },
+  clearOptionsCache: () => {
+    returnsOptionsCache = null
+    returnsOptionsTimestamp = 0
   },
   billItems: async (billId, options = {}) => {
     const rawBillId = String(billId ?? '').trim()
@@ -2497,21 +2527,47 @@ export const pharmacistReturnsApi = {
     }
   },
   history: async (params = {}, options = {}) => {
-    const defaultParams = { page: 1, pageSize: 20, ...params }
-    try {
-      return await pharmacistReturnRequest(`pharmacy/returns/history${queryString(defaultParams)}`, { method: 'GET', ...options })
-    } catch (err) {
-      if (err.name === 'AbortError') throw err
-      if (err.status === 500 || err.status === 404 || err.status === 405) {
-        try {
-          return await pharmacistReturnRequest(`pharmacy/returns${queryString(defaultParams)}`, { method: 'GET', ...options })
-        } catch (fallbackErr) {
-          if (fallbackErr.name === 'AbortError') throw fallbackErr
-          throw err
-        }
-      }
-      throw err
+    const { force = false } = options
+    const cleanParams = {
+      page: Math.max(1, Number(params.page) || 1),
+      pageSize: Math.max(1, Number(params.pageSize) || 20),
     }
+    if (params.branchId != null && String(params.branchId).trim()) {
+      cleanParams.branchId = String(params.branchId).trim()
+    }
+    const cacheKey = JSON.stringify(cleanParams)
+    const now = Date.now()
+
+    if (!force && returnsHistoryCache && returnsHistoryCacheKey === cacheKey && now - returnsHistoryTimestamp < RETURNS_HISTORY_TTL) {
+      return returnsHistoryCache
+    }
+    if (returnsHistoryInFlight && returnsHistoryInFlightKey === cacheKey) {
+      return returnsHistoryInFlight
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const res = await pharmacistReturnRequest(`pharmacy/returns/history${queryString(cleanParams)}`, {
+          method: 'GET',
+        })
+        returnsHistoryCache = res
+        returnsHistoryCacheKey = cacheKey
+        returnsHistoryTimestamp = Date.now()
+        return res
+      } finally {
+        returnsHistoryInFlight = null
+        returnsHistoryInFlightKey = ''
+      }
+    })()
+
+    returnsHistoryInFlight = fetchPromise
+    returnsHistoryInFlightKey = cacheKey
+    return fetchPromise
+  },
+  clearHistoryCache: () => {
+    returnsHistoryCache = null
+    returnsHistoryCacheKey = ''
+    returnsHistoryTimestamp = 0
   },
   historyItem: (requestId, options = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}', { requestId }), { method: 'GET', ...options }),
   approveHistoryItem: async (requestId, payload = {}) => {

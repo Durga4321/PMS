@@ -38,7 +38,57 @@ export function matchingReturnMedicine(medicines, name) {
   return byName.length === 1 ? byName[0] : null
 }
 
-export function newReturnLine() { return { key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`, medicineId: '', batchId: '', batchNumber: '', expiryDate: '', quantity: '', condition: 'restock', returnId: '', completed: false, error: '' } }
+export function formatConditionLabel(val) {
+  const str = String(val || '')
+  if (/EligibleForRestocking|restock/i.test(str)) return 'Eligible for restocking'
+  if (/Damaged/i.test(str)) return 'Damaged — keep separate'
+  if (/Expired/i.test(str)) return 'Expired — keep separate'
+  return str.replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
+export function parseReturnOptions(data) {
+  const root = data?.data || data || {}
+
+  const rawReasons = root?.reasons || root?.returnReasons || (Array.isArray(root) ? root : [])
+  const reasons = (Array.isArray(rawReasons) ? rawReasons : []).map((r) => {
+    if (typeof r === 'string') return { value: r, label: r }
+    const val = r?.value ?? r?.id ?? r?.code ?? r?.name ?? r?.label ?? String(r)
+    const label = r?.label ?? r?.name ?? r?.description ?? String(val)
+    return { value: String(val), label: String(label) }
+  }).filter((r) => r.value)
+
+  const rawConditions = root?.conditions || root?.medicineConditions || root?.returnConditions || []
+  const conditions = (Array.isArray(rawConditions) ? rawConditions : []).map((c) => {
+    if (typeof c === 'string') {
+      return { value: c, label: formatConditionLabel(c) }
+    }
+    const val = c?.code ?? c?.value ?? c?.name ?? c?.id ?? String(c)
+    const label = c?.label ?? c?.name ?? formatConditionLabel(String(val))
+    return { value: String(val), label: String(label) }
+  }).filter((c) => c.value)
+
+  return {
+    reasons,
+    conditions,
+  }
+}
+
+export function newReturnLine(defaultCondition = 'EligibleForRestocking') {
+  return {
+    key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    medicineId: '',
+    batchId: '',
+    batchNumber: '',
+    originalBatch: '',
+    expiryDate: '',
+    quantity: '',
+    condition: defaultCondition,
+    returnableQuantity: null,
+    returnId: '',
+    completed: false,
+    error: '',
+  }
+}
 
 export function returnPayload(form, row, medicines) {
   if (!form.billId.trim()) throw new Error('Enter the original bill ID from Bills.')
@@ -48,17 +98,19 @@ export function returnPayload(form, row, medicines) {
   if (!row.batchNumber.trim()) throw new Error('Enter or select the original batch number.')
   const quantity = Number(row.quantity)
   if (!Number.isSafeInteger(quantity) || quantity < 1) throw new Error('Returned quantity must be a positive whole number.')
-  if (!['restock', 'damaged', 'expired'].includes(row.condition)) throw new Error('Select a valid medicine condition.')
-  if (row.condition === 'restock') {
+  if (!['restock', 'damaged', 'expired', 'EligibleForRestocking', 'Damaged', 'Expired'].some((c) => c.toLowerCase() === String(row.condition).toLowerCase())) {
+    throw new Error('Select a valid medicine condition.')
+  }
+  if (row.condition === 'restock' || /EligibleForRestocking/i.test(row.condition)) {
     if (!form.verified) throw new Error('Confirm that the returned medicines have been inspected before restocking.')
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
     if (row.expiryDate && String(row.expiryDate).slice(0, 10) <= today) throw new Error('Expired medicines cannot be added to available stock. Select Expired instead.')
   }
   const billId = /^\d+$/.test(form.billId.trim()) && Number.isSafeInteger(Number(form.billId)) ? Number(form.billId) : form.billId.trim()
-  return { billId, patientName: form.patientName.trim(), medicineId: medicine.apiId, medicineName: medicine.name, batchNumber: row.batchNumber.trim(), ...(row.batchId ? { batchId: row.batchId } : {}), quantity, reason: form.reason, notes: form.notes.trim(), condition: row.condition, restock: row.condition === 'restock', clientRequestId: row.key }
+  return { billId, patientName: form.patientName.trim(), medicineId: medicine.apiId, medicineName: medicine.name, batchNumber: row.batchNumber.trim(), ...(row.batchId ? { batchId: row.batchId } : {}), quantity, reason: form.reason, notes: form.notes.trim(), condition: row.condition, restock: row.condition === 'restock' || /EligibleForRestocking/i.test(row.condition), clientRequestId: row.key }
 }
 
-export function patientReturnPayload(form, lines, medicines = []) {
+export function patientReturnPayload(form, lines, medicines = [], allowedOptions = null) {
   const rawBillId = String(form?.billId ?? '').trim()
   const billId = Number(rawBillId)
   if (!rawBillId || !Number.isInteger(billId) || billId <= 0) {
@@ -68,6 +120,13 @@ export function patientReturnPayload(form, lines, medicines = []) {
   if (!reason) {
     throw new Error('Select a reason for the return.')
   }
+  if (allowedOptions?.reasons?.length > 0) {
+    const validReasonValues = allowedOptions.reasons.map((r) => typeof r === 'string' ? r : r.value)
+    if (!validReasonValues.includes(reason)) {
+      throw new Error('Please select a valid return reason from the options.')
+    }
+  }
+
   const validLines = (lines || []).filter((row) => !row.completed)
   if (!validLines.length) {
     throw new Error('Please add at least one medicine to return.')
@@ -95,11 +154,12 @@ export function patientReturnPayload(form, lines, medicines = []) {
     }
 
     let condition = 'EligibleForRestocking'
-    if (row.condition === 'damaged' || row.condition === 'Damaged') {
+    const condStr = String(row.condition || '')
+    if (condStr === 'damaged' || /Damaged/i.test(condStr)) {
       condition = 'Damaged'
-    } else if (row.condition === 'expired' || row.condition === 'Expired') {
+    } else if (condStr === 'expired' || /Expired/i.test(condStr)) {
       condition = 'Expired'
-    } else if (row.condition === 'restock' || row.condition === 'EligibleForRestocking') {
+    } else if (condStr === 'restock' || /EligibleForRestocking|restock/i.test(condStr)) {
       condition = 'EligibleForRestocking'
       if (!form?.verified) {
         throw new Error('Confirm that the returned medicines have been inspected before restocking.')
@@ -107,6 +167,16 @@ export function patientReturnPayload(form, lines, medicines = []) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
       if (row.expiryDate && String(row.expiryDate).slice(0, 10) <= today) {
         throw new Error('Expired medicines cannot be added to available stock. Select Expired instead.')
+      }
+    } else if (condStr) {
+      condition = condStr
+    }
+
+    if (allowedOptions?.conditions?.length > 0) {
+      const validConditionValues = allowedOptions.conditions.map((c) => typeof c === 'string' ? c : c.value)
+      const matches = validConditionValues.some((v) => v.toLowerCase() === condStr.toLowerCase() || v.toLowerCase() === condition.toLowerCase())
+      if (!matches) {
+        throw new Error(`Select a valid medicine condition for row ${index + 1}.`)
       }
     }
 

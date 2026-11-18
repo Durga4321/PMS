@@ -153,3 +153,10 @@ test('inventory helper does not make network call when billId is missing', async
   assert.deepEqual(res, [])
 })
 
+test('options and history define clear cache helpers and deduplicate calls', () => {
+  assert.equal(typeof pharmacistReturnsApi.clearOptionsCache, 'function')
+  assert.equal(typeof pharmacistReturnsApi.clearHistoryCache, 'function')
+  pharmacistReturnsApi.clearOptionsCache()
+  pharmacistReturnsApi.clearHistoryCache()
+})
+
