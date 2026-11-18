@@ -62,13 +62,12 @@
 .pd-activity:last-child { border:0; }
 .pd-activity>span { width:8px; height:8px; background:var(--pms-accent); border-radius:50%; flex:none; margin-top:5px; }
 .pd-activity time { display:block; font-size:10px; color:var(--pms-muted); margin-top:6px; }
-.pd-action-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+.pd-action-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; width:100%; }
 .pd-action-cards a { display:flex; align-items:center; justify-content:center; gap:8px; min-width:0; padding:12px; border:1px solid var(--pd-border); border-radius:13px; background:var(--pms-surface,#fff); font-size:12px; color:var(--pd-accent); }
 .pd-action-cards a svg { width:20px; height:20px; }
 .pd-action-cards a:hover { border-color:var(--pd-accent); background:color-mix(in srgb,var(--pd-accent) 6%,var(--pms-surface,#fff)); }
 @media(max-width:1200px) { .pd-action-cards { gap:10px; } }
-@media(max-width:700px) { .pd-action-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media(max-width:420px) { .pd-action-cards { grid-template-columns:1fr; } }
+@media(max-width:1000px) { .pd-action-cards { grid-template-columns:repeat(4,minmax(180px,1fr)); overflow-x:auto; padding:4px; } .pd-action-cards a { white-space:nowrap; } }
 .pd-more { display:block; margin-top:12px; font-size:11px; }
 .pd-dashboard :is(a,button,input):focus-visible { outline:2px solid var(--pms-accent); outline-offset:3px; }
 @media(min-width:1200px) { .pharmacist-content.is-dashboard:has(.pd-dashboard) { padding:24px; } }

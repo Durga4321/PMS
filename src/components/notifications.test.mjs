@@ -113,13 +113,25 @@ test('HTTP notification calls use the matching role token, tenant, route, and mu
     await notificationApis[role].recipients({ role: 'pharmacist', q: 'Ravi Kumar', page: 1, pageSize: 50 })
     const call = calls.at(-1)
     const url = new URL(call.url, 'http://localhost')
-    assert.equal(url.pathname, `/api/${base}/notifications/recipients`)
-    assert.equal(url.searchParams.get('q'), 'Ravi Kumar')
-    assert.equal(url.searchParams.get('role'), 'pharmacist')
+    assert.equal(url.pathname, role === 'pharmacyAdmin' ? '/api/pharmacy-admin/pharmacists' : `/api/${base}/notifications/recipients`)
+    assert.equal(url.searchParams.get(role === 'pharmacyAdmin' ? 'search' : 'q'), 'Ravi Kumar')
+    if (role === 'pharmacyAdmin') assert.equal(url.searchParams.get('pharmacyId'), 'pharmacy-1')
+    else assert.equal(url.searchParams.get('role'), 'pharmacist')
     assert.equal(url.searchParams.get('pageSize'), '50')
     assert.equal(call.headers.Authorization, `Bearer ${token}`)
     assert.equal(call.method ?? 'GET', 'GET')
   }
+})
+
+test('admin recipient dropdown excludes pharmacists assigned to another pharmacy and deleted accounts', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ data: { pharmacists: [
+    { pharmacistId: 'own', fullName: 'Assigned pharmacist', pharmacyId: 'pharmacy-1' },
+    { id: 'other', pharmacyId: 'pharmacy-2' },
+    { id: 'deleted', pharmacyId: 'pharmacy-1', isDeleted: true },
+  ], hasMore: false } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  const response = await notificationApis.pharmacyAdmin.recipients({ role: 'pharmacist' })
+  assert.deepEqual(notificationList(response).map((item) => item.pharmacistId), ['own'])
+  assert.equal(notificationBody(response).hasMore, false)
 })
 
 test('pharmacists cannot send notifications or enumerate recipients', async () => {

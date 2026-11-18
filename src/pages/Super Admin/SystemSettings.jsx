@@ -187,7 +187,7 @@ function SystemSettings() {
       <SuperAdminSidebar activeLabel="System Settings" />
       <main className="super-admin-main">
         <SuperAdminTopbar onMenu={() => setSidebarOpen((value) => !value)} />
-        <section className="settings-heading"><div><h1>System Settings</h1><span>Configure global pharmacy platform preferences.</span></div><span className="settings-environment"><i />Production Environment</span></section>
+        <section className="settings-heading"><div><h1>System Settings</h1><span>Configure global pharmacy platform preferences.</span></div></section>
         <form className="settings-card" onSubmit={saveSettings}>
           <nav className="settings-tabs" aria-label="Settings sections">{[['general', 'General Settings'], ['email', 'Email Settings'], ['sms', 'SMS Settings'], ['payment', 'Payment Settings'], ['language', 'Language']].map(([value, label]) => <button key={value} className={`${value} ${tab === value ? 'active' : ''}`} onClick={() => setTab(value)} type="button" aria-pressed={tab === value}><SettingsIcon name={value} />{label}</button>)}<span className="settings-live"><i />Live</span></nav>
           {loading ? <div className="settings-state">Loading current settings...</div> : <>
