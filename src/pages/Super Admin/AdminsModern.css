@@ -917,6 +917,7 @@
 
 .admins-page-shell .admins-toolbar {
   margin-bottom: 16px;
+  justify-content: flex-start;
 }
 
 .admins-page-shell .admins-table-search,
@@ -927,6 +928,7 @@
 
 .admins-page-shell .admins-table-search {
   max-width: 540px;
+  flex: 1 1 360px;
 }
 
 .admins-page-shell .admins-table-search input {
@@ -936,6 +938,10 @@
 .admins-page-shell .admins-filter-button {
   padding: 0 13px;
   font-size: 12px;
+}
+
+.admins-page-shell .admins-toolbar .admins-primary-button {
+  margin-left: auto;
 }
 
 .admins-page-shell .admins-table-card {
@@ -1129,6 +1135,12 @@
   .admins-topbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .admins-page-shell .admins-toolbar .admins-primary-button {
+    margin-left: 0;
+    min-width: 0;
+    flex: 0 0 auto;
   }
 
   .admins-form-grid {

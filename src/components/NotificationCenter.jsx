@@ -80,7 +80,12 @@ export default function NotificationCenter({ role }) {
       try {
         const response = await api.recipients({ role: recipientRole(form.audience), q: recipientQuery.trim(), page: recipientPage, pageSize: 50 }, { signal: controller.signal })
         if (!current) return
-        const incoming = notificationList(response).filter((item) => item.id != null && item.id !== '').map((item) => ({ ...item, id: String(item.id) }))
+        const incoming = notificationList(response).map((item) => ({
+          ...item,
+          id: String(item.id ?? item.pharmacistId ?? item._id ?? item.userId?.id ?? ''),
+          name: item.name || item.fullName || item.pharmacistName || item.user?.name,
+          email: item.email || item.user?.email,
+        })).filter((item) => item.id !== '')
         setRecipients((previous) => recipientPage === 1 ? incoming : [...previous, ...incoming.filter((item) => !previous.some((old) => old.id === item.id))])
         const body = notificationBody(response)
         const total = body.total ?? body.pagination?.total
@@ -148,9 +153,13 @@ export default function NotificationCenter({ role }) {
     event.preventDefault()
     if (sending) return
     setSendError('')
+    // Read the submitted controls so validation uses exactly what is visible,
+    // including values filled by the browser without a React change event.
+    const submitted = new FormData(event.currentTarget)
+    const submittedForm = { ...form, title: String(submitted.get('title') ?? ''), message: String(submitted.get('message') ?? ''), recipientId: String(submitted.get('recipientId') ?? '') }
     try {
-      const payload = notificationPayload(role, form)
-      if (targeted && !recipients.some((item) => item.id === form.recipientId)) throw new Error('Select a recipient before sending.')
+      const payload = notificationPayload(role, submittedForm)
+      if (targeted && !recipients.some((item) => item.id === submittedForm.recipientId)) throw new Error('Select a recipient before sending.')
       setSending(true)
       await api.send(payload)
       setModalOpen(false)
@@ -204,10 +213,10 @@ export default function NotificationCenter({ role }) {
       {!error && hasMore ? <button className="notification-center-more" type="button" disabled={loading} onClick={() => { setLoading(true); setPage((value) => value + 1) }}>Load More</button> : null}
     </div>
     {modalOpen ? <div className="notification-center-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) setModalOpen(false) }}><div className="notification-center-dialog" role="dialog" aria-modal="true" aria-labelledby={modalTitle} ref={dialog} onKeyDown={handleDialogKey}><form onSubmit={send}><header><div><p>New message</p><h2 id={modalTitle}>Send Notification</h2></div><button type="button" aria-label="Close" disabled={sending} onClick={() => setModalOpen(false)}>×</button></header>
-      <label>Title<input required maxLength={200} value={form.title} disabled={sending} onChange={(event) => setForm((value) => ({ ...value, title: event.target.value }))} placeholder="e.g. Low Stock Alert" /></label>
-      <label>Message<textarea required rows={4} maxLength={5000} value={form.message} disabled={sending} onChange={(event) => setForm((value) => ({ ...value, message: event.target.value }))} placeholder="Write the notification message..." /></label>
+      <label>Title<input name="title" required maxLength={200} value={form.title} disabled={sending} onChange={(event) => { const title = event.target.value; setForm((value) => ({ ...value, title })); setSendError('') }} placeholder="e.g. Low Stock Alert" /></label>
+      <label>Message<textarea name="message" required rows={4} maxLength={5000} value={form.message} disabled={sending} onChange={(event) => { const message = event.target.value; setForm((value) => ({ ...value, message })); setSendError('') }} placeholder="Write the notification message..." /></label>
       <label>Target Audience<select value={form.audience} disabled={sending} onChange={(event) => { setForm((value) => ({ ...value, audience: event.target.value, recipientId: '' })); setRecipients([]); setRecipientQuery(''); setRecipientPage(1); setRecipientError('') }}>{audiences.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      {targeted ? <><label>Find recipient<input type="search" value={recipientQuery} disabled={sending} placeholder="Search by name or email..." onChange={(event) => { setRecipientQuery(event.target.value); setRecipientPage(1); setRecipients([]); setForm((value) => ({ ...value, recipientId: '' })) }} /></label><label>{form.audience === 'specific-branch' ? 'Select Branch' : form.audience === 'specific-admin' ? 'Select Admin' : 'Select Pharmacist'}<select required value={form.recipientId} disabled={sending || recipientsLoading} onChange={(event) => setForm((value) => ({ ...value, recipientId: event.target.value }))}><option value="">Select a recipient</option>{recipients.map((item) => <option key={item.id} value={item.id} translate="no">{[item.name || item.email || item.id, item.email && item.name ? item.email : '', item.branchName].filter(Boolean).join(' — ')}</option>)}</select></label>{recipientsLoading ? <p role="status">Loading recipients...</p> : null}{recipientError ? <p className="notification-center-error" role="alert">{recipientError}</p> : !recipientsLoading && !recipients.length ? <p>No eligible recipients found.</p> : null}{moreRecipients ? <button type="button" disabled={recipientsLoading || sending} onClick={() => setRecipientPage((value) => value + 1)}>Load more recipients</button> : null}</> : null}
+      {targeted ? <><label>Find recipient<input type="search" value={recipientQuery} disabled={sending} placeholder="Search by name or email..." onChange={(event) => { setRecipientQuery(event.target.value); setRecipientPage(1); setRecipients([]); setForm((value) => ({ ...value, recipientId: '' })) }} /></label><label>{form.audience === 'specific-branch' ? 'Select Branch' : form.audience === 'specific-admin' ? 'Select Admin' : 'Select Pharmacist'}<select name="recipientId" required value={form.recipientId} disabled={sending || recipientsLoading} onChange={(event) => setForm((value) => ({ ...value, recipientId: event.target.value }))}><option value="">Select a recipient</option>{recipients.map((item) => <option key={item.id} value={item.id} translate="no">{[item.name || item.email || item.id, item.email && item.name ? item.email : '', item.branchName].filter(Boolean).join(' — ')}</option>)}</select></label>{recipientsLoading ? <p role="status">Loading recipients...</p> : null}{recipientError ? <p className="notification-center-error" role="alert">{recipientError}</p> : !recipientsLoading && !recipients.length ? <p>No eligible recipients found.</p> : null}{moreRecipients ? <button type="button" disabled={recipientsLoading || sending} onClick={() => setRecipientPage((value) => value + 1)}>Load more recipients</button> : null}</> : null}
       {sendError ? <p className="notification-center-error" role="alert">{sendError}</p> : null}
       <footer><button type="button" disabled={sending} onClick={() => setModalOpen(false)}>Cancel</button><button className="notification-center-send" type="submit" disabled={sending || (targeted && (recipientsLoading || Boolean(recipientError) || !form.recipientId))}>{sending ? 'Sending...' : 'Send Notification'}</button></footer>
     </form></div></div> : null}

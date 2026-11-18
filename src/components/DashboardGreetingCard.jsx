@@ -1,10 +1,10 @@
 import DashboardGreeting from './DashboardGreeting'
 import './DashboardGreetingCard.css'
 
-export default function DashboardGreetingCard({ role, subtitle }) {
+export default function DashboardGreetingCard({ role, name, subtitle }) {
   return (<section className="dashboard-hero-card dashboard-greeting-card">
           <div className="dashboard-hero-left">
-            <DashboardGreeting role={role} subtitle={subtitle} />
+            <DashboardGreeting role={role} name={name} subtitle={subtitle} />
           </div>
           <div className="dashboard-hero-illustration">
             <div className="hero-clinic-illustration">

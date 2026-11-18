@@ -101,7 +101,7 @@ function AdminSidebar({ activeLabel, hospitalName = 'PMS', branchName = 'Admin C
         </span>
         <div className="branch-admin-brand-copy">
           <strong>{appName || hospitalName || 'PMS'}</strong>
-          <small>{currentPharmacyName || branchName || 'Admin Console'}</small>
+          <small title={currentPharmacyName || branchName || undefined}>Admin Console</small>
         </div>
       </div>
 

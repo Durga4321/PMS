@@ -99,3 +99,45 @@
 @media (max-width: 900px) { .rx-heading { grid-template-columns: minmax(0, 1fr); } .rx-heading > .rx-heading-actions { justify-content: flex-start; } }
 @media (max-width: 800px) { .rx-details-grid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .rx-workspace { gap: 14px; } .rx-card { padding: 16px; } .rx-patient-grid { grid-template-columns: 1fr; } .rx-stepper { gap: 6px; } .rx-stepper li { flex-direction: column; padding: 9px 5px; border-radius: 12px; font-size: 11px; text-align: center; } .rx-footer > div, .rx-footer button { flex: 1; } .rx-totals { gap: 10px; } .rx-totals > strong:last-child { width: 100%; margin: 0; } }
+
+/* Keep the primary dispensing workflow inside the desktop viewport. */
+@media (min-width: 901px) and (min-height: 600px) {
+  .pharmacist-page .pharmacist-main:has(.rx-workspace) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .pharmacist-page .pharmacist-main:has(.rx-workspace) > .pharmacist-header {
+    flex: 0 0 auto;
+  }
+
+  .pharmacist-page .pharmacist-content:has(.rx-workspace) {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 8px;
+  }
+
+  .pharmacist-page .rx-workspace {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 0 12px;
+    gap: 10px;
+    scrollbar-width: thin;
+  }
+
+  .rx-heading h1 { margin: 0 0 4px; }
+  .rx-heading > div > p { margin: 0; }
+  .rx-workspace h2 { margin-bottom: 10px; }
+  .rx-details-grid { gap: 14px; margin-bottom: 10px; }
+  .rx-details-grid .rx-card { padding: 14px; }
+  .rx-camera-frame { flex-basis: 160px; height: 160px; min-height: 160px; }
+  .rx-photo-actions { margin: 8px 0 4px; }
+  .rx-stepper { gap: 12px; }
+  .rx-stepper li { min-height: 40px; padding: 7px 10px; }
+}

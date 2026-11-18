@@ -377,7 +377,7 @@ export default function PrescriptionWorkspace() {
 
   return <PharmacistLayout activeLabel="Dispensing">
     <div className="rx-workspace">
-      <header className="rx-heading"><div><p className="rx-breadcrumb">Pharmacist / Dispensing</p><h1>{payment ? 'Payment & Billing' : 'New Prescription & Medicines'}</h1><p>{payment ? 'Review the bill and record the confirmed payment.' : 'Add patient details, attach the prescription, and enter medicines as prescribed.'}</p></div><div className="rx-heading-actions">{locked ? <button type="button" disabled={busy} onClick={startNew}>New Prescription</button> : null}<button type="button" onClick={showReferences}>Saved References</button></div></header>
+      <header className="rx-heading"><div><h1>{payment ? 'Payment & Billing' : 'New Prescription & Medicines'}</h1><p>{payment ? 'Review the bill and record the confirmed payment.' : 'Add patient details, attach the prescription, and enter medicines as prescribed.'}</p></div><div className="rx-heading-actions">{locked ? <button type="button" disabled={busy} onClick={startNew}>New Prescription</button> : null}<button type="button" onClick={showReferences}>Saved References</button></div></header>
       <ol className="rx-stepper" aria-label="Prescription progress">{['Patient & Prescription', 'Add Medicines', 'Payment'].map((label, index) => <li key={label} className={(index === activeStep) ? 'is-active' : ''} aria-current={(index === activeStep) ? 'step' : undefined}><b>{index + 1}</b>{label}</li>)}</ol>
       {error ? <p className="rx-message rx-error" role="alert">{error}</p> : null}
       {notice ? <p className="rx-message" role="status">{notice}</p> : null}

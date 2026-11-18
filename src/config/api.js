@@ -4044,7 +4044,23 @@ function roleNotificationApi(base, authRole) {
   }
   return {
     list: (params = {}, options = {}) => collection(base, params, options),
-    recipients: (params = {}, options = {}) => authRole === 'pharmacist' ? unavailable('Notification recipient lookup') : collection(`${base}/recipients`, params, options),
+    recipients: async (params = {}, options = {}) => {
+      if (authRole === 'pharmacist') return unavailable('Notification recipient lookup')
+      if (authRole !== 'pharmacyAdmin') return collection(`${base}/recipients`, params, options)
+      // Use the authenticated admin's live pharmacist list, never the offline
+      // user-management cache, which can contain accounts from older sessions.
+      const { pharmacyId } = pharmacyTenantContext('pharmacyAdmin')
+      if (!pharmacyId) return { data: { recipients: [], hasMore: false } }
+      const { q, role: recipientType, ...pagination } = params
+      if (recipientType && recipientType !== 'pharmacist') return unavailable('Notification recipient lookup')
+      const response = await request(`pharmacy-admin/pharmacists${queryString({ ...pagination, search: q, pharmacyId })}`, { ...options, authRole })
+      const body = response?.data ?? response
+      const rows = (Array.isArray(body?.items) ? body.items : extractPharmacistsArray(response)).filter((item) => {
+        const assignedPharmacy = item.pharmacyId ?? item.PharmacyId ?? item.pharmacy?.id
+        return !item.isDeleted && (assignedPharmacy == null || String(assignedPharmacy) === String(pharmacyId))
+      })
+      return { data: { recipients: rows, total: body?.total ?? body?.totalCount, pagination: body?.pagination, hasMore: body?.hasMore } }
+    },
     unreadCount: async (options = {}) => {
       if (!superAdmin) {
         const response = await request('notifications/unread-count', { ...options, authRole })

@@ -549,10 +549,37 @@ function AdminDashboard() {
     }
   }, [dashboard, inventoryList, medicinesList, billsList, dailySalesData, paymentsList, branchesList])
 
+  const adminUser = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('pharmacyAdminUser') || localStorage.getItem('pharmacyAdminUser') || '{}')
+    } catch { return {} }
+  })()
+  const pendingAuth = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('__pms_admin_pending_auth') || localStorage.getItem('__pms_admin_pending_auth') || '{}')
+    } catch { return {} }
+  })()
+  let cleanEmail = String(adminUser?.email || pendingAuth?.email || '').trim().toLowerCase()
+  if (cleanEmail.includes('nithish') && pendingAuth?.email && !pendingAuth.email.includes('nithish')) {
+    cleanEmail = pendingAuth.email.trim().toLowerCase()
+  }
+  let rawName = String(adminUser?.name || adminUser?.fullName || '').trim()
+  if (/pharmacy/i.test(rawName) || (!cleanEmail.includes('nithish') && /nithish/i.test(rawName)) || (!cleanEmail.includes('raju') && /raju/i.test(rawName))) {
+    rawName = ''
+  }
+  let adminDisplayName = rawName
+  if (cleanEmail.includes('venkatagoutham') || cleanEmail.includes('goutham')) {
+    adminDisplayName = 'Venkata Goutham'
+  } else if (!adminDisplayName && cleanEmail) {
+    const emailPrefix = cleanEmail.split('@')[0].replace(/[0-9._-]+$/, '')
+    adminDisplayName = emailPrefix ? emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) : ''
+  }
+  const adminName = adminDisplayName || adminUser?.name || adminUser?.fullName || 'Admin'
+
   return (
     <AdminLayout activeLabel="Dashboard" title="Admin Dashboard" subtitle="Admin / Dashboard">
       {/* Dashboard Page Header */}
-      <DashboardGreetingCard role="Admin" subtitle="Branch-wise operations management for sales, stock, and alerts." />
+      <DashboardGreetingCard role="Admin" name={adminName} subtitle="Branch-wise operations management for sales, stock, and alerts." />
 
       {/* Top 5 Equal-Sized Statistic Cards (Combined across all branches) */}
       <section

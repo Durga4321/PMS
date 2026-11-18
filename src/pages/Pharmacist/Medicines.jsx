@@ -252,7 +252,7 @@ export default function PharmacistMedicines() {
         </button>
       }
     >
-      <div className="med-layout-container" style={{ margin: 0, gap: '20px' }}>
+      <div className="med-layout-container" style={{ margin: 0, gap: '10px' }}>
         {/* 5 Summary Stat Cards */}
         <div
           className="med-summary-grid"
@@ -263,7 +263,7 @@ export default function PharmacistMedicines() {
             alignItems: 'stretch',
             width: '100%',
             marginTop: 0,
-            marginBottom: '20px'
+            marginBottom: 0
           }}
         >
           <div className="med-summary-card">
