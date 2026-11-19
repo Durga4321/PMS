@@ -161,7 +161,7 @@ export function patientReturnPayload(form, lines, medicines = [], allowedOptions
       condition = 'Expired'
     } else if (condStr === 'restock' || /EligibleForRestocking|restock/i.test(condStr)) {
       condition = 'EligibleForRestocking'
-      if (!form?.verified) {
+      if (!form?.verified && !form?.verifiedForRestocking) {
         throw new Error('Confirm that the returned medicines have been inspected before restocking.')
       }
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -193,7 +193,7 @@ export function patientReturnPayload(form, lines, medicines = [], allowedOptions
     patientName: String(form?.patientName || '').trim(),
     reason,
     notes: String(form?.notes || '').trim(),
-    verifiedForRestocking: Boolean(form?.verified),
+    verifiedForRestocking: Boolean(form?.verified ?? form?.verifiedForRestocking),
     medicines: mappedMedicines,
   }
 }

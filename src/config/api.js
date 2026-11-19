@@ -2530,7 +2530,7 @@ export const pharmacistReturnsApi = {
     const { force = false } = options
     const cleanParams = {
       page: Math.max(1, Number(params.page) || 1),
-      pageSize: Math.max(1, Number(params.pageSize) || 20),
+      pageSize: Math.min(20, Math.max(1, Number(params.pageSize) || 20)),
     }
     if (params.branchId != null && String(params.branchId).trim()) {
       cleanParams.branchId = String(params.branchId).trim()

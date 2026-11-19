@@ -38,7 +38,7 @@ const sources = [
   () => getPendingPharmacyPrescriptions(),
   () => getPharmacistInventoryAlerts(),
   () => listBills(),
-  () => pharmacistReturnsApi.list({ page: 1, pageSize: 100 }),
+  () => pharmacistReturnsApi.list({ page: 1, pageSize: 20 }),
   () => getPharmacyDispensingOverview(),
   () => getNearExpiryInventoryDetails({ days: 30 }),
 ]
