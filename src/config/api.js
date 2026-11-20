@@ -370,10 +370,15 @@ export function authTokenFor(path = '', authRole = '') {
   const route = typeof window !== 'undefined' ? window.location?.pathname || '' : ''
 
   if (authRole && tokenKeysByRole[authRole]) {
-    return readStoredToken(tokenKeysByRole[authRole])
+    const roleToken = readStoredToken(tokenKeysByRole[authRole])
+    if (roleToken) return roleToken
+    if (authRole === 'superAdmin') {
+      return readStoredToken('pharmacySuperAdminToken') || readStoredToken('token') || readStoredToken('authToken') || ''
+    }
+    return ''
   }
   if (cleanPath.startsWith('pharmacy-super-admin')) {
-    return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
+    return readStoredToken('superAdminToken') || readStoredToken('pharmacySuperAdminToken') || readStoredToken('token') || readStoredToken('authToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
   }
   if (cleanPath.startsWith('pharmacy-admin-auth') || cleanPath.startsWith('pharmacy-admin')) {
     return readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken') || readStoredToken('pharmacistToken')
@@ -613,8 +618,12 @@ async function request(path, options = {}) {
     } else if (publicRequest && path === 'auth/login' && response.status === 401) {
       errorMsg = errorMsg || 'Login rejected. Check your email and password.'
     }
-    if (response.status === 403 && (authRole === 'pharmacist' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist')))) {
-      errorMsg = 'Access denied for this pharmacist account. Ask your pharmacy administrator to verify your role permissions and pharmacy/branch assignment.'
+    if (response.status === 403) {
+      if (authRole === 'pharmacist' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))) {
+        errorMsg = 'Access denied for this pharmacist account. Ask your pharmacy administrator to verify your role permissions and pharmacy/branch assignment.'
+      } else if (authRole === 'superAdmin' || cleanPath.startsWith('pharmacy-super-admin') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/super-admin'))) {
+        errorMsg = 'Access forbidden: Pharmacy Super Admin privileges required. Please verify your Super Admin session.'
+      }
     }
     const error = new Error(errorMsg)
     error.status = response.status
@@ -3380,7 +3389,7 @@ export function deleteIntegrationHospitalBranch(externalHospitalId, externalBran
   }), { method: 'DELETE' })
 }
 
-export function listPharmacyAdmins(params = {}) {
+export function listPharmacyAdmins(params = {}, options = {}) {
   const query = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
@@ -3389,7 +3398,10 @@ export function listPharmacyAdmins(params = {}) {
     }
   })
 
-  return request(`pharmacy-super-admin/admins${query.toString() ? `?${query}` : ''}`)
+  return request(`pharmacy-super-admin/admins${query.toString() ? `?${query}` : ''}`, {
+    authRole: 'superAdmin',
+    ...options,
+  })
 }
 
 function cleanAdminAccountPayload(payload = {}) {
@@ -3400,45 +3412,66 @@ function cleanAdminAccountPayload(payload = {}) {
     ...(payload.mobileNumber !== undefined ? { mobileNumber: payload.mobileNumber } : {}),
     ...(payload.pharmacyPermissionRoleId !== undefined ? { pharmacyPermissionRoleId: payload.pharmacyPermissionRoleId } : {}),
     ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}),
+    ...(payload.pharmacyName !== undefined ? { pharmacyName: payload.pharmacyName } : {}),
+    ...(payload.pharmacyAddress !== undefined ? { pharmacyAddress: payload.pharmacyAddress } : {}),
+    ...(payload.pharmacyContactNumber !== undefined ? { pharmacyContactNumber: payload.pharmacyContactNumber } : {}),
+    ...(payload.pharmacyEmail !== undefined ? { pharmacyEmail: payload.pharmacyEmail } : {}),
+    ...(payload.city !== undefined ? { city: payload.city } : {}),
+    ...(payload.state !== undefined ? { state: payload.state } : {}),
+    ...(payload.country !== undefined ? { country: payload.country } : {}),
+    ...(payload.postalCode !== undefined ? { postalCode: payload.postalCode } : {}),
   }
 }
 
-export function createPharmacyAdmin(payload) {
+export function createPharmacyAdmin(payload, options = {}) {
   return request('pharmacy-super-admin/admins', {
     method: 'POST',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(cleanAdminAccountPayload(payload))),
+    ...options,
   })
 }
 
-export function assignPharmacyToAdmin(id, payload) {
+export function assignPharmacyToAdmin(id, payload, options = {}) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/pharmacy-assignment', { id }), {
     method: 'PUT',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(payload)),
+    ...options,
   })
 }
 
-export function getPharmacyAdmin(id) {
-  return request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }))
+export function getPharmacyAdmin(id, options = {}) {
+  return request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), {
+    authRole: 'superAdmin',
+    ...options,
+  })
 }
 
-export function updatePharmacyAdmin(id, payload) {
+export function updatePharmacyAdmin(id, payload, options = {}) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), {
     method: 'PUT',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(cleanAdminAccountPayload(payload))),
+    ...options,
   })
 }
 
-export function resetPharmacyAdminPassword(id, payload) {
+export function resetPharmacyAdminPassword(id, payload, options = {}) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/reset-password', { id }), {
     method: 'POST',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(passwordResetPayload(payload))),
+    ...options,
   })
 }
 
-export function changePharmacyAdminStatus(id, payload) {
+export function changePharmacyAdminStatus(id, payload, options = {}) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/status', { id }), {
     method: 'PATCH',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))),
+    ...options,
   })
 }
 
@@ -3749,8 +3782,8 @@ export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-aut
 export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
 export const getPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/prescriptions${queryString(params)}`, { authRole: 'pharmacist', ...options })
 export const getPharmacyDispensingOverview = (params = {}, options = {}) => request(`pharmacy/dispensing${queryString(params)}`, { authRole: 'pharmacist', ...options })
-export const getSuperAdminAuditLogs = (params = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`)
-export const getSuperAdminAuditLogSummary = () => request('pharmacy-super-admin/audit-logs/summary')
+export const getSuperAdminAuditLogs = (params = {}, options = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`, { authRole: 'superAdmin', ...options })
+export const getSuperAdminAuditLogSummary = (options = {}) => request('pharmacy-super-admin/audit-logs/summary', { authRole: 'superAdmin', ...options })
 const SUB_BRANCHES_CACHE_KEY = 'pms_pharmacy_sub_branches'
 
 export function readLocalSubBranches() {
@@ -4160,10 +4193,10 @@ export const listSuperAdminRoles = async (params = {}) => {
       : [],
   }
 }
-export const createSuperAdminRole = (payload) => request('pharmacy-super-admin/admins', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const updateSuperAdminRole = (id, payload) => updatePharmacyAdmin(id, payload)
-export const deleteSuperAdminRole = (id) => request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), { method: 'DELETE' })
-export const getSuperAdminRolePermissions = (roleId) => request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }))
+export const createSuperAdminRole = (payload, options = {}) => request('pharmacy-super-admin/admins', { method: 'POST', authRole: 'superAdmin', body: JSON.stringify(apiPayload(payload)), ...options })
+export const updateSuperAdminRole = (id, payload, options = {}) => updatePharmacyAdmin(id, payload, options)
+export const deleteSuperAdminRole = (id, options = {}) => request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), { method: 'DELETE', authRole: 'superAdmin', ...options })
+export const getSuperAdminRolePermissions = (roleId, options = {}) => request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }), { authRole: 'superAdmin', ...options })
 export const updateSuperAdminRolePermissions = (roleId, payload) => {
   let list = []
   if (Array.isArray(payload)) {
@@ -4200,6 +4233,7 @@ export const updateSuperAdminRolePermissions = (roleId, payload) => {
 
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }), {
     method: 'PUT',
+    authRole: 'superAdmin',
     body: JSON.stringify(cleanList),
   })
 }

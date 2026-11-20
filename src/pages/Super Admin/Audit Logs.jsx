@@ -150,6 +150,7 @@ function AuditLogs() {
   const [logs, setLogs] = useState([])
   const [branches, setBranches] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [branchesLoading, setBranchesLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [tab, setTab] = useState('all')
@@ -162,15 +163,17 @@ function AuditLogs() {
 
   const loadLogs = useCallback(async (targetBranchId = branchId) => {
     setLoading(true)
+    setError(null)
     try {
       const params = {}
       if (targetBranchId && String(targetBranchId).trim()) {
         params.branchId = String(targetBranchId).trim()
       }
-      const response = await getSuperAdminAuditLogs(params)
+      const response = await getSuperAdminAuditLogs(params, { authRole: 'superAdmin' })
       setLogs(listFrom(response).map(normalizeLog))
-    } catch {
+    } catch (err) {
       setLogs([])
+      setError(err?.message || 'Unable to load audit logs.')
     } finally {
       setLoading(false)
     }
@@ -278,7 +281,7 @@ function AuditLogs() {
         <div className="audit-tabs"><button className={tab === 'all' ? 'is-active' : ''} type="button" onClick={() => updateFilter(setTab, 'all')}>All Audit Logs</button><button className={tab === 'login' ? 'is-active' : ''} type="button" onClick={() => updateFilter(setTab, 'login')}>Login History</button></div>
         <div className="audit-search-row"><label className="audit-search"><Icon><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></Icon><input value={query} onChange={(event) => updateFilter(setQuery, event.target.value)} placeholder="Search by user name, action, IP address, or timestamp..." /></label><select value={actionFilter} onChange={(event) => updateFilter(setActionFilter, event.target.value)} aria-label="Filter by action"><option value="all">All</option>{actions.map((action) => <option key={action} value={action}>{action.charAt(0).toUpperCase() + action.slice(1)}</option>)}</select></div>
         <div className="audit-filters"><label><span>Start Date</span><input type="date" value={startDate} onChange={(event) => updateFilter(setStartDate, event.target.value)} /></label><label><span>End Date</span><input type="date" value={endDate} onChange={(event) => updateFilter(setEndDate, event.target.value)} /></label><label><span>Branch</span><select value={branchId} onChange={(event) => handleBranchChange(event.target.value)} disabled={branchesLoading} aria-label="Filter by branch"><option value="">{branchesLoading ? 'Loading branches...' : 'All Branches'}</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName}</option>)}</select></label></div>
-        <div className="audit-table-wrap"><table><thead><tr><th>S.No</th><th>Name</th><th>Email Address</th><th>Action</th><th>IP Address</th><th>Login</th><th>Timestamp</th><th>Role</th></tr></thead><tbody>{loading ? <tr><td className="audit-table-state" colSpan="8">Loading audit logs...</td></tr> : visibleLogs.length ? visibleLogs.map((log, index) => <tr key={`${log.id}-${index}`}><td>{(currentPage - 1) * PAGE_SIZE + index + 1}</td><td><span className="audit-user"><b>{initials(log.userName)}</b>{log.userName}</span></td><td>{log.email}</td><td><span className="audit-action">{log.action}</span></td><td>{log.ipAddress}</td><td><span className={`audit-login ${log.login ? 'is-yes' : 'is-no'}`}>{log.login ? 'Yes' : 'No'}</span></td><td>{formatTimestamp(log.timestamp)}</td><td><span className={`audit-role role-${log.role.toLowerCase().replace(/\s+/g, '-')}`}>{log.role}</span></td></tr>) : <tr><td className="audit-table-state" colSpan="8">No data found</td></tr>}</tbody></table></div>
+        <div className="audit-table-wrap"><table><thead><tr><th>S.No</th><th>Name</th><th>Email Address</th><th>Action</th><th>IP Address</th><th>Login</th><th>Timestamp</th><th>Role</th></tr></thead><tbody>{loading ? <tr><td className="audit-table-state" colSpan="8">Loading audit logs...</td></tr> : error ? <tr><td className="audit-table-state" colSpan="8"><div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '16px' }}><span>⚠️ {error}</span><button type="button" className="audit-refresh" onClick={() => loadLogs(branchId)}>Retry</button></div></td></tr> : visibleLogs.length ? visibleLogs.map((log, index) => <tr key={`${log.id}-${index}`}><td>{(currentPage - 1) * PAGE_SIZE + index + 1}</td><td><span className="audit-user"><b>{initials(log.userName)}</b>{log.userName}</span></td><td>{log.email}</td><td><span className="audit-action">{log.action}</span></td><td>{log.ipAddress}</td><td><span className={`audit-login ${log.login ? 'is-yes' : 'is-no'}`}>{log.login ? 'Yes' : 'No'}</span></td><td>{formatTimestamp(log.timestamp)}</td><td><span className={`audit-role role-${log.role.toLowerCase().replace(/\s+/g, '-')}`}>{log.role}</span></td></tr>) : <tr><td className="audit-table-state" colSpan="8">No data found</td></tr>}</tbody></table></div>
         <footer className="audit-footer"><span>Showing {visibleLogs.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0} to {Math.min(currentPage * PAGE_SIZE, filteredLogs.length)} of {filteredLogs.length} records</span><div><button type="button" disabled={currentPage === 1} onClick={() => setPage(1)}>First</button><button type="button" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Prev</button><strong>Page {currentPage} of {totalPages}</strong><button type="button" disabled={currentPage === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button><button type="button" disabled={currentPage === totalPages} onClick={() => setPage(totalPages)}>Last</button></div></footer>
       </section>
     </main>
