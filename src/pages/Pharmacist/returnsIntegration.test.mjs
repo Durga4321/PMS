@@ -129,3 +129,34 @@ test('pharmacistReturnsApi defines required fresh return methods with seamless a
   assert.equal(typeof pharmacistReturnsApi.cancel, 'function')
 })
 
+test('eligibleMedicines rejects when billId is missing or non-positive integer', async () => {
+  await assert.rejects(
+    async () => pharmacistReturnsApi.eligibleMedicines({}),
+    /valid numeric Bill ID/
+  )
+  await assert.rejects(
+    async () => pharmacistReturnsApi.eligibleMedicines({ billId: 'abc' }),
+    /valid numeric Bill ID/
+  )
+  await assert.rejects(
+    async () => pharmacistReturnsApi.eligibleMedicines({ billId: -5 }),
+    /valid numeric Bill ID/
+  )
+  await assert.rejects(
+    async () => pharmacistReturnsApi.eligibleMedicines({ billId: 0 }),
+    /valid numeric Bill ID/
+  )
+})
+
+test('inventory helper does not make network call when billId is missing', async () => {
+  const res = await pharmacistReturnsApi.inventory()
+  assert.deepEqual(res, [])
+})
+
+test('options and history define clear cache helpers and deduplicate calls', () => {
+  assert.equal(typeof pharmacistReturnsApi.clearOptionsCache, 'function')
+  assert.equal(typeof pharmacistReturnsApi.clearHistoryCache, 'function')
+  pharmacistReturnsApi.clearOptionsCache()
+  pharmacistReturnsApi.clearHistoryCache()
+})
+

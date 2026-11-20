@@ -25,7 +25,7 @@ function readStoredUser(keys) {
 
 function resolveLoggedInUserName(role) {
   const roleType = (role || '').toLowerCase()
-  const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : ''
+  const path = typeof window !== 'undefined' ? (window?.location?.pathname || '').toLowerCase() : ''
 
   if (roleType.includes('pharmacist') || path.startsWith('/pharmacist')) {
     const user = readStoredUser(['pharmacistUser'])

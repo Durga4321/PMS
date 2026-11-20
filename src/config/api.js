@@ -2442,6 +2442,18 @@ export const getMedicineReturn = (id) => request(replacePathParams('pharmacy/ret
 export const approveMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const cancelMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 
+let returnsOptionsInFlight = null
+let returnsOptionsCache = null
+let returnsOptionsTimestamp = 0
+const RETURNS_OPTIONS_TTL = 60000 // 1 minute
+
+let returnsHistoryInFlight = null
+let returnsHistoryInFlightKey = ''
+let returnsHistoryCache = null
+let returnsHistoryCacheKey = ''
+let returnsHistoryTimestamp = 0
+const RETURNS_HISTORY_TTL = 10000 // 10 seconds
+
 function pharmacistReturnRequest(path, options = {}) {
   return request(path, { ...options, authRole: 'pharmacist', validateResponse: (data, response) => {
     if ((response.headers.get('content-type') || '').includes('text/html') || /Backend server returned an HTML/i.test(data?.message || '')) throw new Error('The returns service returned an invalid response. Please try again later.')
@@ -2451,12 +2463,30 @@ function pharmacistReturnRequest(path, options = {}) {
 export const pharmacistReturnsApi = {
   // Fresh Returns APIs
   options: async (options = {}) => {
-    try {
-      return await pharmacistReturnRequest('pharmacy/returns/options', { method: 'GET', ...options })
-    } catch (err) {
-      if (err.name === 'AbortError') throw err
-      return { reasons: ['Unused medicines', 'Incorrect supply', 'Damaged packaging', 'Expired medicine', 'Other'] }
+    const { force = false } = options
+    const now = Date.now()
+    if (!force && returnsOptionsCache && now - returnsOptionsTimestamp < RETURNS_OPTIONS_TTL) {
+      return returnsOptionsCache
     }
+    if (returnsOptionsInFlight) {
+      return returnsOptionsInFlight
+    }
+    const fetchPromise = (async () => {
+      try {
+        const res = await pharmacistReturnRequest('pharmacy/returns/options', { method: 'GET' })
+        returnsOptionsCache = res
+        returnsOptionsTimestamp = Date.now()
+        return res
+      } finally {
+        returnsOptionsInFlight = null
+      }
+    })()
+    returnsOptionsInFlight = fetchPromise
+    return fetchPromise
+  },
+  clearOptionsCache: () => {
+    returnsOptionsCache = null
+    returnsOptionsTimestamp = 0
   },
   billItems: async (billId, options = {}) => {
     const rawBillId = String(billId ?? '').trim()
@@ -2471,41 +2501,73 @@ export const pharmacistReturnsApi = {
     }
   },
   eligibleMedicines: async (params = {}, options = {}) => {
+    const rawBillId = params.billId != null ? String(params.billId).trim() : ''
+    const billIdNum = Number(rawBillId)
+    if (!rawBillId || !Number.isInteger(billIdNum) || billIdNum <= 0) {
+      throw new Error('Please enter a valid numeric Bill ID.')
+    }
+    const cleanParams = { billId: billIdNum }
+    if (params.branchId != null && String(params.branchId).trim()) {
+      cleanParams.branchId = String(params.branchId).trim()
+    }
+    if (params.q != null && String(params.q).trim()) {
+      cleanParams.q = String(params.q).trim()
+    }
+    return await pharmacistReturnRequest(`pharmacy/returns/eligible-medicines${queryString(cleanParams)}`, { method: 'GET', ...options })
+  },
+  createPatientReturn: async (payload, options = {}) => {
     try {
-      return await pharmacistReturnRequest(`pharmacy/returns/eligible-medicines${queryString(params)}`, { method: 'GET', ...options })
+      return await pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options })
     } catch (err) {
       if (err.name === 'AbortError') throw err
-      if (err.status === 404 || err.status === 405 || /not found/i.test(err.message)) {
-        return await listMedicines({ authRole: 'pharmacist', ...params, signal: options.signal })
-      }
-      throw err
-    }
-  },
-  createPatientReturn: async (payload) => {
-    try {
-      return await pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-    } catch (err) {
       if (err.status === 404 || err.status === 405) {
-        return await pharmacistReturnRequest('pharmacy/returns', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+        return await pharmacistReturnRequest('pharmacy/returns', { method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options })
       }
       throw err
     }
   },
   history: async (params = {}, options = {}) => {
-    try {
-      return await pharmacistReturnRequest(`pharmacy/returns/history${queryString(params)}`, { method: 'GET', ...options })
-    } catch (err) {
-      if (err.name === 'AbortError') throw err
-      if (err.status === 500 || err.status === 404 || err.status === 405) {
-        try {
-          return await pharmacistReturnRequest(`pharmacy/returns${queryString(params)}`, { method: 'GET', ...options })
-        } catch (fallbackErr) {
-          if (fallbackErr.name === 'AbortError') throw fallbackErr
-          throw err
-        }
-      }
-      throw err
+    const { force = false } = options
+    const cleanParams = {
+      page: Math.max(1, Number(params.page) || 1),
+      pageSize: Math.max(1, Number(params.pageSize) || 20),
     }
+    if (params.branchId != null && String(params.branchId).trim()) {
+      cleanParams.branchId = String(params.branchId).trim()
+    }
+    const cacheKey = JSON.stringify(cleanParams)
+    const now = Date.now()
+
+    if (!force && returnsHistoryCache && returnsHistoryCacheKey === cacheKey && now - returnsHistoryTimestamp < RETURNS_HISTORY_TTL) {
+      return returnsHistoryCache
+    }
+    if (returnsHistoryInFlight && returnsHistoryInFlightKey === cacheKey) {
+      return returnsHistoryInFlight
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const res = await pharmacistReturnRequest(`pharmacy/returns/history${queryString(cleanParams)}`, {
+          method: 'GET',
+        })
+        returnsHistoryCache = res
+        returnsHistoryCacheKey = cacheKey
+        returnsHistoryTimestamp = Date.now()
+        return res
+      } finally {
+        returnsHistoryInFlight = null
+        returnsHistoryInFlightKey = ''
+      }
+    })()
+
+    returnsHistoryInFlight = fetchPromise
+    returnsHistoryInFlightKey = cacheKey
+    return fetchPromise
+  },
+  clearHistoryCache: () => {
+    returnsHistoryCache = null
+    returnsHistoryCacheKey = ''
+    returnsHistoryTimestamp = 0
   },
   historyItem: (requestId, options = {}) => pharmacistReturnRequest(replacePathParams('pharmacy/returns/history/{requestId}', { requestId }), { method: 'GET', ...options }),
   approveHistoryItem: async (requestId, payload = {}) => {
@@ -2531,42 +2593,15 @@ export const pharmacistReturnsApi = {
 
   // Seamless alias methods for Returns.jsx UI
   list: async (params = {}, options = {}) => {
-    try {
-      return await pharmacistReturnRequest(`pharmacy/returns/history${queryString(params)}`, { method: 'GET', ...options })
-    } catch (err) {
-      if (err.name === 'AbortError') throw err
-      if (err.status === 500 || err.status === 404 || err.status === 405) {
-        try {
-          return await pharmacistReturnRequest(`pharmacy/returns${queryString(params)}`, { method: 'GET', ...options })
-        } catch (fallbackErr) {
-          if (fallbackErr.name === 'AbortError') throw fallbackErr
-          throw err
-        }
-      }
-      throw err
-    }
+    return await pharmacistReturnsApi.history(params, options)
   },
-  inventory: async (options = {}) => {
-    try {
-      return await pharmacistReturnRequest('pharmacy/returns/eligible-medicines', { method: 'GET', ...options })
-    } catch (err) {
-      if (err.name === 'AbortError') throw err
-      if (err.status === 404 || err.status === 405 || /not found/i.test(err.message)) {
-        return await listMedicines({ authRole: 'pharmacist', signal: options.signal })
-      }
-      throw err
-    }
+  inventory: async (params = {}, options = {}) => {
+    if (!params?.billId) return []
+    return await pharmacistReturnsApi.eligibleMedicines(params, options)
   },
   batches: (medicineId, options = {}) => pharmacistReturnRequest(replacePathParams('inventory/{medicineId}/batches', { medicineId }), { method: 'GET', ...options }),
-  create: async (payload) => {
-    try {
-      return await pharmacistReturnRequest('pharmacy/returns/patient', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-    } catch (err) {
-      if (err.status === 404 || err.status === 405) {
-        return await pharmacistReturnRequest('pharmacy/returns', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-      }
-      throw err
-    }
+  create: async (payload, options = {}) => {
+    return await pharmacistReturnsApi.createPatientReturn(payload, options)
   },
   approve: async (id, payload = {}) => {
     try {
