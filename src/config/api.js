@@ -4318,6 +4318,12 @@ export const deleteSuperAdminNotification = (id) => request(replacePathParams('p
 export const markSuperAdminNotificationRead = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}/read', { id }), { method: 'PATCH' })
 export const markAllSuperAdminNotificationsRead = () => request('pharmacy-super-admin/notifications/mark-all-read', { method: 'PATCH' })
 
+const notificationsInFlight = new Map()
+
+export function clearNotificationsInFlight() {
+  notificationsInFlight.clear()
+}
+
 // Delivery and recipient authorization are owned by the server. These calls
 // deliberately have no local-cache fallback: a local save is not delivery.
 function roleNotificationApi(base, authRole) {
@@ -4325,13 +4331,71 @@ function roleNotificationApi(base, authRole) {
   function unavailable(action) {
     return Promise.reject(new Error(`${action} API has not been provided for this role.`))
   }
-  async function collection(path, params, options) {
-    const response = await request(`${path}${queryString(params)}`, { ...options, authRole })
-    const body = response?.data ?? response
-    if (!Array.isArray(body) && !['items', 'notifications', 'records', 'results', 'recipients'].some((key) => Array.isArray(body?.[key]))) {
-      throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')
+  async function collection(path, params, options = {}) {
+    const query = queryString(params)
+    const requestKey = `${authRole}:${path}${query}`
+
+    if (!options.force && notificationsInFlight.has(requestKey)) {
+      const active = notificationsInFlight.get(requestKey)
+      if (options.signal) {
+        if (options.signal.aborted) {
+          throw new DOMException('The user aborted a request.', 'AbortError')
+        }
+        return new Promise((resolve, reject) => {
+          const onAbort = () => reject(new DOMException('The user aborted a request.', 'AbortError'))
+          options.signal.addEventListener('abort', onAbort, { once: true })
+          active.then(
+            (res) => {
+              options.signal.removeEventListener('abort', onAbort)
+              resolve(res)
+            },
+            (err) => {
+              options.signal.removeEventListener('abort', onAbort)
+              reject(err)
+            }
+          )
+        })
+      }
+      return active
     }
-    return response
+
+    const { signal, force, ...restOptions } = options
+    const fetchPromise = (async () => {
+      try {
+        const response = await request(`${path}${query}`, { ...restOptions, authRole })
+        const body = response?.data ?? response
+        if (!Array.isArray(body) && !['items', 'notifications', 'records', 'results', 'recipients'].some((key) => Array.isArray(body?.[key]))) {
+          throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')
+        }
+        return response
+      } finally {
+        notificationsInFlight.delete(requestKey)
+      }
+    })()
+
+    notificationsInFlight.set(requestKey, fetchPromise)
+
+    if (signal) {
+      if (signal.aborted) {
+        throw new DOMException('The user aborted a request.', 'AbortError')
+      }
+      return new Promise((resolve, reject) => {
+        const onAbort = () => reject(new DOMException('The user aborted a request.', 'AbortError'))
+        signal.addEventListener('abort', onAbort, { once: true })
+        fetchPromise.then(
+          (res) => {
+            signal.removeEventListener('abort', onAbort)
+            resolve(res)
+          },
+          (err) => {
+            signal.removeEventListener('abort', onAbort)
+            reject(err)
+          }
+        )
+      })
+    }
+
+    return fetchPromise
   }
   return {
     list: (params = {}, options = {}) => collection(base, params, options),
@@ -4396,6 +4460,7 @@ function roleNotificationApi(base, authRole) {
     markRead: (id) => request(`${base}/${encodeURIComponent(id)}/read`, { authRole, method: 'PATCH' }),
     markAllRead: () => request(superAdmin ? `${base}/mark-all-read` : 'notifications/mark-all-read', { authRole, method: 'PATCH' }),
     remove: (id) => request(`${base}/${encodeURIComponent(id)}`, { authRole, method: 'DELETE' }),
+    clearInFlight: clearNotificationsInFlight,
   }
 }
 

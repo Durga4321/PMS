@@ -25,7 +25,7 @@ after(async () => {
   delete globalThis.sessionStorage
 })
 
-const { notificationApis } = await server.ssrLoadModule('/src/config/api.js')
+const { notificationApis, clearNotificationsInFlight } = await server.ssrLoadModule('/src/config/api.js')
 const {
   fetchNotificationCount,
   getNotificationCount,
@@ -84,79 +84,132 @@ test('[Notification Lifecycle] Distinguish paginated inbox request from header b
   assert.match(bellUrl, /pageSize=100/)
 })
 
-test('[Notification Lifecycle] Effect cleanup abort cancels in-flight fetch and remount starts fresh request', async () => {
+test('[Notification Lifecycle] React StrictMode replay shares in-flight startup fetch (1 network call, 0 canceled)', async () => {
+  clearNotificationsInFlight?.()
   let callCount = 0
-  const controllers = []
 
   globalThis.fetch = async (url, options = {}) => {
     callCount++
     const currentCall = callCount
-    const signal = options.signal
-
-    return new Promise((resolve, reject) => {
-      if (signal?.aborted) {
-        return reject(new DOMException('The user aborted a request.', 'AbortError'))
-      }
-
-      signal?.addEventListener('abort', () => {
-        reject(new DOMException('The user aborted a request.', 'AbortError'))
-      })
-
+    return new Promise((resolve) => {
       // Simulate network delay
       setTimeout(() => {
-        if (signal?.aborted) {
-          reject(new DOMException('The user aborted a request.', 'AbortError'))
-        } else {
-          resolve(
-            new Response(
-              JSON.stringify({
-                data: {
-                  notifications: [{ id: currentCall, title: `Notice ${currentCall}` }],
-                  total: 1,
-                },
-              }),
-              { status: 200, headers: { 'Content-Type': 'application/json' } }
-            )
+        resolve(
+          new Response(
+            JSON.stringify({
+              data: {
+                notifications: [{ id: currentCall, title: `Notice ${currentCall}` }],
+                total: 1,
+              },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
           )
-        }
+        )
       }, 50)
     })
   }
 
-  // First mount: Starts request 1
+  // Mount 1 starts request 1 (initial load, revision = 0)
   const controller1 = new AbortController()
-  controllers.push(controller1)
   const req1Promise = notificationApis.superAdmin.list(
     { folder: 'inbox', page: 1, pageSize: 20 },
     { signal: controller1.signal }
   )
 
-  // User navigates away to System Settings while req1 is in flight:
-  // Component unmounts -> cleanup aborts controller1
+  // React StrictMode immediately unmounts Mount 1 to verify cleanup:
   controller1.abort()
 
-  // Verify req1 rejects with AbortError (handled quietly in frontend)
+  // Mount 1 caller promise rejects with AbortError (handled quietly in frontend, preventing stale state update)
   await assert.rejects(req1Promise, (err) => {
     return err.name === 'AbortError' || err.code === 'ERR_CANCELED'
   })
 
-  // Returning to Notifications from System Settings:
-  // Component remounts -> creates fresh AbortController and starts req2
+  // Mount 2 immediately starts request 2 during StrictMode remount:
   const controller2 = new AbortController()
-  controllers.push(controller2)
-  assert.equal(controller2.signal.aborted, false, 'New controller must not be aborted')
-
-  const req2Res = await notificationApis.superAdmin.list(
+  const req2Promise = notificationApis.superAdmin.list(
     { folder: 'inbox', page: 1, pageSize: 20 },
     { signal: controller2.signal }
   )
 
-  // Req 2 completes successfully
-  const body = notificationBody(req2Res)
+  // Both mounts share the SAME in-flight network request!
+  const req2Res = await req2Promise
+  assert.equal(callCount, 1, 'Exactly one network fetch must be executed across StrictMode replay')
+
   const incoming = notificationList(req2Res)
   assert.equal(incoming.length, 1)
-  assert.equal(incoming[0].id, 2)
-  assert.equal(incoming[0].title, 'Notice 2')
+  assert.equal(incoming[0].id, 1)
+  assert.equal(incoming[0].title, 'Notice 1')
+})
+
+test('[Notification Lifecycle] User Refresh with force: true initiates fresh network request', async () => {
+  clearNotificationsInFlight?.()
+  let callCount = 0
+
+  globalThis.fetch = async () => {
+    callCount++
+    const current = callCount
+    return new Response(
+      JSON.stringify({
+        data: {
+          notifications: [{ id: current, title: `Refresh Notice ${current}` }],
+          total: 1,
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Initial load
+  const res1 = await notificationApis.superAdmin.list(
+    { folder: 'inbox', page: 1, pageSize: 20 },
+    { force: false }
+  )
+  assert.equal(callCount, 1)
+  assert.equal(notificationList(res1)[0].id, 1)
+
+  // Manual Refresh with force: true
+  const res2 = await notificationApis.superAdmin.list(
+    { folder: 'inbox', page: 1, pageSize: 20 },
+    { force: true }
+  )
+  assert.equal(callCount, 2)
+  assert.equal(notificationList(res2)[0].id, 2)
+})
+
+test('[Notification Lifecycle] Tab switching generates distinct query parameters without in-flight collision', async () => {
+  clearNotificationsInFlight?.()
+  const requestedUrls = []
+
+  globalThis.fetch = async (url) => {
+    requestedUrls.push(String(url))
+    return new Response(
+      JSON.stringify({
+        data: {
+          notifications: [],
+          total: 0,
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // All / Inbox tab
+  await notificationApis.superAdmin.list({ folder: 'inbox', page: 1, pageSize: 20 })
+  // Unread tab
+  await notificationApis.superAdmin.list({ folder: 'inbox', status: 'unread', page: 1, pageSize: 20 })
+  // Read tab
+  await notificationApis.superAdmin.list({ folder: 'inbox', status: 'read', page: 1, pageSize: 20 })
+  // Sent tab
+  await notificationApis.superAdmin.list({ folder: 'sent', page: 1, pageSize: 20 })
+
+  assert.equal(requestedUrls.length, 4)
+  assert.match(requestedUrls[0], /folder=inbox/)
+  assert.doesNotMatch(requestedUrls[0], /status=/)
+  assert.match(requestedUrls[1], /folder=inbox/)
+  assert.match(requestedUrls[1], /status=unread/)
+  assert.match(requestedUrls[2], /folder=inbox/)
+  assert.match(requestedUrls[2], /status=read/)
+  assert.match(requestedUrls[3], /folder=sent/)
 })
 
 test('[Notification Lifecycle] Pagination preserves fetching and requests page 2 correctly', async () => {
