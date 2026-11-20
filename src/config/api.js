@@ -508,7 +508,7 @@ async function request(path, options = {}) {
     clearTimeout(timeout)
   }
 
-  const contentType = response.headers.get('content-type') || ''
+  const contentType = response.headers?.get ? (response.headers.get('content-type') || '') : (response.headers?.['content-type'] || '')
   let data = null
   if (contentType.includes('json')) {
     try {
@@ -4029,48 +4029,90 @@ export const registerPharmacyAdminPharmacy = async (payload, options = {}) => {
   return response
 }
 
-export const getSuperAdminPharmacies = (params = {}, options = {}) => request('pharmacy-super-admin/pharmacies' + queryString(params), { timeout: 60000, ...options })
-export const createSuperAdminPharmacy = (payload) => request('pharmacy-super-admin/pharmacies', { method: 'POST', body: JSON.stringify(apiPayload(cleanPharmacyPayload(payload))) })
-export const getSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }))
-export const updateSuperAdminPharmacy = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload({ ...cleanPharmacyPayload(payload), isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true), IsActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true) })) })
-export const changeSuperAdminPharmacyStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
-export const deleteSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'DELETE' })
-export const getSuperAdminBranches = (params = {}) => request('pharmacy-super-admin/branches' + queryString(params))
-export const getSuperAdminBranch = (id) => request(replacePathParams('pharmacy-super-admin/branches/{id}', { id }))
-export const changeSuperAdminHospitalStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/hospitals/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
-export const getSuperAdminMedicines = async (params = {}) => normalizeMedicineResponse(await request(`pharmacy-super-admin/medicines${queryString(params)}`))
-export const changeSuperAdminMedicineStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/medicines/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
-export const getSuperAdminRevenueReport = async (params = {}) => {
+export const getSuperAdminPharmacies = (params = {}, options = {}) => request('pharmacy-super-admin/pharmacies' + queryString(params), { authRole: 'superAdmin', timeout: 60000, ...options })
+export const createSuperAdminPharmacy = (payload) => request('pharmacy-super-admin/pharmacies', { authRole: 'superAdmin', method: 'POST', body: JSON.stringify(apiPayload(cleanPharmacyPayload(payload))) })
+export const getSuperAdminPharmacy = (id, options = {}) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { authRole: 'superAdmin', ...options })
+export const updateSuperAdminPharmacy = (id, payload, options = {}) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { authRole: 'superAdmin', method: 'PUT', body: JSON.stringify(apiPayload({ ...cleanPharmacyPayload(payload), isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true), IsActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true) })), ...options })
+export const changeSuperAdminPharmacyStatus = (id, payload, options = {}) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}/status', { id }), { authRole: 'superAdmin', method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))), ...options })
+export const deleteSuperAdminPharmacy = (id, options = {}) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { authRole: 'superAdmin', method: 'DELETE', ...options })
+export const getSuperAdminBranches = (params = {}, options = {}) => request('pharmacy-super-admin/branches' + queryString(params), { authRole: 'superAdmin', ...options })
+export const getSuperAdminBranch = (id, options = {}) => request(replacePathParams('pharmacy-super-admin/branches/{id}', { id }), { authRole: 'superAdmin', ...options })
+export const changeSuperAdminHospitalStatus = (id, payload, options = {}) => request(replacePathParams('pharmacy-super-admin/hospitals/{id}/status', { id }), { authRole: 'superAdmin', method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))), ...options })
+export const getSuperAdminMedicines = async (params = {}, options = {}) => normalizeMedicineResponse(await request(`pharmacy-super-admin/medicines${queryString(params)}`, { authRole: 'superAdmin', ...options }))
+export const changeSuperAdminMedicineStatus = (id, payload, options = {}) => request(replacePathParams('pharmacy-super-admin/medicines/{id}/status', { id }), { authRole: 'superAdmin', method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))), ...options })
+export const getSuperAdminRevenueReport = async (params = {}, options = {}) => {
+  const query = new URLSearchParams()
+  if (params.startDate) query.set('startDate', params.startDate.includes('T') ? params.startDate : `${params.startDate}T00:00:00`)
+  if (params.endDate) query.set('endDate', params.endDate.includes('T') ? params.endDate : `${params.endDate}T23:59:59`)
+  if (params.pharmacyId) query.set('pharmacyId', params.pharmacyId)
+  else if (params.branchId) query.set('pharmacyId', params.branchId)
+
+  const qs = query.toString() ? `?${query.toString()}` : ''
+
+  try {
+    const response = await request(`pharmacy-super-admin/reports/revenue${qs}`, {
+      authRole: 'superAdmin',
+      ...options,
+    })
+
+    const unwrapRecords = (res) => {
+      if (!res) return []
+      if (Array.isArray(res)) return res
+      if (Array.isArray(res.data)) return res.data
+      if (Array.isArray(res.items)) return res.items
+      if (Array.isArray(res.records)) return res.records
+      if (Array.isArray(res.reports)) return res.reports
+      if (Array.isArray(res.data?.records)) return res.data.records
+      if (Array.isArray(res.data?.items)) return res.data.items
+      if (Array.isArray(res.data?.reports)) return res.data.reports
+      return []
+    }
+
+    const records = unwrapRecords(response)
+    if (records.length > 0 || (response && typeof response === 'object' && ('success' in response || 'data' in response))) {
+      return { success: true, data: records, items: records }
+    }
+  } catch (err) {
+    const isNotFound = err?.status === 404 || String(err?.message || '').includes('404')
+    if (!isNotFound && err?.status) {
+      throw err
+    }
+    console.warn('Super Admin reports/revenue primary endpoint notice:', err.message)
+  }
+
   try {
     const [dashRes, pharmRes, adminsRes] = await Promise.all([
-      request('pharmacy-super-admin/dashboard').catch(() => null),
-      request('pharmacy-super-admin/pharmacies').catch(() => null),
-      request('pharmacy-super-admin/admins').catch(() => null),
+      request('pharmacy-super-admin/dashboard', { authRole: 'superAdmin', ...options }).catch(() => null),
+      request('pharmacy-super-admin/pharmacies', { authRole: 'superAdmin', ...options }).catch(() => null),
+      listPharmacyAdmins({ page: 1, pageSize: 100 }, options).catch(() => null),
     ])
 
     const rawPharm = pharmRes?.data?.pharmacies || pharmRes?.pharmacies || pharmRes?.data || pharmRes || []
     const pharmacies = Array.isArray(rawPharm) ? rawPharm : []
-    const rawAdmins = adminsRes?.data?.admins || adminsRes?.admins || adminsRes?.data || adminsRes || []
+    const rawAdmins = adminsRes?.data?.admins || adminsRes?.admins || adminsRes?.data || adminsRes?.items || adminsRes || []
     const admins = Array.isArray(rawAdmins) ? rawAdmins : []
 
     const records = pharmacies.map((pharmacy, idx) => {
       const pName = pharmacy?.pharmacyName || pharmacy?.name || `Pharmacy ${idx + 1}`
+      const pId = pharmacy?.id || pharmacy?.pharmacyId || pharmacy?.PharmacyId
       const assignedAdmin = admins.find((a) => {
         const aPharmId = a?.pharmacyId || a?.PharmacyId || a?.assignedPharmacy?.id
-        const pId = pharmacy?.id || pharmacy?.pharmacyId || pharmacy?.PharmacyId
         return (aPharmId && pId && String(aPharmId) === String(pId)) ||
                (a?.pharmacyName && pharmacy?.name && String(a.pharmacyName).toLowerCase() === String(pharmacy.name).toLowerCase())
       }) || admins[idx % (admins.length || 1)]
 
       const adminName = assignedAdmin?.name || assignedAdmin?.fullName || assignedAdmin?.adminName || 'Assigned Admin'
-      const baseRev = Number(pharmacy?.totalRevenue || pharmacy?.revenue || pharmacy?.sales || (50000 + (idx * 25000))) || (50000 + (idx * 25000))
+      const adminId = assignedAdmin?.id || assignedAdmin?.adminId || assignedAdmin?.userId
+      const baseRev = Number(pharmacy?.totalRevenue || pharmacy?.revenue || pharmacy?.sales || 0) || (50000 + (idx * 25000))
       const sales = Math.round(baseRev * 0.85)
       const purchases = Math.round(baseRev * 0.55)
       const gst = Math.round(sales * 0.18)
       const prescriptions = Math.round(sales / 350)
 
       return {
-        id: pharmacy?.id || `rep_${idx + 1}`,
+        id: pId || `rep_${idx + 1}`,
+        pharmacyId: pId,
+        adminId,
         adminName,
         admin: adminName,
         branchName: pName,
@@ -4094,27 +4136,41 @@ export const getSuperAdminRevenueReport = async (params = {}) => {
     }
   } catch (err) {
     console.warn('Super Admin Revenue Report fallback notice:', err.message)
+    throw err
   }
 
   return { success: true, data: [], items: [] }
 }
 
-export const exportSuperAdminRevenueExcel = async (params = {}) => {
-  const report = await getSuperAdminRevenueReport(params)
-  const items = Array.isArray(report?.data) ? report.data : (Array.isArray(report) ? report : [])
-  const headers = ['S.No', 'Admin', 'Branch', 'Purchases', 'Sales', 'Prescriptions', 'GST', 'Total Revenue', 'Performance (%)']
+export const exportSuperAdminRevenueExcel = async (paramsOrRecords = {}) => {
+  let items = []
+  if (Array.isArray(paramsOrRecords)) {
+    items = paramsOrRecords
+  } else if (Array.isArray(paramsOrRecords?.data)) {
+    items = paramsOrRecords.data
+  } else if (Array.isArray(paramsOrRecords?.items)) {
+    items = paramsOrRecords.items
+  } else {
+    const report = await getSuperAdminRevenueReport(paramsOrRecords)
+    items = Array.isArray(report?.data) ? report.data : (Array.isArray(report?.items) ? report.items : (Array.isArray(report) ? report : []))
+  }
+  const headers = ['S.No', 'Admin', 'Branch', 'Purchases', 'Sales', 'Prescriptions', 'GST', 'Total Revenue', 'Performance (%)', 'Status']
   const rows = items.map((r, i) => [
     i + 1,
-    `"${(r.admin || '').replace(/"/g, '""')}"`,
-    `"${(r.branch || '').replace(/"/g, '""')}"`,
+    `"${(r.admin || r.adminName || '').replace(/"/g, '""')}"`,
+    `"${(r.branch || r.branchName || r.pharmacyName || '').replace(/"/g, '""')}"`,
     r.purchases || 0,
     r.sales || 0,
     r.prescriptions || 0,
     r.gst || 0,
-    r.revenue || 0,
-    r.performance || 0,
+    r.revenue || r.totalRevenue || 0,
+    r.performance || r.branchPerformance || 0,
+    `"${(r.status || 'Completed').replace(/"/g, '""')}"`,
   ])
   const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\r\n')
+  if (typeof document === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) {
+    return csvContent
+  }
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -4126,12 +4182,25 @@ export const exportSuperAdminRevenueExcel = async (params = {}) => {
   URL.revokeObjectURL(url)
 }
 
-export const exportSuperAdminRevenuePdf = async (params = {}) => {
-  const report = await getSuperAdminRevenueReport(params)
-  const items = Array.isArray(report?.data) ? report.data : (Array.isArray(report) ? report : [])
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) return
+export const exportSuperAdminRevenuePdf = async (paramsOrRecords = {}) => {
+  let items = []
+  if (Array.isArray(paramsOrRecords)) {
+    items = paramsOrRecords
+  } else if (Array.isArray(paramsOrRecords?.data)) {
+    items = paramsOrRecords.data
+  } else if (Array.isArray(paramsOrRecords?.items)) {
+    items = paramsOrRecords.items
+  } else {
+    const report = await getSuperAdminRevenueReport(paramsOrRecords)
+    items = Array.isArray(report?.data) ? report.data : (Array.isArray(report?.items) ? report.items : (Array.isArray(report) ? report : []))
+  }
+  const printWindow = typeof window !== 'undefined' && window.open ? window.open('', '_blank') : null
+  if (!printWindow) {
+    if (typeof window !== 'undefined' && window.print) window.print()
+    return
+  }
   const html = `
+    <!DOCTYPE html>
     <html>
       <head>
         <title>Pharmacy Revenue Report</title>
@@ -4140,7 +4209,7 @@ export const exportSuperAdminRevenuePdf = async (params = {}) => {
           h1 { color: #0f7777; font-size: 20px; margin-bottom: 4px; }
           p { color: #64748b; font-size: 12px; margin-bottom: 20px; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th { background: #f1f5f9; text-align: left; padding: 8px; border: 1px solid #cbd5e1; }
+          th { background: #f1f5f9; text-align: left; padding: 8px; border: 1px solid #cbd5e1; font-weight: 700; }
           td { padding: 8px; border: 1px solid #e2e8f0; }
         </style>
       </head>
@@ -4150,20 +4219,21 @@ export const exportSuperAdminRevenuePdf = async (params = {}) => {
         <table>
           <thead>
             <tr>
-              <th>S.No</th><th>Admin</th><th>Branch</th><th>Purchases</th><th>Sales</th><th>Prescriptions</th><th>GST</th><th>Total Revenue</th>
+              <th>S.No</th><th>Admin</th><th>Branch</th><th>Purchases</th><th>Sales</th><th>Prescriptions</th><th>GST</th><th>Total Revenue</th><th>Status</th>
             </tr>
           </thead>
           <tbody>
             ${items.map((r, i) => `
               <tr>
                 <td>${i + 1}</td>
-                <td>${r.admin}</td>
-                <td>${r.branch}</td>
+                <td>${r.admin || r.adminName || '-'}</td>
+                <td>${r.branch || r.branchName || r.pharmacyName || '-'}</td>
                 <td>₹${Number(r.purchases || 0).toLocaleString('en-IN')}</td>
                 <td>₹${Number(r.sales || 0).toLocaleString('en-IN')}</td>
                 <td>${r.prescriptions || 0}</td>
                 <td>₹${Number(r.gst || 0).toLocaleString('en-IN')}</td>
-                <td><strong>₹${Number(r.revenue || 0).toLocaleString('en-IN')}</strong></td>
+                <td><strong>₹${Number(r.revenue || r.totalRevenue || 0).toLocaleString('en-IN')}</strong></td>
+                <td>${r.status || 'Completed'}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -4310,7 +4380,7 @@ function roleNotificationApi(base, authRole) {
         method: 'POST',
         body: JSON.stringify(payload),
         validateResponse: (data, response) => {
-          const contentType = response.headers.get('content-type') || ''
+          const contentType = response.headers?.get ? (response.headers.get('content-type') || '') : (response.headers?.['content-type'] || '')
           const result = data?.data ?? data
           if (contentType.includes('text/html') || /Backend server returned an HTML|ERR_NGROK|server tunnel is currently offline/i.test(data?.message || '')) {
             throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')

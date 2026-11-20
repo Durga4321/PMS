@@ -159,7 +159,7 @@ test('[Super Admin Audit Logs] branch filter change resets audit log page to 1 w
 })
 
 test('[Super Admin Audit Logs] Audit Logs.jsx has no remaining legacy hospitals requests or imports', () => {
-  const filePath = path.resolve('src/pages/Super Admin/Audit Logs.jsx')
+  const filePath = new URL('./Audit Logs.jsx', import.meta.url)
   const content = readFileSync(filePath, 'utf-8')
 
   assert.doesNotMatch(content, /listAssignmentHospitals/, 'Must not import or call listAssignmentHospitals')
