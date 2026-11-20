@@ -42,6 +42,7 @@ export default function NotificationCenter({ role }) {
   const targeted = form.audience.startsWith('specific-')
 
   useEffect(() => {
+    if (!api) return
     const controller = new AbortController()
     let current = true
     async function load() {
@@ -49,7 +50,7 @@ export default function NotificationCenter({ role }) {
       setError('')
       try {
         const response = await api.list({ folder: tab === 'sent' ? 'sent' : 'inbox', ...(tab === 'read' || tab === 'unread' ? { status: tab } : {}), page, pageSize: PAGE_SIZE }, { signal: controller.signal })
-        if (!current) return
+        if (!current || controller.signal.aborted) return
         const body = notificationBody(response)
         const incoming = notificationList(response).map((item) => normalizeNotification(item, tab === 'sent' ? 'sent' : 'inbox'))
         setItems((previous) => page === 1 ? incoming : [...previous, ...incoming.filter((item) => !item.id || !previous.some((old) => old.id === item.id))])
@@ -60,10 +61,10 @@ export default function NotificationCenter({ role }) {
         const total = body.total ?? body.totalCount ?? body.pagination?.total ?? response?.total
         setHasMore(body.hasMore ?? (total != null ? page * PAGE_SIZE < Number(total) : incoming.length === PAGE_SIZE))
       } catch (requestError) {
-        if (requestError?.name === 'AbortError' || requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') return
+        if (!current || controller.signal.aborted || requestError?.name === 'AbortError' || requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') return
         if (current) setError(notificationError(requestError))
       } finally {
-        if (current) setLoading(false)
+        if (current && !controller.signal.aborted) setLoading(false)
       }
     }
     load()
@@ -71,7 +72,7 @@ export default function NotificationCenter({ role }) {
   }, [api, role, tab, page, revision])
 
   useEffect(() => {
-    if (!modalOpen || !targeted) return
+    if (!modalOpen || !targeted || !api) return
     const controller = new AbortController()
     let current = true
     async function loadRecipients() {
@@ -79,7 +80,7 @@ export default function NotificationCenter({ role }) {
       setRecipientError('')
       try {
         const response = await api.recipients({ role: recipientRole(form.audience), q: recipientQuery.trim(), page: recipientPage, pageSize: 50 }, { signal: controller.signal })
-        if (!current) return
+        if (!current || controller.signal.aborted) return
         const incoming = notificationList(response).map((item) => ({
           ...item,
           id: String(item.id ?? item.pharmacistId ?? item._id ?? item.userId?.id ?? ''),
@@ -91,10 +92,10 @@ export default function NotificationCenter({ role }) {
         const total = body.total ?? body.pagination?.total
         setMoreRecipients(body.hasMore ?? (total != null ? recipientPage * 50 < Number(total) : incoming.length === 50))
       } catch (requestError) {
-        if (requestError?.name === 'AbortError' || requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') return
+        if (!current || controller.signal.aborted || requestError?.name === 'AbortError' || requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') return
         if (current) { setRecipientError(notificationError(requestError, 'recipients')); setRecipients([]); setForm((value) => ({ ...value, recipientId: '' })) }
       } finally {
-        if (current) setRecipientsLoading(false)
+        if (current && !controller.signal.aborted) setRecipientsLoading(false)
       }
     }
     const timer = window.setTimeout(loadRecipients, 250)
@@ -110,9 +111,13 @@ export default function NotificationCenter({ role }) {
 
   useEffect(() => {
     if (modalOpen) return
+    let lastSync = Date.now()
     function syncVisible() {
       if (document.visibilityState === 'hidden') return
-      setPage(1)
+      const now = Date.now()
+      // Throttle window focus revalidation (30s) to avoid cancelling in-flight requests or resetting pagination
+      if (now - lastSync < 30000) return
+      lastSync = now
       setRevision((value) => value + 1)
     }
     const timer = window.setInterval(syncVisible, 60000)
