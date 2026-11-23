@@ -248,6 +248,12 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
           {profile.name}
         </strong>
 
+        {profile.email ? (
+          <span className="hc-profile-email">
+            {profile.email}
+          </span>
+        ) : null}
+
         <span className="hc-profile-badge">
           {profile.roleLabel}
         </span>
