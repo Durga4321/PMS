@@ -380,6 +380,9 @@ export function authTokenFor(path = '', authRole = '') {
       if (superFallback) return superFallback
     }
     if (authRole === 'pharmacist') {
+      if (cleanPath.startsWith('notifications')) {
+        return roleToken || ''
+      }
       if (route.startsWith('/admin') || readStoredToken('pharmacyAdminToken')) {
         const adminToken = readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
         if (adminToken) return adminToken
@@ -390,6 +393,9 @@ export function authTokenFor(path = '', authRole = '') {
       }
     }
     if (authRole === 'pharmacyAdmin') {
+      if (cleanPath.startsWith('notifications')) {
+        return roleToken || ''
+      }
       if (route.startsWith('/super-admin') || readStoredToken('superAdminToken')) {
         const superToken = readStoredToken('superAdminToken') || readStoredToken('pharmacySuperAdminToken')
         if (superToken) return superToken
@@ -657,7 +663,26 @@ async function request(path, options = {}) {
       errorMsg = errorMsg || 'Login rejected. Check your email and password.'
     }
     if (response.status === 403) {
-      if (authRole === 'pharmacist' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))) {
+      const serverMsg = String(
+        data?.message ||
+        data?.Message ||
+        data?.error ||
+        data?.Error ||
+        data?.detail ||
+        data?.Detail ||
+        errorMsg ||
+        ''
+      ).trim()
+
+      if (/active pharmacy assignment required/i.test(serverMsg) || /pharmacy assignment required/i.test(serverMsg)) {
+        errorMsg = 'Active pharmacy assignment required: This pharmacy administrator account is not assigned to an active pharmacy. Please contact your system administrator to assign an active pharmacy to your account.'
+      } else if (authRole === 'pharmacyAdmin' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))) {
+        if (/assignment/i.test(serverMsg)) {
+          errorMsg = 'Active pharmacy assignment required: This pharmacy administrator account is not assigned to an active pharmacy. Please contact your system administrator to assign an active pharmacy to your account.'
+        } else {
+          errorMsg = serverMsg || 'Access denied for this pharmacy admin account. Please verify your permissions and pharmacy assignment.'
+        }
+      } else if (authRole === 'pharmacist' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))) {
         errorMsg = 'Access denied for this pharmacist account. Ask your pharmacy administrator to verify your role permissions and pharmacy/branch assignment.'
       } else if (authRole === 'superAdmin' || cleanPath.startsWith('pharmacy-super-admin') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/super-admin'))) {
         errorMsg = 'Access forbidden: Pharmacy Super Admin privileges required. Please verify your Super Admin session.'
@@ -4468,7 +4493,9 @@ function roleNotificationApi(base, authRole) {
       try {
         const response = await request(`${path}${query}`, { ...restOptions, authRole })
         const body = response?.data ?? response
-        if (!Array.isArray(body) && !['items', 'notifications', 'records', 'results', 'recipients'].some((key) => Array.isArray(body?.[key]))) {
+        const hasValidList = Array.isArray(body) || ['items', 'notifications', 'records', 'results', 'recipients', 'data'].some((key) => Array.isArray(body?.[key]))
+        const hasValidCounts = Boolean(body?.counts || body?.Counts || body?.unreadCount !== undefined || response?.counts || response?.unreadCount !== undefined || body?.total !== undefined)
+        if (!hasValidList && !hasValidCounts) {
           throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')
         }
         return response
@@ -4521,25 +4548,23 @@ function roleNotificationApi(base, authRole) {
       return { data: { recipients: rows, total: body?.total ?? body?.totalCount, pagination: body?.pagination, hasMore: body?.hasMore } }
     },
     unreadCount: async (options = {}) => {
-      if (!superAdmin) {
-        const response = await request('notifications/unread-count', { ...options, authRole })
+      if (superAdmin) {
+        // PharmacySuperAdmin: GET /api/pharmacy-super-admin/notifications?status=unread&page=1&pageSize=1
+        // Read counts.unread for the badge.
+        const response = await collection(base, { status: 'unread', page: 1, pageSize: 1 }, options)
         const body = response?.data ?? response
-        const rawCount = body?.unreadCount ?? body?.data?.unreadCount ?? body?.count ?? (typeof body === 'number' ? body : 0)
-        const unreadCount = Number.isFinite(Number(rawCount)) ? Math.max(0, Math.floor(Number(rawCount))) : 0
-        return { data: { unreadCount } }
+        const nextCounts = body?.counts ?? response?.counts ?? body?.Counts ?? response?.Counts ?? {}
+        const raw = nextCounts?.unread ?? nextCounts?.Unread ?? body?.unreadCount ?? response?.unreadCount ?? body?.total ?? body?.totalCount ?? response?.total ?? 0
+        const unreadCount = Number.isFinite(Number(raw)) ? Math.max(0, Math.floor(Number(raw))) : 0
+        return { data: { unreadCount, counts: { unread: unreadCount } } }
       }
-      // Super Admin has no separate count endpoint in the supplied contract.
-      // Its existing list endpoint supports the unread status filter.
-      const response = await collection(base, { status: 'unread', page: 1, pageSize: 100 }, options)
+      // PharmacyAdmin and Pharmacist: GET /api/notifications/unread-count
+      // Read unreadCount for the badge.
+      const response = await request('notifications/unread-count', { ...options, authRole })
       const body = response?.data ?? response
-      const total = body?.unreadCount ?? body?.counts?.unread ?? response?.unreadCount ?? body?.total ?? body?.totalCount ?? body?.pagination?.total ?? response?.total
-      if (total != null) return { data: { unreadCount: Number(total) } }
-      const rows = Array.isArray(body) ? body : body.items ?? body.notifications ?? body.records ?? body.results ?? []
-      return { data: { unreadCount: rows.filter((item) => {
-        const state = String(item.status ?? item.state ?? '').toLowerCase()
-        const read = item.isRead ?? item.read ?? (state === 'read')
-        return state !== 'sent' && read !== true && read !== 1 && read !== 'true'
-      }).length } }
+      const rawCount = body?.unreadCount ?? body?.data?.unreadCount ?? body?.count ?? response?.unreadCount ?? (typeof body === 'number' ? body : 0)
+      const unreadCount = Number.isFinite(Number(rawCount)) ? Math.max(0, Math.floor(Number(rawCount))) : 0
+      return { data: { unreadCount } }
     },
     send: async (payload) => {
       if (authRole === 'pharmacist') return unavailable('Pharmacist notification send')
@@ -4761,4 +4786,30 @@ export function matchesMedicineBranch(medicine, targetBranchId, targetBranchName
   if (!mId && !mName && isMainTarget) return true
 
   return false
+}
+
+export function normalizeRole(role) {
+  if (!role) return ''
+  const str = String(role).trim().toLowerCase().replace(/[-_\s]/g, '')
+  if (str.includes('super')) return 'superAdmin'
+  if (str.includes('admin')) return 'pharmacyAdmin'
+  if (str.includes('pharmacist')) return 'pharmacist'
+  return role
+}
+
+export function getSignedInRole() {
+  const route = typeof window !== 'undefined' ? window.location?.pathname || '' : ''
+  if (route.startsWith('/super-admin')) {
+    if (readStoredToken('superAdminToken') || readStoredToken('pharmacySuperAdminToken')) return 'superAdmin'
+  }
+  if (route.startsWith('/admin')) {
+    if (readStoredToken('pharmacyAdminToken')) return 'pharmacyAdmin'
+  }
+  if (route.startsWith('/pharmacist')) {
+    if (readStoredToken('pharmacistToken')) return 'pharmacist'
+  }
+  if (readStoredToken('superAdminToken') || readStoredToken('pharmacySuperAdminToken')) return 'superAdmin'
+  if (readStoredToken('pharmacyAdminToken')) return 'pharmacyAdmin'
+  if (readStoredToken('pharmacistToken')) return 'pharmacist'
+  return null
 }

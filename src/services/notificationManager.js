@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { authTokenFor, notificationApis } from '../config/api'
+import { authTokenFor, notificationApis, normalizeRole, getSignedInRole } from '../config/api'
 import { notificationBody } from '../components/notificationModel'
 
 const CACHE_TTL_MS = 20000 // 20 seconds cache TTL
@@ -17,9 +17,10 @@ const listeners = {
 }
 
 function notify(role) {
-  const store = stores[role]
-  if (!store || !listeners[role]) return
-  for (const callback of listeners[role]) {
+  const target = normalizeRole(role)
+  const store = stores[target]
+  if (!store || !listeners[target]) return
+  for (const callback of listeners[target]) {
     try {
       callback(store.count)
     } catch (err) {
@@ -29,26 +30,29 @@ function notify(role) {
 }
 
 export function getNotificationCount(role) {
-  return stores[role]?.count || 0
+  const target = normalizeRole(role) || getSignedInRole()
+  return (target && stores[target]?.count) || 0
 }
 
 export function setNotificationCount(role, count) {
-  const store = stores[role]
+  const target = normalizeRole(role) || getSignedInRole()
+  const store = target && stores[target]
   if (!store) return
   const safe = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0
   if (store.count !== safe) {
     store.count = safe
-    notify(role)
+    notify(target)
   }
 }
 
 export function clearNotificationCount(role) {
-  if (role && stores[role]) {
-    stores[role].count = 0
-    stores[role].lastFetched = 0
-    stores[role].inFlight = null
-    stores[role].token = null
-    notify(role)
+  const target = normalizeRole(role)
+  if (target && stores[target]) {
+    stores[target].count = 0
+    stores[target].lastFetched = 0
+    stores[target].inFlight = null
+    stores[target].token = null
+    notify(target)
   } else {
     for (const r of ['pharmacyAdmin', 'pharmacist', 'superAdmin']) {
       if (stores[r]) {
@@ -63,64 +67,85 @@ export function clearNotificationCount(role) {
 }
 
 export async function fetchNotificationCount(role, { force = false, signal } = {}) {
-  const store = stores[role]
-  if (!store || !notificationApis[role]) return 0
+  const targetRole = normalizeRole(role) || getSignedInRole()
+  if (!targetRole) return 0
+  const store = stores[targetRole]
+  if (!store || !notificationApis[targetRole]) return 0
 
-  // 1. Check Authentication: only fetch if token is present
-  const token = authTokenFor('', role)
+  // 1. Check Authentication: wait until authentication is available before fetching
+  const token = authTokenFor('', targetRole)
   if (!token) {
     if (store.count !== 0 || store.token !== null) {
       store.count = 0
       store.lastFetched = 0
       store.token = null
-      notify(role)
+      notify(targetRole)
     }
     return 0
   }
 
-  // 2. Invalidate store if token changed (switched account / re-login)
+  // 2. Active Session Match: ensure role request matches active signed-in session
+  const activeRole = getSignedInRole()
+  if (activeRole && activeRole !== targetRole) {
+    if (store.count !== 0) {
+      store.count = 0
+      store.lastFetched = 0
+      store.token = null
+      notify(targetRole)
+    }
+    return 0
+  }
+
+  // 3. Invalidate store if token changed (switched account / re-login)
   if (store.token && store.token !== token) {
     store.count = 0
     store.lastFetched = 0
   }
   store.token = token
 
-  // 3. Return cached count if within TTL and not forced
+  // 4. Return cached count if within TTL and not forced
   const now = Date.now()
   if (!force && store.lastFetched > 0 && now - store.lastFetched < CACHE_TTL_MS) {
     return store.count
   }
 
-  // 4. Deduplicate: if already in flight, reuse the exact active Promise
+  // 5. Deduplicate: if already in flight, reuse the exact active Promise
   if (store.inFlight) {
     return store.inFlight
   }
 
-  // 5. Fire single deduplicated request
+  // 6. Fire single deduplicated request via authenticated API client
   const capturedToken = token
   const requestPromise = (async () => {
     try {
-      const response = await notificationApis[role].unreadCount(signal ? { signal } : {})
+      const response = await notificationApis[targetRole].unreadCount(signal ? { signal } : {})
 
       // If token changed while request was in-flight, discard stale result
-      if (authTokenFor('', role) !== capturedToken) {
+      if (authTokenFor('', targetRole) !== capturedToken) {
         return store.count
       }
 
       const body = notificationBody(response)
-      const rawCount = body?.unreadCount ?? body?.data?.unreadCount ?? body?.count ?? response?.unreadCount ?? 0
+      // For superAdmin read counts.unread; for pharmacyAdmin/pharmacist read unreadCount
+      const rawCount = targetRole === 'superAdmin'
+        ? (body?.counts?.unread ?? body?.counts?.Unread ?? response?.counts?.unread ?? response?.counts?.Unread ?? body?.unreadCount ?? response?.unreadCount ?? body?.total ?? response?.total ?? 0)
+        : (body?.unreadCount ?? body?.data?.unreadCount ?? body?.count ?? response?.unreadCount ?? 0)
       const count = Number.isFinite(Number(rawCount)) ? Math.max(0, Math.floor(Number(rawCount))) : 0
 
       store.count = count
       store.lastFetched = Date.now()
-      notify(role)
+      notify(targetRole)
       return count
     } catch (err) {
       // Treat intentional cancellations as normal lifecycle events
       if (err?.name === 'AbortError' || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
         return store.count
       }
-      console.warn('Unable to load notification count for role:', role, err?.message || err)
+      if (/active pharmacy assignment required/i.test(err?.message || '')) {
+        console.warn(`[PMS Account Setup] Pharmacy Admin notification access: ${err.message}`)
+      } else {
+        console.warn(`Unable to load notification count for role (${targetRole}):`, err?.message || err)
+      }
       return store.count
     } finally {
       store.inFlight = null
@@ -132,30 +157,54 @@ export async function fetchNotificationCount(role, { force = false, signal } = {
 }
 
 export function subscribeNotificationCount(role, callback) {
-  if (!listeners[role]) return () => {}
-  listeners[role].add(callback)
+  const target = normalizeRole(role)
+  if (!target || !listeners[target]) return () => {}
+  listeners[target].add(callback)
   return () => {
-    listeners[role]?.delete(callback)
+    listeners[target]?.delete(callback)
   }
 }
 
 export function useNotificationCount(role) {
-  const [count, setCount] = useState(() => getNotificationCount(role))
+  const targetRole = normalizeRole(role) || getActiveAuthRole()
+  const [count, setCount] = useState(() => getNotificationCount(targetRole))
 
   useEffect(() => {
-    if (!role) return
+    const activeTarget = normalizeRole(role) || getActiveAuthRole()
+    if (!activeTarget) {
+      setCount(0)
+      return
+    }
 
-    setCount(getNotificationCount(role))
+    setCount(getNotificationCount(activeTarget))
 
-    const unsubscribe = subscribeNotificationCount(role, (nextCount) => {
+    const unsubscribe = subscribeNotificationCount(activeTarget, (nextCount) => {
       setCount(nextCount)
     })
 
-    // Fetch notification count on mount (deduplicated across components, cached by TTL)
-    fetchNotificationCount(role)
+    // Wait until authentication is available before fetching
+    const token = authTokenFor('', activeTarget)
+    if (token) {
+      fetchNotificationCount(activeTarget)
+    } else {
+      setCount(0)
+    }
+
+    // Stop polling and clean up when role/session changes or component unmounts
+    let pollTimer = null
+    if (typeof window !== 'undefined') {
+      pollTimer = window.setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+        const currentActive = normalizeRole(role) || getActiveAuthRole()
+        if (currentActive && authTokenFor('', currentActive)) {
+          fetchNotificationCount(currentActive)
+        }
+      }, 60000)
+    }
 
     return () => {
       unsubscribe()
+      if (pollTimer) window.clearInterval(pollTimer)
     }
   }, [role])
 
@@ -166,49 +215,57 @@ export function useNotificationCount(role) {
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   // Listen for custom notifications updated event
   window.addEventListener('pms:notifications-updated', (event) => {
-    const role = event.detail?.role
+    const rawRole = event.detail?.role
     const unread = event.detail?.unreadCount
+    const role = normalizeRole(rawRole) || getActiveAuthRole()
     if (role && stores[role]) {
       if (typeof unread === 'number' && Number.isFinite(unread)) {
         setNotificationCount(role, unread)
       } else {
         fetchNotificationCount(role, { force: true })
       }
-    } else {
-      for (const r of ['pharmacyAdmin', 'pharmacist', 'superAdmin']) {
-        if (authTokenFor('', r)) {
-          fetchNotificationCount(r, { force: true })
-        }
-      }
     }
   })
 
   // Listen for logout / auth changes
   const handleAuthReset = () => {
-    for (const r of ['pharmacyAdmin', 'pharmacist', 'superAdmin']) {
-      if (!authTokenFor('', r)) {
-        clearNotificationCount(r)
-      }
-    }
+    clearNotificationCount()
   }
 
   window.addEventListener('pms:auth-logout', handleAuthReset)
   window.addEventListener('pms:auth-login', () => {
+    const activeRole = getActiveAuthRole()
     for (const r of ['pharmacyAdmin', 'pharmacist', 'superAdmin']) {
-      if (authTokenFor('', r)) {
-        fetchNotificationCount(r, { force: true })
+      if (r !== activeRole) {
+        clearNotificationCount(r)
+      }
+    }
+    if (activeRole) {
+      fetchNotificationCount(activeRole, { force: true })
+    }
+  })
+  window.addEventListener('storage', (e) => {
+    if (!e || (e.key && /token|auth|user/i.test(e.key))) {
+      const activeRole = getActiveAuthRole()
+      for (const r of ['pharmacyAdmin', 'pharmacist', 'superAdmin']) {
+        if (!authTokenFor('', r) || (activeRole && r !== activeRole)) {
+          clearNotificationCount(r)
+        }
+      }
+      if (activeRole) {
+        fetchNotificationCount(activeRole)
       }
     }
   })
-  window.addEventListener('storage', handleAuthReset)
 
   // Subtle revalidation when window regains focus or tab becomes visible
   const handleVisibility = () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-    for (const r of ['pharmacyAdmin', 'pharmacist', 'superAdmin']) {
-      const store = stores[r]
-      if (store && authTokenFor('', r) && Date.now() - store.lastFetched >= CACHE_TTL_MS) {
-        fetchNotificationCount(r)
+    const activeRole = getActiveAuthRole()
+    if (activeRole) {
+      const store = stores[activeRole]
+      if (store && authTokenFor('', activeRole) && Date.now() - store.lastFetched >= CACHE_TTL_MS) {
+        fetchNotificationCount(activeRole)
       }
     }
   }
@@ -218,3 +275,4 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     document.addEventListener('visibilitychange', handleVisibility)
   }
 }
+

@@ -54,8 +54,8 @@ export default function NotificationCenter({ role }) {
         const body = notificationBody(response)
         const incoming = notificationList(response).map((item) => normalizeNotification(item, tab === 'sent' ? 'sent' : 'inbox'))
         setItems((previous) => page === 1 ? incoming : [...previous, ...incoming.filter((item) => !item.id || !previous.some((old) => old.id === item.id))])
-        const nextCounts = body.counts || response?.counts || {}
-        const unread = body.unreadCount ?? nextCounts.unread ?? response?.unreadCount
+        const nextCounts = body.counts || response?.counts || body.Counts || response?.Counts || {}
+        const unread = nextCounts.unread ?? nextCounts.Unread ?? body.unreadCount ?? response?.unreadCount
         setCounts({ ...nextCounts, ...(Number.isFinite(Number(unread)) && unread != null ? { unread: Number(unread) } : {}) })
         if (unread != null && Number.isFinite(Number(unread))) window.dispatchEvent(new CustomEvent('pms:notifications-updated', { detail: { role, unreadCount: Number(unread) } }))
         const total = body.total ?? body.totalCount ?? body.pagination?.total ?? response?.total
