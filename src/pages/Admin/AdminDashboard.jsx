@@ -168,8 +168,15 @@ function AdminDashboard() {
   const [branchesList, setBranchesList] = useState([])
   const [loading, setLoading] = useState(false)
   const [salesFilter, setSalesFilter] = useState('7d')
+  const [dashboardError, setDashboardError] = useState('')
 
   function loadDashboardData() {
+    const token = sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken') || sessionStorage.getItem('superAdminToken') || localStorage.getItem('superAdminToken')
+    if (!token) {
+      setLoading(false)
+      return
+    }
+
     const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
     const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
     const user = JSON.parse(sessionStorage.getItem('pharmacyAdminUser') || localStorage.getItem('pharmacyAdminUser') || '{}')
@@ -186,6 +193,7 @@ function AdminDashboard() {
       return
     }
 
+    setLoading(true)
     const fast = (p) => Promise.race([
       p,
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000))
@@ -201,6 +209,22 @@ function AdminDashboard() {
       fast(listPharmacyBranches()),
     ])
       .then(([dashRes, medRes, invRes, billsRes, dailyRes, payRes, branchRes]) => {
+        let authExpired = false
+        const rejections = [dashRes, medRes, invRes, billsRes, dailyRes, payRes, branchRes].filter((r) => r.status === 'rejected')
+        rejections.forEach((res) => {
+          if (res.reason?.status === 401 || /401|unauthorized|session has expired/i.test(res.reason?.message)) {
+            authExpired = true
+          }
+        })
+
+        if (authExpired) {
+          setDashboardError('Your session has expired or is unauthorized. Please log in again.')
+        } else if (dashRes.status === 'rejected') {
+          setDashboardError(dashRes.reason?.message || 'Unable to load dashboard data.')
+        } else {
+          setDashboardError('')
+        }
+
         if (dashRes.status === 'fulfilled') setDashboard(unwrap(dashRes.value))
         if (medRes.status === 'fulfilled') setMedicinesList(unwrapArray(medRes.value))
         if (invRes.status === 'fulfilled') setInventoryList(unwrapArray(invRes.value))
@@ -230,6 +254,14 @@ function AdminDashboard() {
       window.removeEventListener('pms:branches-updated', handleDashboardSync)
       window.removeEventListener('storage', handleDashboardSync)
     }
+  }, [])
+
+  useEffect(() => {
+    function handleUnauthorized(e) {
+      setDashboardError(e?.detail?.message || 'Your session has expired. Please log in again.')
+    }
+    window.addEventListener('pms:auth-unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('pms:auth-unauthorized', handleUnauthorized)
   }, [])
 
   const view = useMemo(() => {
@@ -580,6 +612,42 @@ function AdminDashboard() {
     <AdminLayout activeLabel="Dashboard" title="Admin Dashboard" subtitle="Admin / Dashboard">
       {/* Dashboard Page Header */}
       <DashboardGreetingCard role="Admin" name={adminName} subtitle="Branch-wise operations management for sales, stock, and alerts." />
+
+      {dashboardError ? (
+        <div
+          role="alert"
+          style={{
+            margin: '0 0 16px 0',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#b91c1c',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+          }}
+        >
+          <span>⚠️ {dashboardError}</span>
+          <button
+            type="button"
+            onClick={loadDashboardData}
+            style={{
+              background: '#b91c1c',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       {/* Top 5 Equal-Sized Statistic Cards (Combined across all branches) */}
       <section
