@@ -12,7 +12,7 @@ export const pharmacistNavigation = [
   item('Dashboard', '/pharmacist/dashboard', 'dashboard', 'blue'),
   item('Dispensing', '/pharmacist/dispensing', 'clipboardCheck', 'rose'),
   item('Medicines', '/pharmacist/medicines', 'medicines', 'emerald'),
-  item('Bills', '/pharmacist/bills', 'receipt', 'amber'),
+  item('Bills & Payments', '/pharmacist/bills', 'receipt', 'amber'),
   item('Returns', '/pharmacist/returns', 'rotateCcw', 'cyan'),
   item('Reports', '/pharmacist/reports', 'barChart3', 'purple'),
   item('Notifications', '/pharmacist/notifications', 'notifications', 'rose'),

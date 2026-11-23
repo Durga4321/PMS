@@ -265,10 +265,22 @@ export default function PrescriptionWorkspace() {
         }
       }
 
-      if (current.billAmount == null) throw new Error('The bill was created without a valid payable amount. Check Bills before continuing.')
-      navigate('/pharmacist/dispensing?step=payment')
+      const phoneParam = encodeURIComponent(current.patient?.patientPhone || '')
+      if (current.billId) {
+        showToast('Prescription saved and bill generated! Redirecting to Bills & Payments...')
+        navigate(`/pharmacist/bills?billId=${current.billId}${phoneParam ? `&phone=${phoneParam}` : ''}`)
+        return
+      }
+      if (current.prescriptionId) {
+        showToast('Prescription saved! Redirecting to Bills & Payments...')
+        navigate(`/pharmacist/bills?rxId=${current.prescriptionId}${phoneParam ? `&phone=${phoneParam}` : ''}`)
+        return
+      }
+      navigate(`/pharmacist/bills${phoneParam ? `?phone=${phoneParam}` : ''}`)
     } catch (failure) {
-      setError(failure.message || 'Unable to prepare this prescription for payment.')
+      const msg = failure.message || 'Unable to prepare this prescription for payment.'
+      setError(msg)
+      showToast(msg, 'error')
     } finally {
       inFlight.current = false
       setBusy(false)
@@ -279,6 +291,11 @@ export default function PrescriptionWorkspace() {
     if (medicinesStep) return proceed(event)
     event.preventDefault()
     if (!draft.patient.patientName.trim() || !draft.patient.doctorName.trim()) { setError('Enter the patient name and doctor name.'); return }
+    const phone = String(draft.patient.patientPhone || '').trim()
+    if (!phone || !/^\d{10}$/.test(phone)) {
+      setError('Patient phone number is required and must be exactly 10 digits.')
+      return
+    }
     setError('')
     setBusy(true)
     stopCamera()
@@ -377,8 +394,15 @@ export default function PrescriptionWorkspace() {
 
   return <PharmacistLayout activeLabel="Dispensing">
     <div className="rx-workspace">
-      <header className="rx-heading"><div><h1>{payment ? 'Payment & Billing' : 'New Prescription & Medicines'}</h1><p>{payment ? 'Review the bill and record the confirmed payment.' : 'Add patient details, attach the prescription, and enter medicines as prescribed.'}</p></div><div className="rx-heading-actions">{locked ? <button type="button" disabled={busy} onClick={startNew}>New Prescription</button> : null}<button type="button" onClick={showReferences}>Saved References</button></div></header>
-      <ol className="rx-stepper" aria-label="Prescription progress">{['Patient & Prescription', 'Add Medicines', 'Payment'].map((label, index) => <li key={label} className={(index === activeStep) ? 'is-active' : ''} aria-current={(index === activeStep) ? 'step' : undefined}><b>{index + 1}</b>{label}</li>)}</ol>
+      <header className="rx-heading"><div><p className="rx-breadcrumb">Pharmacist / Dispensing</p><h1>{payment ? 'Payment & Billing' : 'New Prescription & Medicines'}</h1><p>{payment ? 'Review the bill and record the confirmed payment.' : 'Add patient details, attach the prescription, and enter medicines as prescribed.'}</p></div><div className="rx-heading-actions">{locked ? <button type="button" disabled={busy} onClick={startNew}>New Prescription</button> : null}<button type="button" onClick={showReferences}>Saved References</button></div></header>
+      <ol className="rx-stepper" aria-label="Prescription progress">{['Patient & Prescription', 'Add Medicines', 'Payment'].map((label, index) => <li key={label} className={(index === activeStep) ? 'is-active' : ''} aria-current={(index === activeStep) ? 'step' : undefined} onClick={() => {
+        if (index === 0) navigate('/pharmacist/dispensing')
+        else if (index === 1) navigate('/pharmacist/dispensing?step=medicines')
+        else if (index === 2) {
+          if (draft.billId) navigate(`/pharmacist/bills?billId=${draft.billId}`)
+          else navigate('/pharmacist/bills')
+        }
+      }} style={{ cursor: 'pointer' }}><b>{index + 1}</b>{label}</li>)}</ol>
       {error ? <p className="rx-message rx-error" role="alert">{error}</p> : null}
       {notice ? <p className="rx-message" role="status">{notice}</p> : null}
       {references ? <section className="rx-card rx-references"><h2>Saved References</h2><p>Prescriptions and drafts saved on the server.</p>{references.length ? references.map((record, idx) => {
@@ -399,7 +423,7 @@ export default function PrescriptionWorkspace() {
             {patientField('patientId', 'Patient ID', 'text', { maxLength: 80, placeholder: 'Optional' })}
             {patientField('patientAge', 'Age', 'number', { min: 0, max: 130, step: 1 })}
             <label className="rx-field"><span>Gender</span><select value={draft.patient.patientGender} onChange={(event) => change((current) => ({ ...current, patient: { ...current.patient, patientGender: event.target.value } }))}><option value="">Select</option>{['Female', 'Male', 'Other'].map((gender) => <option key={gender} value={gender}>{gender}</option>)}</select></label>
-            {patientField('patientPhone', 'Phone Number', 'tel', { inputMode: 'numeric', maxLength: 10, pattern: '[0-9]{10}' })}
+            {patientField('patientPhone', 'Phone Number', 'tel', { required: true, inputMode: 'numeric', maxLength: 10, pattern: '[0-9]{10}', placeholder: 'Enter 10-digit mobile number' })}
             {patientField('doctorName', 'Doctor Name', 'text', { required: true, maxLength: 150 })}
             {patientField('prescriptionDate', 'Prescription Date', 'date', { required: true })}
             <label className="rx-field"><span>Notes</span><textarea rows={2} maxLength={2000} value={draft.patient.notes} onChange={(event) => change((current) => ({ ...current, patient: { ...current.patient, notes: event.target.value } }))} /></label>
