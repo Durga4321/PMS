@@ -24,15 +24,15 @@ export function prescriptionTotals(medicines) {
 
 export function validatePrescription(draft) {
   const { patient, medicines } = draft
-  if (!patient.patientName.trim() || !patient.doctorName.trim()) throw new Error('Enter the patient name and doctor name.')
-  if (patient.patientPhone && !/^\d{10}$/.test(patient.patientPhone)) throw new Error('Phone number must be exactly 10 digits.')
+  if (!patient.patientName?.trim() || !patient.doctorName?.trim()) throw new Error('Enter the patient name and doctor name.')
+  if (!patient.patientPhone || !/^\d{10}$/.test(String(patient.patientPhone).trim())) throw new Error('Patient phone number is required and must be exactly 10 digits.')
   if (patient.patientAge !== '' && (!Number.isInteger(Number(patient.patientAge)) || Number(patient.patientAge) < 0 || Number(patient.patientAge) > 130)) throw new Error('Enter a valid patient age.')
   if (!patient.prescriptionDate || !/^\d{4}-\d{2}-\d{2}$/.test(patient.prescriptionDate)) throw new Error('Enter a valid prescription date.')
   if (!medicines.length) throw new Error('Add at least one medicine.')
   for (const [index, row] of medicines.entries()) {
     if (!row.medicineName.trim()) throw new Error(`Enter the medicine name in row ${index + 1}.`)
     const doses = ['morning', 'afternoon', 'evening'].map((key) => Number(row[key] || 0))
-    if (doses.some((dose) => !Number.isFinite(dose) || dose < 0) || !doses.some((dose) => dose > 0)) throw new Error(`Enter the prescribed doses in row ${index + 1}.`)
+    if (doses.some((dose) => !Number.isFinite(dose) || dose < 0)) throw new Error(`Enter valid doses in row ${index + 1}.`)
     if (!Number.isInteger(Number(row.days)) || Number(row.days) < 1 || !Number.isInteger(Number(row.quantity)) || Number(row.quantity) < 1) throw new Error(`Enter valid days and quantity in row ${index + 1}.`)
     if (row.unitPrice === '' || !Number.isFinite(Number(row.unitPrice)) || Number(row.unitPrice) < 0) throw new Error(`Enter a valid unit price in row ${index + 1}.`)
   }
@@ -41,8 +41,27 @@ export function validatePrescription(draft) {
 
 export function prescriptionPayload(draft) {
   validatePrescription(draft)
-  return { ...draft.patient, patientAge: draft.patient.patientAge === '' ? null : Number(draft.patient.patientAge), clientRequestId: draft.requestId,
-    medicines: draft.medicines.map((row) => ({ medicineName: row.medicineName.trim(), strength: row.strength.trim(), days: Number(row.days), duration: `${row.days} days`, dosage: `${Number(row.morning || 0)}-${Number(row.afternoon || 0)}-${Number(row.evening || 0)}`, morning: Number(row.morning || 0) > 0, afternoon: Number(row.afternoon || 0) > 0, evening: Number(row.evening || 0) > 0, quantity: Number(row.quantity), unitPrice: Number(row.unitPrice), instructions: row.instructions.trim() })) }
+  const rawPid = String(draft.patient?.patientId || '').trim()
+  const cleanPatientId = rawPid && !isNaN(Number(rawPid)) ? Number(rawPid) : null
+  return {
+    ...draft.patient,
+    patientId: cleanPatientId,
+    patientAge: draft.patient.patientAge === '' ? null : Number(draft.patient.patientAge),
+    clientRequestId: draft.requestId,
+    medicines: draft.medicines.map((row) => ({
+      medicineName: row.medicineName.trim(),
+      strength: row.strength.trim(),
+      days: Number(row.days),
+      duration: `${row.days} days`,
+      dosage: `${Number(row.morning || 0)}-${Number(row.afternoon || 0)}-${Number(row.evening || 0)}`,
+      morning: Number(row.morning || 0) > 0,
+      afternoon: Number(row.afternoon || 0) > 0,
+      evening: Number(row.evening || 0) > 0,
+      quantity: Number(row.quantity),
+      unitPrice: Number(row.unitPrice),
+      instructions: row.instructions.trim(),
+    })),
+  }
 }
 
 export function savedRecord(response, type) {

@@ -3769,6 +3769,10 @@ export const getBranchPaymentSettings = (branchId) =>
   request(replacePathParams('payment-settings/branches/{branchId}', { branchId }))
 export const updateBranchPaymentSettings = (branchId, payload) =>
   request(replacePathParams('payment-settings/branches/{branchId}', { branchId }), { method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
+export const getBranchPaymentSettingsStatus = (branchId) =>
+  request(replacePathParams('payment-settings/branches/{branchId}/status', { branchId }))
+export const verifyBranchPaymentSettings = (branchId) =>
+  request(replacePathParams('payment-settings/branches/{branchId}/verify', { branchId }), { method: 'POST' })
 
 // 5. Payment Gateway APIs
 export const getBillPaymentStatus = (billId) =>
@@ -3799,10 +3803,41 @@ export const listPaymentTransactions = (params = {}) =>
   request(`payments/transactions${queryString(params)}`)
 export const exportPaymentTransactions = (params = {}) =>
   request(`payments/transactions/export${queryString(params)}`)
+export const getBranchPaymentReport = (branchId) =>
+  request(replacePathParams('payments/reports/branch/{branchId}', { branchId }))
+export const getPharmacyPaymentReport = (params = {}) =>
+  request(`payments/reports/pharmacy${queryString(params)}`)
 export const exportGatewayExcel = (params = {}) =>
   request(`payments/gateway/export-excel${queryString(params)}`)
 export const simulateQrPayment = (billId, payload = {}) =>
   request(replacePathParams('payments/gateway/simulate-qr-payment/{billId}', { billId }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const downloadBillInvoicePdf = async (billId) => {
+  const token = authTokenFor('payments/bills')
+  const headers = {
+    'ngrok-skip-browser-warning': 'true',
+    ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    ...pharmacyTenantHeaders('payments/bills'),
+  }
+  const response = await fetch(apiUrl(`payments/bills/${billId}/invoice-pdf`), { headers })
+  if (!response.ok) {
+    let msg = 'Failed to download invoice PDF'
+    try {
+      const errJson = await response.json()
+      if (errJson?.message) msg = errJson.message
+    } catch {}
+    throw new Error(msg)
+  }
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Invoice_Bill_${billId}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  window.URL.revokeObjectURL(url)
+  document.body.removeChild(a)
+  return true
+}
 
 // 6. Medicine Return APIs (Direct Functions)
 export const getPharmacyReturnOptions = () =>

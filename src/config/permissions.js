@@ -177,7 +177,7 @@ export const PHARMACIST_MODULE_ALIASES = {
   Dashboard: ['dashboard'],
   Dispensing: ['dispensing', 'sales', 'billing'],
   Medicines: ['medicines', 'medicine', 'catalogue'],
-  Bills: ['bills', 'billing', 'invoices'],
+  Bills: ['bills', 'billing', 'invoices', 'bills & payments', 'bills and payments', 'payments', 'payment'],
   Returns: ['returns', 'return'],
   Reports: ['reports', 'report'],
   Notifications: ['notifications', 'notification', 'alerts', 'alert'],
