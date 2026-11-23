@@ -1540,7 +1540,7 @@ async function validateMedicineBranch(params = {}) {
   return branchId
 }
 
-export async function listMedicines(params = {}) {
+export async function listMedicines(params = {}, options = {}) {
   const isPharmacistCaller = params.authRole === 'pharmacist' ||
     (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))
   const context = pharmacyTenantContext(isPharmacistCaller ? 'pharmacist' : '')
@@ -1567,6 +1567,7 @@ export async function listMedicines(params = {}) {
   let backendResponded = false
   try {
     const response = await request(`medicine${query.toString() ? `?${query}` : ''}`, {
+      ...options,
       tenantBranchId: branchId,
       ...(isPharmacistCaller ? { authRole: 'pharmacist' } : {})
     })
@@ -2010,12 +2011,12 @@ export function downloadMedicineImportTemplate(format = 'xlsx') {
   })
 }
 
-export function getInventory(params = {}) {
+export function getInventory(params = {}, options = {}) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
-  return request(`inventory${query.toString() ? `?${query}` : ''}`)
+  return request(`inventory${query.toString() ? `?${query}` : ''}`, options)
 }
 
 export function addInventoryStock(payload) {
@@ -2891,14 +2892,14 @@ export function writeLocalStockTransfers() {}
 export const getPharmacyAlerts = () => request('pharmacy/alerts')
 export const getPharmacyAuditLogs = (params = {}) => request(`pharmacy/audit-logs${queryString(params)}`)
 export const getPharmacyDashboard = () => request('pharmacy/dashboard')
-export const getPharmacyPayments = (params = {}) => request(`pharmacy/payments${queryString(params)}`)
+export const getPharmacyPayments = (params = {}, options = {}) => request(`pharmacy/payments${queryString(params)}`, options)
 export const getPharmacyExpiryReport = (params = {}) => request(`pharmacy/reports/expiry${queryString(params)}`)
 export const getPharmacyPurchasesReport = (params = {}) => request(`pharmacy/reports/purchases${queryString(params)}`)
 export const getPharmacySalesReport = (params = {}) => request(`pharmacy/reports/sales${queryString(params)}`)
 export const getPharmacyStockMovementReport = (params = {}) => request(`pharmacy/reports/stock-movement${queryString(params)}`)
 export const getPharmacyStockSummaryReport = () => request('pharmacy/reports/stock-summary')
 export const getPharmacyTopSellingReport = (params = {}) => request(`pharmacy/reports/top-selling${queryString(params)}`)
-export const getPharmacyAdminDashboard = () => request('pharmacy/dashboard', { authRole: 'pharmacyAdmin' })
+export const getPharmacyAdminDashboard = (params = {}, options = {}) => request(`pharmacy/dashboard${queryString(params)}`, { ...options, authRole: 'pharmacyAdmin' })
 export const getPharmacistDashboard = () => request('pharmacist/dashboard', { authRole: 'pharmacist' })
 export const getPharmacistInventory = async (params = {}) => {
   const branchId = params.branchId || params.BranchId

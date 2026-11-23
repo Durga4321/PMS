@@ -84,11 +84,28 @@ export default function Dashboard() {
   const reloadDashboard = useCallback(() => {
     const id = ++requestId.current
     setLoading(true)
-    Promise.allSettled(sources.map((load) => load())).then((results) => {
+    sources.forEach((load, idx) => {
+      load()
+        .then((val) => {
+          if (id !== requestId.current) return
+          setData((prev) => {
+            const next = [...prev]
+            next[idx] = unwrap(val)
+            return next
+          })
+          setUpdated(new Date())
+        })
+        .catch((err) => {
+          if (id !== requestId.current) return
+          setErrors((prev) => {
+            const next = [...prev]
+            next[idx] = err?.message || 'Unable to load this section.'
+            return next
+          })
+        })
+    })
+    Promise.allSettled(sources.map((load) => load())).then(() => {
       if (id !== requestId.current) return
-      setData(results.map((result) => result.status === 'fulfilled' ? unwrap(result.value) : null))
-      setErrors(results.map((result) => result.status === 'rejected' ? result.reason?.message || 'Unable to load this section.' : ''))
-      setUpdated(results.some((result) => result.status === 'fulfilled') ? new Date() : null)
       setLoading(false)
     })
   }, [])
@@ -97,11 +114,28 @@ export default function Dashboard() {
     let disposed = false
     const id = ++requestId.current
     Promise.resolve().then(() => { if (!disposed) setLoading(true) })
-    Promise.allSettled(sources.map((load) => load())).then((results) => {
+    sources.forEach((load, idx) => {
+      load()
+        .then((val) => {
+          if (disposed || id !== requestId.current) return
+          setData((prev) => {
+            const next = [...prev]
+            next[idx] = unwrap(val)
+            return next
+          })
+          setUpdated(new Date())
+        })
+        .catch((err) => {
+          if (disposed || id !== requestId.current) return
+          setErrors((prev) => {
+            const next = [...prev]
+            next[idx] = err?.message || 'Unable to load this section.'
+            return next
+          })
+        })
+    })
+    Promise.allSettled(sources.map((load) => load())).then(() => {
       if (disposed || id !== requestId.current) return
-      setData(results.map((result) => result.status === 'fulfilled' ? unwrap(result.value) : null))
-      setErrors(results.map((result) => result.status === 'rejected' ? result.reason?.message || 'Unable to load this section.' : ''))
-      setUpdated(results.some((result) => result.status === 'fulfilled') ? new Date() : null)
       setLoading(false)
     })
     return () => { disposed = true }

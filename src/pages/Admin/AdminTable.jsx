@@ -19,7 +19,7 @@ function Status({ value }) {
   return <span className={`table-status-badge ${statusClass}`}>{displayVal}</span>
 }
 
-function AdminTable({ title, action, headers, rows, onActionClick, onViewAll, scrollable = true, maxHeight = '360px' }) {
+function AdminTable({ title, action, headers, rows, onActionClick, onViewAll, scrollable = true, maxHeight = '360px', loading = false }) {
   return (
     <section className="branch-panel" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="branch-panel-heading">
@@ -45,7 +45,15 @@ function AdminTable({ title, action, headers, rows, onActionClick, onViewAll, sc
             </tr>
           </thead>
           <tbody>
-            {rows.length ? (
+            {loading && !rows.length ? (
+              <tr>
+                <td colSpan={headers.length}>
+                  <div className="table-empty-box" style={{ padding: '24px 0', color: '#64748b' }}>
+                    <span>Loading live {title.toLowerCase()}…</span>
+                  </div>
+                </td>
+              </tr>
+            ) : rows.length ? (
               rows.map((row, rIdx) => (
                 <tr key={rIdx}>
                   {row.map((cell, cIdx) => (

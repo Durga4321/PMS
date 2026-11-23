@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   getInventory, 
@@ -8,7 +8,8 @@ import {
   getDailySalesReport, 
   getPharmacyPayments,
   readLocalMedicines,
-  listPharmacyBranches
+  listPharmacyBranches,
+  syncPharmacyAdminTenantContext
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
@@ -63,25 +64,27 @@ const dashboardTables = {
 const unwrap = (response) => response?.data?.dashboard || response?.data || response?.dashboard || response || {}
 const unwrapArray = (response) => {
   if (Array.isArray(response)) return response
+  if (!response || typeof response !== 'object') return []
   const data = response?.data ?? response?.Data ?? response
   if (Array.isArray(data)) return data
-  return (
-    [
-      data?.medicines,
-      data?.Medicines,
-      data?.inventory,
-      data?.Inventory,
-      data?.items,
-      data?.Items,
-      data?.results,
-      data?.Results,
-      data?.records,
-      data?.Records,
-      response?.medicines,
-      response?.items,
-      response?.results,
-    ].find(Array.isArray) || []
-  )
+  const candidateKeys = [
+    'bills', 'Bills',
+    'payments', 'Payments',
+    'branches', 'Branches',
+    'medicines', 'Medicines',
+    'inventory', 'Inventory',
+    'items', 'Items',
+    'results', 'Results',
+    'records', 'Records',
+    'prescriptions', 'Prescriptions',
+    'sales', 'Sales',
+    'data', 'Data',
+  ]
+  for (const k of candidateKeys) {
+    if (Array.isArray(data?.[k])) return data[k]
+    if (Array.isArray(response?.[k])) return response[k]
+  }
+  return []
 }
 const pick = (source, keys, fallback = 0) => {
   if (!source || typeof source !== 'object') return fallback
@@ -169,48 +172,86 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(false)
   const [salesFilter, setSalesFilter] = useState('7d')
   const [dashboardError, setDashboardError] = useState('')
+  const dashboardRequest = useRef(0)
+  const abortControllerRef = useRef(null)
 
-  function loadDashboardData() {
+  async function loadDashboardData() {
     const token = sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken') || sessionStorage.getItem('superAdminToken') || localStorage.getItem('superAdminToken')
     if (!token) {
       setLoading(false)
       return
     }
 
-    const activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
-    const assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
-    const user = JSON.parse(sessionStorage.getItem('pharmacyAdminUser') || localStorage.getItem('pharmacyAdminUser') || '{}')
-    const isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId)
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+    const signal = controller.signal
+
+    const currentRequestId = ++dashboardRequest.current
+
+    let activePharmacyId = String(sessionStorage.getItem('workingPharmacyId') || localStorage.getItem('workingPharmacyId') || '')
+    let assignment = JSON.parse(sessionStorage.getItem('pharmacyAdminAssignment') || localStorage.getItem('pharmacyAdminAssignment') || '{}')
+    let user = JSON.parse(sessionStorage.getItem('pharmacyAdminUser') || localStorage.getItem('pharmacyAdminUser') || '{}')
+    let isAssigned = Boolean(assignment?.isPharmacyAssigned || user?.isPharmacyAssigned || activePharmacyId || assignment?.pharmacyId || user?.pharmacyId)
+
     if (!isAssigned) {
-      setDashboard({})
-      setMedicinesList([])
-      setInventoryList([])
-      setBillsList([])
-      setDailySalesData(null)
-      setPaymentsList([])
-      setBranchesList([])
-      setLoading(false)
+      try {
+        const synced = await syncPharmacyAdminTenantContext()
+        if (synced?.pharmacyId) {
+          activePharmacyId = String(synced.pharmacyId)
+          isAssigned = true
+        }
+      } catch {}
+    }
+
+    if (!isAssigned) {
+      if (currentRequestId === dashboardRequest.current) {
+        setDashboard({})
+        setMedicinesList([])
+        setInventoryList([])
+        setBillsList([])
+        setDailySalesData(null)
+        setPaymentsList([])
+        setBranchesList([])
+        setLoading(false)
+      }
       return
     }
 
     setLoading(true)
-    const fast = (p) => Promise.race([
-      p,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000))
-    ])
 
-    Promise.allSettled([
-      fast(getPharmacyAdminDashboard()),
-      fast(listMedicines()),
-      fast(getInventory()),
-      fast(listBills()),
-      fast(getDailySalesReport()),
-      fast(getPharmacyPayments()),
-      fast(listPharmacyBranches()),
-    ])
-      .then(([dashRes, medRes, invRes, billsRes, dailyRes, payRes, branchRes]) => {
+    // Stage 1: Fast metrics and branch overview
+    const pDash = getPharmacyAdminDashboard({ range: 'today' }, { signal, timeout: 15000 })
+    const pBranch = listPharmacyBranches({}, { signal, timeout: 15000 })
+
+    Promise.allSettled([pDash, pBranch]).then(([dashRes, branchRes]) => {
+      if (currentRequestId !== dashboardRequest.current) return
+      if (dashRes.status === 'fulfilled') setDashboard(unwrap(dashRes.value))
+      if (branchRes.status === 'fulfilled') setBranchesList(unwrapArray(branchRes.value))
+    })
+
+    // Stage 2: Operational Data (Medicines, Inventory, Bills, Sales, Payments)
+    const pMed = listMedicines({}, { signal, timeout: 20000 })
+    const pInv = getInventory({}, { signal, timeout: 20000 })
+    const pBills = listBills({}, { signal, timeout: 20000 })
+    const pDaily = getDailySalesReport({}, { signal, timeout: 20000 })
+    const pPay = getPharmacyPayments({}, { signal, timeout: 20000 })
+
+    pMed.then((res) => { if (currentRequestId === dashboardRequest.current) setMedicinesList(unwrapArray(res)) }).catch(() => {})
+    pInv.then((res) => { if (currentRequestId === dashboardRequest.current) setInventoryList(unwrapArray(res)) }).catch(() => {})
+    pBills.then((res) => { if (currentRequestId === dashboardRequest.current) setBillsList(unwrapArray(res)) }).catch(() => {})
+    pDaily.then((res) => { if (currentRequestId === dashboardRequest.current) setDailySalesData(unwrap(res)) }).catch(() => {})
+    pPay.then((res) => { if (currentRequestId === dashboardRequest.current) setPaymentsList(unwrapArray(res)) }).catch(() => {})
+
+    Promise.allSettled([pDash, pBranch, pMed, pInv, pBills, pDaily, pPay])
+      .then((results) => {
+        if (currentRequestId !== dashboardRequest.current) return
+        const [dashRes, branchRes, medRes, invRes, billsRes, dailyRes, payRes] = results
+        const rejections = results.filter((r) => r.status === 'rejected')
+
         let authExpired = false
-        const rejections = [dashRes, medRes, invRes, billsRes, dailyRes, payRes, branchRes].filter((r) => r.status === 'rejected')
         rejections.forEach((res) => {
           if (res.reason?.status === 401 || /401|unauthorized|session has expired/i.test(res.reason?.message)) {
             authExpired = true
@@ -219,21 +260,22 @@ function AdminDashboard() {
 
         if (authExpired) {
           setDashboardError('Your session has expired or is unauthorized. Please log in again.')
-        } else if (dashRes.status === 'rejected') {
+        } else if (rejections.length === results.length) {
+          setDashboardError('Unable to connect to dashboard services. Check backend connection.')
+        } else if (dashRes.status === 'rejected' && rejections.length >= 4) {
           setDashboardError(dashRes.reason?.message || 'Unable to load dashboard data.')
         } else {
           setDashboardError('')
         }
 
         if (dashRes.status === 'fulfilled') setDashboard(unwrap(dashRes.value))
-        if (medRes.status === 'fulfilled') setMedicinesList(unwrapArray(medRes.value))
-        if (invRes.status === 'fulfilled') setInventoryList(unwrapArray(invRes.value))
-        if (billsRes.status === 'fulfilled') setBillsList(unwrapArray(billsRes.value))
-        if (dailyRes.status === 'fulfilled') setDailySalesData(unwrap(dailyRes.value))
-        if (payRes.status === 'fulfilled') setPaymentsList(unwrapArray(payRes.value))
         if (branchRes.status === 'fulfilled') setBranchesList(unwrapArray(branchRes.value))
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (currentRequestId === dashboardRequest.current) {
+          setLoading(false)
+        }
+      })
   }
 
   useEffect(() => {
@@ -248,6 +290,10 @@ function AdminDashboard() {
     window.addEventListener('pms:branches-updated', handleDashboardSync)
     window.addEventListener('storage', handleDashboardSync)
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      dashboardRequest.current += 1
       window.removeEventListener('pms:medicines-updated', handleDashboardSync)
       window.removeEventListener('pms:stock-updated', handleDashboardSync)
       window.removeEventListener('pms:purchase-orders-updated', handleDashboardSync)
@@ -674,7 +720,7 @@ function AdminDashboard() {
               {card.icon}
             </div>
             <div className="stat-card-body">
-              <strong className="stat-card-val">{card.val}</strong>
+              <strong className="stat-card-val">{loading && !dashboard ? '—' : card.val}</strong>
               <label>{card.label}</label>
             </div>
           </div>
@@ -711,7 +757,11 @@ function AdminDashboard() {
             </div>
           </div>
           <div className="analytics-card-body">
-            {view.totalSalesValue > 0 || billsList.length > 0 ? (
+            {loading && !dashboard && billsList.length === 0 ? (
+              <div style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b' }}>
+                <p style={{ margin: 0, fontSize: '14px', fontWeight: 500 }}>Loading sales overview…</p>
+              </div>
+            ) : view.totalSalesValue > 0 || billsList.length > 0 ? (
               <div style={{ padding: '20px 8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div>
@@ -753,7 +803,11 @@ function AdminDashboard() {
             <h2>Top Medicines</h2>
           </div>
           <div className="top-meds-card-body">
-            {view.topMedicines.length ? (
+            {loading && view.topMedicines.length === 0 ? (
+              <div style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b' }}>
+                <p style={{ margin: 0, fontSize: '14px', fontWeight: 500 }}>Loading top medicines…</p>
+              </div>
+            ) : view.topMedicines.length ? (
               <div className="top-meds-list">
                 {view.topMedicines.slice(0, 5).map((med, idx) => (
                   <div className="top-med-item" key={getId(med, idx)}>
@@ -791,6 +845,7 @@ function AdminDashboard() {
       <section className="branch-grid three">
         <AdminTable
           {...dashboardTables.medicines}
+          loading={loading}
           rows={view.topMedicines.slice(0, 5).map((item) => {
             const qty = getItemStock(item)
             const st = String(text(item, ['status'], 'Active')).toLowerCase()
@@ -812,6 +867,7 @@ function AdminDashboard() {
         />
         <AdminTable
           {...dashboardTables.stock}
+          loading={loading}
           rows={view.recentStock.slice(0, 5).map((item) => {
             const qty = getItemStock(item)
             const rawExpiry = text(item, ['expiryDate', 'expiry', 'expiresAt'], '-')
@@ -830,6 +886,7 @@ function AdminDashboard() {
         />
         <AdminTable
           {...dashboardTables.reports}
+          loading={loading}
           rows={view.reports.slice(0, 5).map((item) => [
             text(item, ['title', 'name', 'report']),
             text(item, ['type', 'category']),
