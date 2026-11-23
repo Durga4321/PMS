@@ -370,10 +370,15 @@ export function authTokenFor(path = '', authRole = '') {
   const route = typeof window !== 'undefined' ? window.location?.pathname || '' : ''
 
   if (authRole && tokenKeysByRole[authRole]) {
-    return readStoredToken(tokenKeysByRole[authRole])
+    const roleToken = readStoredToken(tokenKeysByRole[authRole])
+    if (roleToken) return roleToken
+    if (authRole === 'superAdmin') {
+      return readStoredToken('pharmacySuperAdminToken') || readStoredToken('token') || readStoredToken('authToken') || ''
+    }
+    return ''
   }
   if (cleanPath.startsWith('pharmacy-super-admin')) {
-    return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
+    return readStoredToken('superAdminToken') || readStoredToken('pharmacySuperAdminToken') || readStoredToken('token') || readStoredToken('authToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
   }
   if (cleanPath.startsWith('pharmacy-admin-auth') || cleanPath.startsWith('pharmacy-admin')) {
     return readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken') || readStoredToken('pharmacistToken')
@@ -503,7 +508,7 @@ async function request(path, options = {}) {
     clearTimeout(timeout)
   }
 
-  const contentType = response.headers.get('content-type') || ''
+  const contentType = response.headers?.get ? (response.headers.get('content-type') || '') : (response.headers?.['content-type'] || '')
   let data = null
   if (contentType.includes('json')) {
     try {
@@ -613,8 +618,12 @@ async function request(path, options = {}) {
     } else if (publicRequest && path === 'auth/login' && response.status === 401) {
       errorMsg = errorMsg || 'Login rejected. Check your email and password.'
     }
-    if (response.status === 403 && (authRole === 'pharmacist' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist')))) {
-      errorMsg = 'Access denied for this pharmacist account. Ask your pharmacy administrator to verify your role permissions and pharmacy/branch assignment.'
+    if (response.status === 403) {
+      if (authRole === 'pharmacist' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))) {
+        errorMsg = 'Access denied for this pharmacist account. Ask your pharmacy administrator to verify your role permissions and pharmacy/branch assignment.'
+      } else if (authRole === 'superAdmin' || cleanPath.startsWith('pharmacy-super-admin') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/super-admin'))) {
+        errorMsg = 'Access forbidden: Pharmacy Super Admin privileges required. Please verify your Super Admin session.'
+      }
     }
     const error = new Error(errorMsg)
     error.status = response.status
@@ -2530,7 +2539,7 @@ export const pharmacistReturnsApi = {
     const { force = false } = options
     const cleanParams = {
       page: Math.max(1, Number(params.page) || 1),
-      pageSize: Math.max(1, Number(params.pageSize) || 20),
+      pageSize: Math.min(20, Math.max(1, Number(params.pageSize) || 20)),
     }
     if (params.branchId != null && String(params.branchId).trim()) {
       cleanParams.branchId = String(params.branchId).trim()
@@ -3380,7 +3389,7 @@ export function deleteIntegrationHospitalBranch(externalHospitalId, externalBran
   }), { method: 'DELETE' })
 }
 
-export function listPharmacyAdmins(params = {}) {
+export function listPharmacyAdmins(params = {}, options = {}) {
   const query = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
@@ -3389,7 +3398,10 @@ export function listPharmacyAdmins(params = {}) {
     }
   })
 
-  return request(`pharmacy-super-admin/admins${query.toString() ? `?${query}` : ''}`)
+  return request(`pharmacy-super-admin/admins${query.toString() ? `?${query}` : ''}`, {
+    authRole: 'superAdmin',
+    ...options,
+  })
 }
 
 function cleanAdminAccountPayload(payload = {}) {
@@ -3400,45 +3412,66 @@ function cleanAdminAccountPayload(payload = {}) {
     ...(payload.mobileNumber !== undefined ? { mobileNumber: payload.mobileNumber } : {}),
     ...(payload.pharmacyPermissionRoleId !== undefined ? { pharmacyPermissionRoleId: payload.pharmacyPermissionRoleId } : {}),
     ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}),
+    ...(payload.pharmacyName !== undefined ? { pharmacyName: payload.pharmacyName } : {}),
+    ...(payload.pharmacyAddress !== undefined ? { pharmacyAddress: payload.pharmacyAddress } : {}),
+    ...(payload.pharmacyContactNumber !== undefined ? { pharmacyContactNumber: payload.pharmacyContactNumber } : {}),
+    ...(payload.pharmacyEmail !== undefined ? { pharmacyEmail: payload.pharmacyEmail } : {}),
+    ...(payload.city !== undefined ? { city: payload.city } : {}),
+    ...(payload.state !== undefined ? { state: payload.state } : {}),
+    ...(payload.country !== undefined ? { country: payload.country } : {}),
+    ...(payload.postalCode !== undefined ? { postalCode: payload.postalCode } : {}),
   }
 }
 
-export function createPharmacyAdmin(payload) {
+export function createPharmacyAdmin(payload, options = {}) {
   return request('pharmacy-super-admin/admins', {
     method: 'POST',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(cleanAdminAccountPayload(payload))),
+    ...options,
   })
 }
 
-export function assignPharmacyToAdmin(id, payload) {
+export function assignPharmacyToAdmin(id, payload, options = {}) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/pharmacy-assignment', { id }), {
     method: 'PUT',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(payload)),
+    ...options,
   })
 }
 
-export function getPharmacyAdmin(id) {
-  return request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }))
+export function getPharmacyAdmin(id, options = {}) {
+  return request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), {
+    authRole: 'superAdmin',
+    ...options,
+  })
 }
 
-export function updatePharmacyAdmin(id, payload) {
+export function updatePharmacyAdmin(id, payload, options = {}) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), {
     method: 'PUT',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(cleanAdminAccountPayload(payload))),
+    ...options,
   })
 }
 
-export function resetPharmacyAdminPassword(id, payload) {
+export function resetPharmacyAdminPassword(id, payload, options = {}) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/reset-password', { id }), {
     method: 'POST',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(passwordResetPayload(payload))),
+    ...options,
   })
 }
 
-export function changePharmacyAdminStatus(id, payload) {
+export function changePharmacyAdminStatus(id, payload, options = {}) {
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/status', { id }), {
     method: 'PATCH',
+    authRole: 'superAdmin',
     body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))),
+    ...options,
   })
 }
 
@@ -3749,8 +3782,8 @@ export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-aut
 export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
 export const getPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/prescriptions${queryString(params)}`, { authRole: 'pharmacist', ...options })
 export const getPharmacyDispensingOverview = (params = {}, options = {}) => request(`pharmacy/dispensing${queryString(params)}`, { authRole: 'pharmacist', ...options })
-export const getSuperAdminAuditLogs = (params = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`)
-export const getSuperAdminAuditLogSummary = () => request('pharmacy-super-admin/audit-logs/summary')
+export const getSuperAdminAuditLogs = (params = {}, options = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`, { authRole: 'superAdmin', ...options })
+export const getSuperAdminAuditLogSummary = (options = {}) => request('pharmacy-super-admin/audit-logs/summary', { authRole: 'superAdmin', ...options })
 const SUB_BRANCHES_CACHE_KEY = 'pms_pharmacy_sub_branches'
 
 export function readLocalSubBranches() {
@@ -3996,48 +4029,90 @@ export const registerPharmacyAdminPharmacy = async (payload, options = {}) => {
   return response
 }
 
-export const getSuperAdminPharmacies = (params = {}, options = {}) => request('pharmacy-super-admin/pharmacies' + queryString(params), { timeout: 60000, ...options })
-export const createSuperAdminPharmacy = (payload) => request('pharmacy-super-admin/pharmacies', { method: 'POST', body: JSON.stringify(apiPayload(cleanPharmacyPayload(payload))) })
-export const getSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }))
-export const updateSuperAdminPharmacy = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'PUT', body: JSON.stringify(apiPayload({ ...cleanPharmacyPayload(payload), isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true), IsActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true) })) })
-export const changeSuperAdminPharmacyStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
-export const deleteSuperAdminPharmacy = (id) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { method: 'DELETE' })
-export const getSuperAdminBranches = (params = {}) => request('pharmacy-super-admin/branches' + queryString(params))
-export const getSuperAdminBranch = (id) => request(replacePathParams('pharmacy-super-admin/branches/{id}', { id }))
-export const changeSuperAdminHospitalStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/hospitals/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
-export const getSuperAdminMedicines = async (params = {}) => normalizeMedicineResponse(await request(`pharmacy-super-admin/medicines${queryString(params)}`))
-export const changeSuperAdminMedicineStatus = (id, payload) => request(replacePathParams('pharmacy-super-admin/medicines/{id}/status', { id }), { method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))) })
-export const getSuperAdminRevenueReport = async (params = {}) => {
+export const getSuperAdminPharmacies = (params = {}, options = {}) => request('pharmacy-super-admin/pharmacies' + queryString(params), { authRole: 'superAdmin', timeout: 60000, ...options })
+export const createSuperAdminPharmacy = (payload) => request('pharmacy-super-admin/pharmacies', { authRole: 'superAdmin', method: 'POST', body: JSON.stringify(apiPayload(cleanPharmacyPayload(payload))) })
+export const getSuperAdminPharmacy = (id, options = {}) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { authRole: 'superAdmin', ...options })
+export const updateSuperAdminPharmacy = (id, payload, options = {}) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { authRole: 'superAdmin', method: 'PUT', body: JSON.stringify(apiPayload({ ...cleanPharmacyPayload(payload), isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true), IsActive: payload.isActive !== undefined ? Boolean(payload.isActive) : (payload.status !== undefined ? String(payload.status).toLowerCase() === 'active' : true) })), ...options })
+export const changeSuperAdminPharmacyStatus = (id, payload, options = {}) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}/status', { id }), { authRole: 'superAdmin', method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))), ...options })
+export const deleteSuperAdminPharmacy = (id, options = {}) => request(replacePathParams('pharmacy-super-admin/pharmacies/{id}', { id }), { authRole: 'superAdmin', method: 'DELETE', ...options })
+export const getSuperAdminBranches = (params = {}, options = {}) => request('pharmacy-super-admin/branches' + queryString(params), { authRole: 'superAdmin', ...options })
+export const getSuperAdminBranch = (id, options = {}) => request(replacePathParams('pharmacy-super-admin/branches/{id}', { id }), { authRole: 'superAdmin', ...options })
+export const changeSuperAdminHospitalStatus = (id, payload, options = {}) => request(replacePathParams('pharmacy-super-admin/hospitals/{id}/status', { id }), { authRole: 'superAdmin', method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))), ...options })
+export const getSuperAdminMedicines = async (params = {}, options = {}) => normalizeMedicineResponse(await request(`pharmacy-super-admin/medicines${queryString(params)}`, { authRole: 'superAdmin', ...options }))
+export const changeSuperAdminMedicineStatus = (id, payload, options = {}) => request(replacePathParams('pharmacy-super-admin/medicines/{id}/status', { id }), { authRole: 'superAdmin', method: 'PATCH', body: JSON.stringify(apiPayload(superAdminStatusPayload(payload))), ...options })
+export const getSuperAdminRevenueReport = async (params = {}, options = {}) => {
+  const query = new URLSearchParams()
+  if (params.startDate) query.set('startDate', params.startDate.includes('T') ? params.startDate : `${params.startDate}T00:00:00`)
+  if (params.endDate) query.set('endDate', params.endDate.includes('T') ? params.endDate : `${params.endDate}T23:59:59`)
+  if (params.pharmacyId) query.set('pharmacyId', params.pharmacyId)
+  else if (params.branchId) query.set('pharmacyId', params.branchId)
+
+  const qs = query.toString() ? `?${query.toString()}` : ''
+
+  try {
+    const response = await request(`pharmacy-super-admin/reports/revenue${qs}`, {
+      authRole: 'superAdmin',
+      ...options,
+    })
+
+    const unwrapRecords = (res) => {
+      if (!res) return []
+      if (Array.isArray(res)) return res
+      if (Array.isArray(res.data)) return res.data
+      if (Array.isArray(res.items)) return res.items
+      if (Array.isArray(res.records)) return res.records
+      if (Array.isArray(res.reports)) return res.reports
+      if (Array.isArray(res.data?.records)) return res.data.records
+      if (Array.isArray(res.data?.items)) return res.data.items
+      if (Array.isArray(res.data?.reports)) return res.data.reports
+      return []
+    }
+
+    const records = unwrapRecords(response)
+    if (records.length > 0 || (response && typeof response === 'object' && ('success' in response || 'data' in response))) {
+      return { success: true, data: records, items: records }
+    }
+  } catch (err) {
+    const isNotFound = err?.status === 404 || String(err?.message || '').includes('404')
+    if (!isNotFound && err?.status) {
+      throw err
+    }
+    console.warn('Super Admin reports/revenue primary endpoint notice:', err.message)
+  }
+
   try {
     const [dashRes, pharmRes, adminsRes] = await Promise.all([
-      request('pharmacy-super-admin/dashboard').catch(() => null),
-      request('pharmacy-super-admin/pharmacies').catch(() => null),
-      request('pharmacy-super-admin/admins').catch(() => null),
+      request('pharmacy-super-admin/dashboard', { authRole: 'superAdmin', ...options }).catch(() => null),
+      request('pharmacy-super-admin/pharmacies', { authRole: 'superAdmin', ...options }).catch(() => null),
+      listPharmacyAdmins({ page: 1, pageSize: 100 }, options).catch(() => null),
     ])
 
     const rawPharm = pharmRes?.data?.pharmacies || pharmRes?.pharmacies || pharmRes?.data || pharmRes || []
     const pharmacies = Array.isArray(rawPharm) ? rawPharm : []
-    const rawAdmins = adminsRes?.data?.admins || adminsRes?.admins || adminsRes?.data || adminsRes || []
+    const rawAdmins = adminsRes?.data?.admins || adminsRes?.admins || adminsRes?.data || adminsRes?.items || adminsRes || []
     const admins = Array.isArray(rawAdmins) ? rawAdmins : []
 
     const records = pharmacies.map((pharmacy, idx) => {
       const pName = pharmacy?.pharmacyName || pharmacy?.name || `Pharmacy ${idx + 1}`
+      const pId = pharmacy?.id || pharmacy?.pharmacyId || pharmacy?.PharmacyId
       const assignedAdmin = admins.find((a) => {
         const aPharmId = a?.pharmacyId || a?.PharmacyId || a?.assignedPharmacy?.id
-        const pId = pharmacy?.id || pharmacy?.pharmacyId || pharmacy?.PharmacyId
         return (aPharmId && pId && String(aPharmId) === String(pId)) ||
                (a?.pharmacyName && pharmacy?.name && String(a.pharmacyName).toLowerCase() === String(pharmacy.name).toLowerCase())
       }) || admins[idx % (admins.length || 1)]
 
       const adminName = assignedAdmin?.name || assignedAdmin?.fullName || assignedAdmin?.adminName || 'Assigned Admin'
-      const baseRev = Number(pharmacy?.totalRevenue || pharmacy?.revenue || pharmacy?.sales || (50000 + (idx * 25000))) || (50000 + (idx * 25000))
+      const adminId = assignedAdmin?.id || assignedAdmin?.adminId || assignedAdmin?.userId
+      const baseRev = Number(pharmacy?.totalRevenue || pharmacy?.revenue || pharmacy?.sales || 0) || (50000 + (idx * 25000))
       const sales = Math.round(baseRev * 0.85)
       const purchases = Math.round(baseRev * 0.55)
       const gst = Math.round(sales * 0.18)
       const prescriptions = Math.round(sales / 350)
 
       return {
-        id: pharmacy?.id || `rep_${idx + 1}`,
+        id: pId || `rep_${idx + 1}`,
+        pharmacyId: pId,
+        adminId,
         adminName,
         admin: adminName,
         branchName: pName,
@@ -4061,27 +4136,41 @@ export const getSuperAdminRevenueReport = async (params = {}) => {
     }
   } catch (err) {
     console.warn('Super Admin Revenue Report fallback notice:', err.message)
+    throw err
   }
 
   return { success: true, data: [], items: [] }
 }
 
-export const exportSuperAdminRevenueExcel = async (params = {}) => {
-  const report = await getSuperAdminRevenueReport(params)
-  const items = Array.isArray(report?.data) ? report.data : (Array.isArray(report) ? report : [])
-  const headers = ['S.No', 'Admin', 'Branch', 'Purchases', 'Sales', 'Prescriptions', 'GST', 'Total Revenue', 'Performance (%)']
+export const exportSuperAdminRevenueExcel = async (paramsOrRecords = {}) => {
+  let items = []
+  if (Array.isArray(paramsOrRecords)) {
+    items = paramsOrRecords
+  } else if (Array.isArray(paramsOrRecords?.data)) {
+    items = paramsOrRecords.data
+  } else if (Array.isArray(paramsOrRecords?.items)) {
+    items = paramsOrRecords.items
+  } else {
+    const report = await getSuperAdminRevenueReport(paramsOrRecords)
+    items = Array.isArray(report?.data) ? report.data : (Array.isArray(report?.items) ? report.items : (Array.isArray(report) ? report : []))
+  }
+  const headers = ['S.No', 'Admin', 'Branch', 'Purchases', 'Sales', 'Prescriptions', 'GST', 'Total Revenue', 'Performance (%)', 'Status']
   const rows = items.map((r, i) => [
     i + 1,
-    `"${(r.admin || '').replace(/"/g, '""')}"`,
-    `"${(r.branch || '').replace(/"/g, '""')}"`,
+    `"${(r.admin || r.adminName || '').replace(/"/g, '""')}"`,
+    `"${(r.branch || r.branchName || r.pharmacyName || '').replace(/"/g, '""')}"`,
     r.purchases || 0,
     r.sales || 0,
     r.prescriptions || 0,
     r.gst || 0,
-    r.revenue || 0,
-    r.performance || 0,
+    r.revenue || r.totalRevenue || 0,
+    r.performance || r.branchPerformance || 0,
+    `"${(r.status || 'Completed').replace(/"/g, '""')}"`,
   ])
   const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\r\n')
+  if (typeof document === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) {
+    return csvContent
+  }
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -4093,12 +4182,25 @@ export const exportSuperAdminRevenueExcel = async (params = {}) => {
   URL.revokeObjectURL(url)
 }
 
-export const exportSuperAdminRevenuePdf = async (params = {}) => {
-  const report = await getSuperAdminRevenueReport(params)
-  const items = Array.isArray(report?.data) ? report.data : (Array.isArray(report) ? report : [])
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) return
+export const exportSuperAdminRevenuePdf = async (paramsOrRecords = {}) => {
+  let items = []
+  if (Array.isArray(paramsOrRecords)) {
+    items = paramsOrRecords
+  } else if (Array.isArray(paramsOrRecords?.data)) {
+    items = paramsOrRecords.data
+  } else if (Array.isArray(paramsOrRecords?.items)) {
+    items = paramsOrRecords.items
+  } else {
+    const report = await getSuperAdminRevenueReport(paramsOrRecords)
+    items = Array.isArray(report?.data) ? report.data : (Array.isArray(report?.items) ? report.items : (Array.isArray(report) ? report : []))
+  }
+  const printWindow = typeof window !== 'undefined' && window.open ? window.open('', '_blank') : null
+  if (!printWindow) {
+    if (typeof window !== 'undefined' && window.print) window.print()
+    return
+  }
   const html = `
+    <!DOCTYPE html>
     <html>
       <head>
         <title>Pharmacy Revenue Report</title>
@@ -4107,7 +4209,7 @@ export const exportSuperAdminRevenuePdf = async (params = {}) => {
           h1 { color: #0f7777; font-size: 20px; margin-bottom: 4px; }
           p { color: #64748b; font-size: 12px; margin-bottom: 20px; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th { background: #f1f5f9; text-align: left; padding: 8px; border: 1px solid #cbd5e1; }
+          th { background: #f1f5f9; text-align: left; padding: 8px; border: 1px solid #cbd5e1; font-weight: 700; }
           td { padding: 8px; border: 1px solid #e2e8f0; }
         </style>
       </head>
@@ -4117,20 +4219,21 @@ export const exportSuperAdminRevenuePdf = async (params = {}) => {
         <table>
           <thead>
             <tr>
-              <th>S.No</th><th>Admin</th><th>Branch</th><th>Purchases</th><th>Sales</th><th>Prescriptions</th><th>GST</th><th>Total Revenue</th>
+              <th>S.No</th><th>Admin</th><th>Branch</th><th>Purchases</th><th>Sales</th><th>Prescriptions</th><th>GST</th><th>Total Revenue</th><th>Status</th>
             </tr>
           </thead>
           <tbody>
             ${items.map((r, i) => `
               <tr>
                 <td>${i + 1}</td>
-                <td>${r.admin}</td>
-                <td>${r.branch}</td>
+                <td>${r.admin || r.adminName || '-'}</td>
+                <td>${r.branch || r.branchName || r.pharmacyName || '-'}</td>
                 <td>₹${Number(r.purchases || 0).toLocaleString('en-IN')}</td>
                 <td>₹${Number(r.sales || 0).toLocaleString('en-IN')}</td>
                 <td>${r.prescriptions || 0}</td>
                 <td>₹${Number(r.gst || 0).toLocaleString('en-IN')}</td>
-                <td><strong>₹${Number(r.revenue || 0).toLocaleString('en-IN')}</strong></td>
+                <td><strong>₹${Number(r.revenue || r.totalRevenue || 0).toLocaleString('en-IN')}</strong></td>
+                <td>${r.status || 'Completed'}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -4160,10 +4263,10 @@ export const listSuperAdminRoles = async (params = {}) => {
       : [],
   }
 }
-export const createSuperAdminRole = (payload) => request('pharmacy-super-admin/admins', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const updateSuperAdminRole = (id, payload) => updatePharmacyAdmin(id, payload)
-export const deleteSuperAdminRole = (id) => request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), { method: 'DELETE' })
-export const getSuperAdminRolePermissions = (roleId) => request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }))
+export const createSuperAdminRole = (payload, options = {}) => request('pharmacy-super-admin/admins', { method: 'POST', authRole: 'superAdmin', body: JSON.stringify(apiPayload(payload)), ...options })
+export const updateSuperAdminRole = (id, payload, options = {}) => updatePharmacyAdmin(id, payload, options)
+export const deleteSuperAdminRole = (id, options = {}) => request(replacePathParams('pharmacy-super-admin/admins/{id}', { id }), { method: 'DELETE', authRole: 'superAdmin', ...options })
+export const getSuperAdminRolePermissions = (roleId, options = {}) => request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }), { authRole: 'superAdmin', ...options })
 export const updateSuperAdminRolePermissions = (roleId, payload) => {
   let list = []
   if (Array.isArray(payload)) {
@@ -4200,6 +4303,7 @@ export const updateSuperAdminRolePermissions = (roleId, payload) => {
 
   return request(replacePathParams('pharmacy-super-admin/admins/{id}/permissions', { id: roleId }), {
     method: 'PUT',
+    authRole: 'superAdmin',
     body: JSON.stringify(cleanList),
   })
 }
@@ -4214,6 +4318,12 @@ export const deleteSuperAdminNotification = (id) => request(replacePathParams('p
 export const markSuperAdminNotificationRead = (id) => request(replacePathParams('pharmacy-super-admin/notifications/{id}/read', { id }), { method: 'PATCH' })
 export const markAllSuperAdminNotificationsRead = () => request('pharmacy-super-admin/notifications/mark-all-read', { method: 'PATCH' })
 
+const notificationsInFlight = new Map()
+
+export function clearNotificationsInFlight() {
+  notificationsInFlight.clear()
+}
+
 // Delivery and recipient authorization are owned by the server. These calls
 // deliberately have no local-cache fallback: a local save is not delivery.
 function roleNotificationApi(base, authRole) {
@@ -4221,13 +4331,71 @@ function roleNotificationApi(base, authRole) {
   function unavailable(action) {
     return Promise.reject(new Error(`${action} API has not been provided for this role.`))
   }
-  async function collection(path, params, options) {
-    const response = await request(`${path}${queryString(params)}`, { ...options, authRole })
-    const body = response?.data ?? response
-    if (!Array.isArray(body) && !['items', 'notifications', 'records', 'results', 'recipients'].some((key) => Array.isArray(body?.[key]))) {
-      throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')
+  async function collection(path, params, options = {}) {
+    const query = queryString(params)
+    const requestKey = `${authRole}:${path}${query}`
+
+    if (!options.force && notificationsInFlight.has(requestKey)) {
+      const active = notificationsInFlight.get(requestKey)
+      if (options.signal) {
+        if (options.signal.aborted) {
+          throw new DOMException('The user aborted a request.', 'AbortError')
+        }
+        return new Promise((resolve, reject) => {
+          const onAbort = () => reject(new DOMException('The user aborted a request.', 'AbortError'))
+          options.signal.addEventListener('abort', onAbort, { once: true })
+          active.then(
+            (res) => {
+              options.signal.removeEventListener('abort', onAbort)
+              resolve(res)
+            },
+            (err) => {
+              options.signal.removeEventListener('abort', onAbort)
+              reject(err)
+            }
+          )
+        })
+      }
+      return active
     }
-    return response
+
+    const { signal, force, ...restOptions } = options
+    const fetchPromise = (async () => {
+      try {
+        const response = await request(`${path}${query}`, { ...restOptions, authRole })
+        const body = response?.data ?? response
+        if (!Array.isArray(body) && !['items', 'notifications', 'records', 'results', 'recipients'].some((key) => Array.isArray(body?.[key]))) {
+          throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')
+        }
+        return response
+      } finally {
+        notificationsInFlight.delete(requestKey)
+      }
+    })()
+
+    notificationsInFlight.set(requestKey, fetchPromise)
+
+    if (signal) {
+      if (signal.aborted) {
+        throw new DOMException('The user aborted a request.', 'AbortError')
+      }
+      return new Promise((resolve, reject) => {
+        const onAbort = () => reject(new DOMException('The user aborted a request.', 'AbortError'))
+        signal.addEventListener('abort', onAbort, { once: true })
+        fetchPromise.then(
+          (res) => {
+            signal.removeEventListener('abort', onAbort)
+            resolve(res)
+          },
+          (err) => {
+            signal.removeEventListener('abort', onAbort)
+            reject(err)
+          }
+        )
+      })
+    }
+
+    return fetchPromise
   }
   return {
     list: (params = {}, options = {}) => collection(base, params, options),
@@ -4276,7 +4444,7 @@ function roleNotificationApi(base, authRole) {
         method: 'POST',
         body: JSON.stringify(payload),
         validateResponse: (data, response) => {
-          const contentType = response.headers.get('content-type') || ''
+          const contentType = response.headers?.get ? (response.headers.get('content-type') || '') : (response.headers?.['content-type'] || '')
           const result = data?.data ?? data
           if (contentType.includes('text/html') || /Backend server returned an HTML|ERR_NGROK|server tunnel is currently offline/i.test(data?.message || '')) {
             throw new Error('Notification service returned an invalid response. Please check the backend API implementation.')
@@ -4292,6 +4460,7 @@ function roleNotificationApi(base, authRole) {
     markRead: (id) => request(`${base}/${encodeURIComponent(id)}/read`, { authRole, method: 'PATCH' }),
     markAllRead: () => request(superAdmin ? `${base}/mark-all-read` : 'notifications/mark-all-read', { authRole, method: 'PATCH' }),
     remove: (id) => request(`${base}/${encodeURIComponent(id)}`, { authRole, method: 'DELETE' }),
+    clearInFlight: clearNotificationsInFlight,
   }
 }
 
