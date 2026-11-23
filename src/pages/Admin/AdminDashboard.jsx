@@ -9,7 +9,8 @@ import {
   getPharmacyPayments,
   readLocalMedicines,
   listPharmacyBranches,
-  syncPharmacyAdminTenantContext
+  syncPharmacyAdminTenantContext,
+  isAbortError
 } from '../../config/api'
 import AdminLayout from './AdminLayout'
 import AdminTable from './AdminTable'
@@ -173,7 +174,17 @@ function AdminDashboard() {
   const [salesFilter, setSalesFilter] = useState('7d')
   const [dashboardError, setDashboardError] = useState('')
   const dashboardRequest = useRef(0)
-  const abortControllerRef = useRef(null)
+  const controllersRef = useRef(new Map())
+
+  function getChildSignal(name) {
+    const prev = controllersRef.current.get(name)
+    if (prev) {
+      try { prev.abort('superseded') } catch {}
+    }
+    const ctrl = new AbortController()
+    controllersRef.current.set(name, ctrl)
+    return ctrl.signal
+  }
 
   async function loadDashboardData() {
     const token = sessionStorage.getItem('pharmacyAdminToken') || localStorage.getItem('pharmacyAdminToken') || sessionStorage.getItem('superAdminToken') || localStorage.getItem('superAdminToken')
@@ -181,13 +192,6 @@ function AdminDashboard() {
       setLoading(false)
       return
     }
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-    const controller = new AbortController()
-    abortControllerRef.current = controller
-    const signal = controller.signal
 
     const currentRequestId = ++dashboardRequest.current
 
@@ -222,9 +226,9 @@ function AdminDashboard() {
 
     setLoading(true)
 
-    // Stage 1: Fast metrics and branch overview
-    const pDash = getPharmacyAdminDashboard({ range: 'today' }, { signal, timeout: 15000 })
-    const pBranch = listPharmacyBranches({}, { signal, timeout: 15000 })
+    // Stage 1: Fast metrics and branch overview with independent controllers
+    const pDash = getPharmacyAdminDashboard({ range: 'today' }, { signal: getChildSignal('dashboard'), timeout: 15000 })
+    const pBranch = listPharmacyBranches({}, { signal: getChildSignal('branches'), timeout: 15000 })
 
     Promise.allSettled([pDash, pBranch]).then(([dashRes, branchRes]) => {
       if (currentRequestId !== dashboardRequest.current) return
@@ -232,27 +236,63 @@ function AdminDashboard() {
       if (branchRes.status === 'fulfilled') setBranchesList(unwrapArray(branchRes.value))
     })
 
-    // Stage 2: Operational Data (Medicines, Inventory, Bills, Sales, Payments)
-    const pMed = listMedicines({}, { signal, timeout: 20000 })
-    const pInv = getInventory({}, { signal, timeout: 20000 })
-    const pBills = listBills({}, { signal, timeout: 20000 })
-    const pDaily = getDailySalesReport({}, { signal, timeout: 20000 })
-    const pPay = getPharmacyPayments({}, { signal, timeout: 20000 })
+    // Stage 2: Operational Data with independent controllers
+    const pMed = listMedicines({}, { signal: getChildSignal('medicines'), timeout: 20000, throwOnError: true })
+    const pInv = getInventory({}, { signal: getChildSignal('inventory'), timeout: 20000 })
+    const pBills = listBills({}, { signal: getChildSignal('bills'), timeout: 20000 })
+    const pDaily = getDailySalesReport({}, { signal: getChildSignal('dailySales'), timeout: 20000 })
+    const pPay = getPharmacyPayments({}, { signal: getChildSignal('payments'), timeout: 20000 })
 
-    pMed.then((res) => { if (currentRequestId === dashboardRequest.current) setMedicinesList(unwrapArray(res)) }).catch(() => {})
-    pInv.then((res) => { if (currentRequestId === dashboardRequest.current) setInventoryList(unwrapArray(res)) }).catch(() => {})
-    pBills.then((res) => { if (currentRequestId === dashboardRequest.current) setBillsList(unwrapArray(res)) }).catch(() => {})
-    pDaily.then((res) => { if (currentRequestId === dashboardRequest.current) setDailySalesData(unwrap(res)) }).catch(() => {})
-    pPay.then((res) => { if (currentRequestId === dashboardRequest.current) setPaymentsList(unwrapArray(res)) }).catch(() => {})
+    pMed
+      .then((res) => {
+        controllersRef.current.delete('medicines')
+        if (currentRequestId === dashboardRequest.current) setMedicinesList(unwrapArray(res))
+      })
+      .catch((err) => {
+        controllersRef.current.delete('medicines')
+        if (isAbortError(err)) return
+        if (currentRequestId === dashboardRequest.current) {
+          setDashboardError(err?.message || 'Unable to load live medicines.')
+        }
+      })
+
+    pInv
+      .then((res) => {
+        controllersRef.current.delete('inventory')
+        if (currentRequestId === dashboardRequest.current) setInventoryList(unwrapArray(res))
+      })
+      .catch(() => { controllersRef.current.delete('inventory') })
+
+    pBills
+      .then((res) => {
+        controllersRef.current.delete('bills')
+        if (currentRequestId === dashboardRequest.current) setBillsList(unwrapArray(res))
+      })
+      .catch(() => { controllersRef.current.delete('bills') })
+
+    pDaily
+      .then((res) => {
+        controllersRef.current.delete('dailySales')
+        if (currentRequestId === dashboardRequest.current) setDailySalesData(unwrap(res))
+      })
+      .catch(() => { controllersRef.current.delete('dailySales') })
+
+    pPay
+      .then((res) => {
+        controllersRef.current.delete('payments')
+        if (currentRequestId === dashboardRequest.current) setPaymentsList(unwrapArray(res))
+      })
+      .catch(() => { controllersRef.current.delete('payments') })
 
     Promise.allSettled([pDash, pBranch, pMed, pInv, pBills, pDaily, pPay])
       .then((results) => {
         if (currentRequestId !== dashboardRequest.current) return
         const [dashRes, branchRes, medRes, invRes, billsRes, dailyRes, payRes] = results
         const rejections = results.filter((r) => r.status === 'rejected')
+        const realRejections = rejections.filter((r) => !isAbortError(r.reason))
 
         let authExpired = false
-        rejections.forEach((res) => {
+        realRejections.forEach((res) => {
           if (res.reason?.status === 401 || /401|unauthorized|session has expired/i.test(res.reason?.message)) {
             authExpired = true
           }
@@ -260,10 +300,12 @@ function AdminDashboard() {
 
         if (authExpired) {
           setDashboardError('Your session has expired or is unauthorized. Please log in again.')
-        } else if (rejections.length === results.length) {
+        } else if (realRejections.length === results.length && results.length > 0) {
           setDashboardError('Unable to connect to dashboard services. Check backend connection.')
-        } else if (dashRes.status === 'rejected' && rejections.length >= 4) {
+        } else if (dashRes.status === 'rejected' && !isAbortError(dashRes.reason) && realRejections.length >= 4) {
           setDashboardError(dashRes.reason?.message || 'Unable to load dashboard data.')
+        } else if (medRes.status === 'rejected' && !isAbortError(medRes.reason)) {
+          setDashboardError(medRes.reason?.message || 'Unable to load live medicines.')
         } else {
           setDashboardError('')
         }
@@ -279,21 +321,36 @@ function AdminDashboard() {
   }
 
   useEffect(() => {
+    let isMounted = true
+
     loadDashboardData()
 
-    function handleDashboardSync() {
-      loadDashboardData()
+    let syncTimeout = null
+    function handleDashboardSync(e) {
+      if (!isMounted) return
+      if (e?.type === 'storage' && e?.key && !['workingPharmacyId', 'workingBranchId', 'pharmacyAdminAssignment', 'pharmacyAdminUser'].includes(e.key)) {
+        return
+      }
+      clearTimeout(syncTimeout)
+      syncTimeout = setTimeout(() => {
+        if (isMounted) loadDashboardData()
+      }, 150)
     }
+
     window.addEventListener('pms:medicines-updated', handleDashboardSync)
     window.addEventListener('pms:stock-updated', handleDashboardSync)
     window.addEventListener('pms:purchase-orders-updated', handleDashboardSync)
     window.addEventListener('pms:branches-updated', handleDashboardSync)
     window.addEventListener('storage', handleDashboardSync)
+
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
+      isMounted = false
+      clearTimeout(syncTimeout)
       dashboardRequest.current += 1
+      controllersRef.current.forEach((ctrl) => {
+        try { ctrl.abort('unmount') } catch {}
+      })
+      controllersRef.current.clear()
       window.removeEventListener('pms:medicines-updated', handleDashboardSync)
       window.removeEventListener('pms:stock-updated', handleDashboardSync)
       window.removeEventListener('pms:purchase-orders-updated', handleDashboardSync)

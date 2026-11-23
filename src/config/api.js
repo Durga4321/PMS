@@ -467,6 +467,13 @@ function passwordResetPayload(payload = {}) {
   const value = payload.NewPassword ?? payload.newPassword ?? payload.temporaryPassword ?? payload.password
   return value === undefined ? payload : { ...payload, newPassword: value, NewPassword: value }
 }
+export function isAbortError(error) {
+  if (!error) return false
+  if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') return true
+  const msg = String(error.message || '').toLowerCase()
+  return msg.includes('aborted') || msg.includes('canceled') || msg.includes('cancelled')
+}
+
 async function request(path, options = {}) {
   let normalizedPath = path
   const rawPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
@@ -1577,6 +1584,16 @@ export async function listMedicines(params = {}, options = {}) {
       backendList = normalized
     } else if (Array.isArray(normalized?.data)) {
       backendList = normalized.data
+    } else if (Array.isArray(normalized?.data?.medicines)) {
+      backendList = normalized.data.medicines
+    } else if (Array.isArray(normalized?.data?.Medicines)) {
+      backendList = normalized.data.Medicines
+    } else if (Array.isArray(normalized?.data?.items)) {
+      backendList = normalized.data.items
+    } else if (Array.isArray(normalized?.data?.Items)) {
+      backendList = normalized.data.Items
+    } else if (Array.isArray(normalized?.data?.results)) {
+      backendList = normalized.data.results
     } else if (Array.isArray(normalized?.Data)) {
       backendList = normalized.Data
     } else if (Array.isArray(normalized?.medicines)) {
@@ -1585,14 +1602,21 @@ export async function listMedicines(params = {}, options = {}) {
       backendList = normalized.Medicines
     } else if (Array.isArray(normalized?.items)) {
       backendList = normalized.items
+    } else if (Array.isArray(normalized?.Items)) {
+      backendList = normalized.Items
     }
   } catch (error) {
+    if (isAbortError(error)) {
+      // Intentionally aborted/cancelled by caller or cleanup - NEVER treat as backend failure, NEVER fall back to local data
+      throw error
+    }
     if (error.status === 400 && /invalid pharmacy branch/i.test(error.message)) {
       const context = pharmacyTenantContext()
       rejectedMedicineBranches.add(JSON.stringify([authTokenFor('medicine'), context.pharmacyId, branchId]))
       throw new Error('The server rejected this pharmacy branch. Ask your administrator to correct the branch assignment, then reload the page.')
     }
     if ([400, 401, 403, 404].includes(error.status)) throw error
+    if (options.throwOnError) throw error
     console.warn('Backend listMedicines failed, using local medicines:', error.message)
   }
 
@@ -1629,7 +1653,10 @@ export async function listMedicines(params = {}, options = {}) {
     return combined
   }
 
-  // Fallback ONLY when backend could not be reached (offline mode)
+  // Fallback ONLY when backend could not be reached (offline mode) and throwOnError was not set
+  if (options.throwOnError) {
+    throw new Error('Unable to retrieve medicines from the server.')
+  }
   const localItems = readLocalMedicines()
   const deletedIds = readDeletedMedicineIds().map(d => String(d).trim().toLowerCase())
   return localItems.filter(item => {
