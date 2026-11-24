@@ -1,7 +1,9 @@
 /* eslint-disable no-irregular-whitespace */
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './PmsLanding.css'
 import ThemeToggle from '../components/ThemeToggle'
+import { getSubscriptionPlans } from '../services/subscriptionPlansService'
 
 const modules = [
   ['▣', 'Inventory', 'Track medicines, stock movement, and availability across all branches.'],
@@ -37,11 +39,29 @@ function DashboardMockup({ compact = false }) {
 }
 
 function PmsLanding() {
+  const [billingCycle, setBillingCycle] = useState('monthly')
+  const [plans, setPlans] = useState(getSubscriptionPlans)
+
+  useEffect(() => {
+    function onPlansUpdated(e) {
+      if (Array.isArray(e.detail)) {
+        setPlans(e.detail)
+      }
+    }
+    window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
+    return () => window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+  }, [])
+
+  const visiblePlans = plans.filter((p) => p.active !== false)
+  const maxSavings = visiblePlans.length > 0
+    ? Math.max(0, ...visiblePlans.map((p) => Math.round(((Number(p.monthlyPrice || 0) - Number(p.yearlyPrice || 0)) / (Number(p.monthlyPrice) || 1)) * 100)))
+    : 20
+
   return <main className="pms-landing">
     <section className="pms-hero" id="home">
       <div className="pms-hero-glow" />
-      <header className="pms-nav"><Logo /><nav><a href="#home">Home</a><a href="#features">Features</a><a href="#modules">Modules⌄</a><a href="#roles">Roles</a><a href="#reports">Reports</a><a href="#contact">Contact</a></nav><div className="pms-nav-actions"><ThemeToggle /><a className="pms-demo-link" href="#contact">Request Demo</a><Link className="pms-login-link" to="/login">♙ Staff Login</Link></div></header>
-      <div className="pms-hero-content"><div className="pms-hero-copy"><span className="pms-eyebrow">⌁ Connected pharmacy operations</span><h1>Smarter Pharmacy Management for <em>Hospitals, Branches, and Billing</em></h1><p>Manage inventory, dispensing, prescriptions, billing, branches, reports, and role-based access from one platform.</p><div className="pms-actions"><Link className="pms-primary" to="/login">Get Started →</Link></div><div className="pms-trust"><span>✦ Secure</span><span>⌁ Scalable</span><span>▱ Multi-Branch</span><span>♙ Role-Based Access</span></div></div><div className="pms-hero-visual"><div className="pms-capsule pms-capsule--one" /><div className="pms-capsule pms-capsule--two" /><div className="pms-shield">+</div><DashboardMockup /><div className="pms-phone"><b>✚ PMS</b><strong>Today’s Queue</strong><span>▤ Prescriptions</span><span>↗ Dispense</span><span>▣ Inventory</span><span>₹ Billing</span></div><div className="pms-bottle"><b>+</b><small>MEDICINE</small></div><div className="pms-blister"><i /><i /><i /><i /><i /><i /></div></div></div>
+      <header className="pms-nav"><Logo /><nav><a href="#home">Home</a><a href="#features">Features</a><a href="#modules">Modules</a><a href="#roles">Roles</a><a href="#reports">Reports</a><a href="#pricing">Pricing</a><a href="#contact">Contact</a></nav><div className="pms-nav-actions"><ThemeToggle /><Link className="pms-demo-link" to="/plan-inquiry?type=demo">Request Demo</Link><Link className="pms-login-link" to="/login">♙ Staff Login</Link></div></header>
+      <div className="pms-hero-content"><div className="pms-hero-copy"><span className="pms-eyebrow">⌁ Connected pharmacy operations</span><h1>Smarter Pharmacy Management for <em>Hospitals, Branches, and Billing</em></h1><p>Manage inventory, dispensing, prescriptions, billing, branches, reports, and role-based access from one platform.</p><div className="pms-actions"><Link className="pms-primary" to="/plan-inquiry?type=start">Get Started →</Link></div><div className="pms-trust"><span>✦ Secure</span><span>⌁ Scalable</span><span>▱ Multi-Branch</span><span>♙ Role-Based Access</span></div></div><div className="pms-hero-visual"><div className="pms-capsule pms-capsule--one" /><div className="pms-capsule pms-capsule--two" /><div className="pms-shield">+</div><DashboardMockup /><div className="pms-phone"><b>✚ PMS</b><strong>Today’s Queue</strong><span>▤ Prescriptions</span><span>↗ Dispense</span><span>▣ Inventory</span><span>₹ Billing</span></div><div className="pms-bottle"><b>+</b><small>MEDICINE</small></div><div className="pms-blister"><i /><i /><i /><i /><i /><i /></div></div></div>
       <div className="pms-stats"><span><b>▣</b><strong>8+</strong><small>Branches Managed</small></span><span><b>▧</b><strong>1,20,000+</strong><small>Prescriptions Processed</small></span><span><b>⚠</b><strong>320+</strong><small>Low-Stock Alerts</small></span><span><b>◎</b><strong>99.8%</strong><small>Billing Accuracy</small></span></div>
     </section>
 
@@ -55,9 +75,84 @@ function PmsLanding() {
 
     <section className="pms-section pms-testimonials"><div className="pms-section-heading"><span className="pms-eyebrow">Trusted by healthcare teams</span><h2>What Our Users Say</h2><p>Example feedback from teams using a connected pharmacy workflow.</p></div><div className="pms-testimonial-grid">{[['DR','Dr. Ramesh Roy','City Care Hospital','“Fewer stock errors and smoother dispensing. PMS has made our pharmacy operations much more organized.”'],['MS','Dr. Meera Dev','Sunrise Multi-Speciality','“Billing is faster, prescription handling is seamless, and we get real-time reports across branches.”'],['AK','Dr. Arun Kumar','HealthFirst Hospital','“A complete and reliable system for our hospital pharmacy. The role-based access and branch control work really well.”']].map(([avatar,name,org,quote]) => <article key={name}><span className="pms-avatar">{avatar}</span><div><b>★★★★★</b><p>{quote}</p><strong>{name}</strong><small>{org}</small></div></article>)}</div></section>
 
-    <section className="pms-cta" id="contact"><div><span className="pms-eyebrow">Ready to get started?</span><h2>Ready to modernize your<br />pharmacy operations?</h2><p>Streamline inventory, dispensing, billing, and multi-branch management with PMS.</p></div><div className="pms-cta-actions"><Link className="pms-primary" to="/login">Start with PMS →</Link><a className="pms-secondary" href="mailto:sales@example.com">☎ Contact Sales</a></div><div className="pms-cta-medicines"><div className="pms-bottle"><b>+</b></div><div className="pms-blister"><i /><i /><i /><i /><i /><i /></div></div></section>
+    <section className="pms-section pms-pricing" id="pricing">
+      <div className="pms-section-heading pms-centered">
+        <span className="pms-eyebrow">⌁ Transparent & Flexible Pricing</span>
+        <h2>Subscription Plans for Every Pharmacy</h2>
+        <p>Simple, predictable plans tailored for independent chemists, multi-branch chains, and hospital networks.</p>
+      </div>
 
-    <footer className="pms-footer"><div><Logo light /><p>A complete, secure, and easy-to-use platform<br />to manage pharmacy inventory, dispensing,<br />billing, and more.</p><small>© 2026 PMS — Pharmacy Management System. All rights reserved.</small></div><div className="pms-footer-links"><div><b>Product</b><a href="#features">Overview</a><a href="#features">Features</a><a href="#contact">Pricing</a><a href="#contact">Request Demo</a></div><div><b>Modules</b><a href="#modules">Inventory</a><a href="#modules">Dispensing</a><a href="#modules">Billing</a><a href="#reports">Reports & Analytics</a></div><div><b>Company</b><a href="#home">About Us</a><a href="#contact">Contact</a><a href="#contact">Careers</a><a href="#contact">Privacy Policy</a></div><div><b>Support</b><a href="#contact">Help Center</a><a href="#contact">Documentation</a><a href="#contact">FAQs</a><a href="#contact">Release Notes</a></div></div></footer>
+      <div className="pms-pricing-toggle-wrap">
+        <div className="pms-pricing-toggle" role="group" aria-label="Billing cycle">
+          <button
+            type="button"
+            aria-pressed={billingCycle === 'monthly'}
+            onClick={() => setBillingCycle('monthly')}
+          >
+            Monthly Billing
+          </button>
+          <button
+            type="button"
+            aria-pressed={billingCycle === 'yearly'}
+            onClick={() => setBillingCycle('yearly')}
+          >
+            Annual Billing
+          </button>
+        </div>
+        <span className="pms-pricing-save-badge">Save {maxSavings || 20}% on Annual</span>
+      </div>
+
+      <div className="pms-pricing-grid">
+        {visiblePlans.map((plan) => {
+          const price = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
+          return (
+            <article
+              key={plan.id}
+              className={`pms-pricing-card${plan.popular ? ' pms-pricing-card--popular' : ''}`}
+            >
+              {plan.badge && <span className="pms-pricing-badge">{plan.badge}</span>}
+              <header className="pms-pricing-card-header">
+                <h3>{plan.name}</h3>
+                <p>{plan.tagline}</p>
+              </header>
+              <div className="pms-pricing-price">
+                <strong>₹{price.toLocaleString('en-IN')}</strong>
+                <span>/ month</span>
+              </div>
+              <ul className="pms-pricing-features">
+                {plan.features.map((feature, idx) => {
+                  const label = String(feature || '')
+                    .replace(/\s*\+\s*Cashier/gi, '')
+                    .replace(/\bCashier\b/gi, '')
+                    .replace(/\(\s*Pharmacist\s*\)/gi, '(Pharmacist)')
+                    .trim()
+                  return <li key={`${label}-${idx}`}>{label}</li>
+                })}
+              </ul>
+              <div className="pms-pricing-cta">
+                <Link
+                  className={plan.popular ? 'pms-primary' : 'pms-secondary'}
+                  to={`/plan-inquiry?plan=${encodeURIComponent(plan.id)}&cycle=${encodeURIComponent(billingCycle)}`}
+                >
+                  {plan.ctaText} →
+                </Link>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+
+      <div className="pms-pricing-note">
+        <span>✓ 14-day risk-free trial</span>
+        <span>✓ No credit card required</span>
+        <span>✓ Instant branch activation</span>
+        <span>✓ GST-compliant invoices</span>
+      </div>
+    </section>
+
+    <section className="pms-cta" id="contact"><div><span className="pms-eyebrow">Ready to get started?</span><h2>Ready to modernize your<br />pharmacy operations?</h2><p>Streamline inventory, dispensing, billing, and multi-branch management with PMS.</p></div><div className="pms-cta-actions"><Link className="pms-primary" to="/plan-inquiry?type=start">Start with PMS →</Link><Link className="pms-secondary" to="/plan-inquiry?type=sales">☎ Contact Sales</Link></div><div className="pms-cta-medicines"><div className="pms-bottle"><b>+</b></div><div className="pms-blister"><i /><i /><i /><i /><i /><i /></div></div></section>
+
+    <footer className="pms-footer"><div><Logo light /><p>A complete, secure, and easy-to-use platform<br />to manage pharmacy inventory, dispensing,<br />billing, and more.</p><small>© 2026 PMS — Pharmacy Management System. All rights reserved.</small></div><div className="pms-footer-links"><div><b>Product</b><a href="#features">Overview</a><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#contact">Request Demo</a></div><div><b>Modules</b><a href="#modules">Inventory</a><a href="#modules">Dispensing</a><a href="#modules">Billing</a><a href="#reports">Reports & Analytics</a></div><div><b>Company</b><a href="#home">About Us</a><a href="#contact">Contact</a><a href="#contact">Careers</a><a href="#contact">Privacy Policy</a></div><div><b>Support</b><a href="#contact">Help Center</a><a href="#contact">Documentation</a><a href="#contact">FAQs</a><a href="#contact">Release Notes</a></div></div></footer>
   </main>
 }
 

@@ -1,5 +1,5 @@
 import medicineCatalogReference from '../data/medicineCatalogReference.json' with { type: 'json' }
-const DEFAULT_API_BASE_URL = 'https://jackpot-citrus-compare.ngrok-free.dev';
+const DEFAULT_API_BASE_URL = 'https://wanting-pessimist-provolone.ngrok-free.dev';
 //const DEFAULT_API_BASE_URL = ' https://irritant-kilobyte-until.ngrok-free.dev'
 const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
 
