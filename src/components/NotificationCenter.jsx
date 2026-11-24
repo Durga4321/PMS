@@ -3,6 +3,7 @@ import { notificationApis } from '../config/api'
 import { useToast } from './ToastProvider'
 import { useLanguage } from '../i18n/language'
 import { NOTIFICATION_AUDIENCES, notificationBody, notificationError, notificationList, notificationPayload, normalizeNotification, recipientRole } from './notificationModel'
+import { getLocalInquiryNotifications, markInquiryNotificationRead, markAllInquiryNotificationsRead, deleteInquiryNotification } from '../services/planInquiryService'
 import './NotificationCenter.css'
 
 const PAGE_SIZE = 20
@@ -49,8 +50,8 @@ export default function NotificationCenter({ role }) {
       setLoading(true)
       setError('')
       try {
-        const response = await api.list({ folder: tab === 'sent' ? 'sent' : 'inbox', ...(tab === 'read' || tab === 'unread' ? { status: tab } : {}), page, pageSize: PAGE_SIZE }, { signal: controller.signal, force: revision > 0 })
-        if (!current || controller.signal.aborted) return
+        const response = await api.list({ folder: tab === 'sent' ? 'sent' : 'inbox', ...(tab === 'read' || tab === 'unread' ? { status: tab } : {}), page, pageSize: PAGE_SIZE }, { signal: controller.signal })
+        if (!current) return
         const body = notificationBody(response)
         const incoming = notificationList(response).map((item) => normalizeNotification(item, tab === 'sent' ? 'sent' : 'inbox'))
         setItems((previous) => page === 1 ? incoming : [...previous, ...incoming.filter((item) => !item.id || !previous.some((old) => old.id === item.id))])
@@ -58,8 +59,7 @@ export default function NotificationCenter({ role }) {
         const unread = nextCounts.unread ?? nextCounts.Unread ?? body.unreadCount ?? response?.unreadCount
         setCounts({ ...nextCounts, ...(Number.isFinite(Number(unread)) && unread != null ? { unread: Number(unread) } : {}) })
         if (unread != null && Number.isFinite(Number(unread))) window.dispatchEvent(new CustomEvent('pms:notifications-updated', { detail: { role, unreadCount: Number(unread) } }))
-        const total = body.total ?? body.totalCount ?? body.pagination?.total ?? response?.total
-        setHasMore(body.hasMore ?? (total != null ? page * PAGE_SIZE < Number(total) : incoming.length === PAGE_SIZE))
+        setHasMore(total != null ? page * PAGE_SIZE < Number(total) : incoming.length === PAGE_SIZE)
       } catch (requestError) {
         if (!current || controller.signal.aborted || requestError?.name === 'AbortError' || requestError?.name === 'CanceledError' || requestError?.code === 'ERR_CANCELED') return
         if (current) setError(notificationError(requestError))
@@ -147,7 +147,22 @@ export default function NotificationCenter({ role }) {
     setBusy(true)
     setActionError('')
     try {
-      await (action === 'all' ? api.markAllRead() : action === 'read' ? api.markRead(id) : api.remove(id))
+      if (role === 'superAdmin') {
+        if (action === 'all') {
+          markAllInquiryNotificationsRead()
+        } else if (action === 'read' && id) {
+          markInquiryNotificationRead(id)
+        } else if (action === 'delete' && id) {
+          deleteInquiryNotification(id)
+        }
+      }
+      try {
+        await (action === 'all' ? api.markAllRead() : action === 'read' ? api.markRead(id) : api.remove(id))
+      } catch (apiErr) {
+        if (!String(id).startsWith('inq-noti-') && action !== 'all') {
+          throw apiErr
+        }
+      }
       refresh()
     } catch (requestError) {
       setActionError(notificationError(requestError))
@@ -212,7 +227,7 @@ export default function NotificationCenter({ role }) {
       <nav className="notification-center-tabs" aria-label="Notification filters">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? 'is-active' : ''} aria-pressed={tab === value} onClick={() => changeTab(value)}>{label}{counts[value] != null ? <b>{counts[value]}</b> : null}</button>)}</nav>
       {error ? <div className="notification-center-error" role="alert"><p>{error}</p><button type="button" onClick={refresh}>Retry</button></div> : null}
       <div className="notification-center-list" aria-busy={loading}>
-        {items.map((item, index) => <article className={`notification-center-row is-${item.status}`} key={item.id || `missing-${index}`}><span className="notification-center-icon"><NotificationIcon send={item.status === 'sent'} /></span><div className="notification-center-copy"><h2 translate="no">{item.title}</h2><p translate="no">{item.message}</p>{(item.status === 'sent' ? item.recipient : item.sender) ? <small>{item.status === 'sent' ? 'To:' : 'From:'} <span translate="no">{item.status === 'sent' ? item.recipient : item.sender}</span></small> : null}</div><div className="notification-center-meta"><span className={`notification-center-status is-${item.status}`}>{item.status === 'sent' ? 'Sent' : item.status === 'read' ? 'Read' : 'Unread'}</span><time dateTime={item.createdAt || undefined}>{dateLabel(item.createdAt)}</time><div className="notification-center-row-actions">{role === 'pharmacyAdmin' && item.status !== 'sent' ? <button type="button" disabled={busy || !item.id} onClick={() => openComposer(item)}>Forward to Pharmacist</button> : null}{item.status === 'unread' ? <button type="button" disabled={busy || !item.id} onClick={() => changeNotification('read', item.id)}>Mark as Read</button> : null}<button type="button" disabled={busy || !item.id} onClick={() => changeNotification('delete', item.id)}>Delete</button></div></div></article>)}
+        {items.map((item, index) => <article className={`notification-center-row is-${item.status}`} key={item.id || `missing-${index}`}><span className="notification-center-icon"><NotificationIcon send={item.status === 'sent'} /></span><div className="notification-center-copy"><h2 translate="no">{item.isPlanInquiry && <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '99px', background: '#ccfbf1', color: '#0f766e', fontSize: '10px', fontWeight: 800, marginRight: '8px' }}>Plan Inquiry</span>}{item.title}</h2><p translate="no">{item.message}</p>{(item.status === 'sent' ? item.recipient : item.sender) ? <small>{item.status === 'sent' ? 'To:' : 'From:'} <span translate="no">{item.status === 'sent' ? item.recipient : item.sender}</span></small> : null}</div><div className="notification-center-meta"><span className={`notification-center-status is-${item.status}`}>{item.status === 'sent' ? 'Sent' : item.status === 'read' ? 'Read' : 'Unread'}</span><time dateTime={item.createdAt || undefined}>{dateLabel(item.createdAt)}</time><div className="notification-center-row-actions">{role === 'pharmacyAdmin' && item.status !== 'sent' ? <button type="button" disabled={busy || !item.id} onClick={() => openComposer(item)}>Forward to Pharmacist</button> : null}{item.status === 'unread' ? <button type="button" disabled={busy || !item.id} onClick={() => changeNotification('read', item.id)}>Mark as Read</button> : null}<button type="button" disabled={busy || !item.id} onClick={() => changeNotification('delete', item.id)}>Delete</button></div></div></article>)}
         {loading ? <p className="notification-center-empty" role="status">Loading notifications...</p> : !error && !items.length ? <p className="notification-center-empty">No notifications available.</p> : null}
       </div>
       {!error && hasMore ? <button className="notification-center-more" type="button" disabled={loading} onClick={() => { setLoading(true); setPage((value) => value + 1) }}>Load More</button> : null}
