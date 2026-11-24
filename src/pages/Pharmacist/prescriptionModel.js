@@ -71,3 +71,98 @@ export function savedRecord(response, type) {
   if (id == null || id === '') throw new Error(`The server did not return a ${type} reference. Check the saved records before trying again.`)
   return { ...record, id: String(id) }
 }
+
+export function normalizeMedicineOption(item) {
+  if (!item || typeof item !== 'object') return null
+  const name = String(
+    item.name ||
+    item.medicineName ||
+    item.MedicineName ||
+    item.Name ||
+    item.brandName ||
+    item.BrandName ||
+    ''
+  ).trim()
+  if (!name || name === '-') return null
+
+  const strength = String(
+    item.strength ||
+    item.power ||
+    item.dosageForm ||
+    item.DosageForm ||
+    item.form ||
+    ''
+  ).trim()
+
+  const candidatesPrice = [
+    item.sellingPrice,
+    item.SellingPrice,
+    item.unitPrice,
+    item.UnitPrice,
+    item.price,
+    item.Price,
+    item.mrp,
+    item.MRP,
+    item.costPrice,
+    item.rate
+  ]
+  let unitPrice = ''
+  for (const c of candidatesPrice) {
+    if (c !== undefined && c !== null && c !== '') {
+      const n = Number(c)
+      if (!Number.isNaN(n) && n >= 0) {
+        unitPrice = String(n)
+        break
+      }
+    }
+  }
+
+  const stockVal = item.stock ?? item.quantity ?? item.currentStock ?? item.availableQuantity ?? item.availableStock ?? null
+  const stock = stockVal != null && !Number.isNaN(Number(stockVal)) ? Number(stockVal) : null
+
+  const id = String(
+    item.id ||
+    item.Id ||
+    item.backendId ||
+    item.BackendId ||
+    item.medicineId ||
+    item.MedicineId ||
+    item._id ||
+    item.medicineCode ||
+    item.MedicineCode ||
+    item.code ||
+    item.Code ||
+    name
+  ).trim()
+
+  return {
+    id,
+    name,
+    medicineName: name,
+    strength,
+    unitPrice,
+    stock,
+    category: item.category || item.categoryName || '',
+    batchNumber: item.batchNumber || item.batchNo || ''
+  }
+}
+
+export function filterMedicineMatches(queryStr, availableMeds) {
+  const q = (queryStr || '').trim().toLowerCase()
+  if (!Array.isArray(availableMeds) || availableMeds.length === 0) return []
+  if (!q) {
+    return availableMeds.slice(0, 8)
+  }
+  const prefixMatches = []
+  const containsMatches = []
+  for (const med of availableMeds) {
+    const lower = String(med.name || med.medicineName || '').toLowerCase()
+    if (lower.startsWith(q)) {
+      prefixMatches.push(med)
+    } else if (lower.includes(q)) {
+      containsMatches.push(med)
+    }
+  }
+  return [...prefixMatches, ...containsMatches].slice(0, 10)
+}
+

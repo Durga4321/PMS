@@ -953,7 +953,7 @@ export function saveDeletedMedicineIds(ids) {
   }
 }
 
-function readMedicineCache() {
+export function readMedicineCache() {
   try {
     const key = scopedKey(MEDICINE_CACHE_KEY)
     migrateLegacyCache(MEDICINE_CACHE_KEY, key)

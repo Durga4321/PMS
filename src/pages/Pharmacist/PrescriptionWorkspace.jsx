@@ -10,15 +10,97 @@ import {
   uploadDraftPrescriptionPhoto,
   uploadPrescriptionPhoto,
   getDispensingMedicines,
+  listMedicines,
+  getPharmacistInventory,
+  getPharmacistAssignedBranch,
+  readMedicineCache,
   recordManualCashPayment,
   pharmacistPrescriptionApi
 } from '../../config/api'
 import { useToast } from '../../components/ToastProvider'
 import { confirmAction } from '../../components/confirmAction'
 import { useLanguage } from '../../i18n/language'
-import { newMedicine, newPrescription, prescriptionPayload, prescriptionTotals, savedRecord, updateMedicine } from './prescriptionModel'
+import { newMedicine, newPrescription, prescriptionPayload, prescriptionTotals, savedRecord, updateMedicine, normalizeMedicineOption, filterMedicineMatches } from './prescriptionModel'
 import usePrescriptionCamera from './usePrescriptionCamera'
 import './PrescriptionWorkspace.css'
+
+export async function fetchAvailableMedicines() {
+  const currentAssigned = typeof getPharmacistAssignedBranch === 'function' ? getPharmacistAssignedBranch() : null
+  const branchId = currentAssigned?.id || currentAssigned?.branchId || ''
+  const listParams = { authRole: 'pharmacist' }
+  if (branchId) listParams.branchId = branchId
+
+  const [dispensingRes, catalogRes, inventoryRes] = await Promise.allSettled([
+    getDispensingMedicines(),
+    listMedicines(listParams),
+    getPharmacistInventory(branchId ? { branchId } : {})
+  ])
+
+  const rawList = []
+
+  if (dispensingRes.status === 'fulfilled') {
+    const v = dispensingRes.value
+    const items = v?.data?.medicines || v?.medicines || v?.data?.items || v?.items || v?.data || (Array.isArray(v) ? v : [])
+    if (Array.isArray(items)) rawList.push(...items)
+  }
+
+  if (catalogRes.status === 'fulfilled') {
+    const v = catalogRes.value
+    const items = v?.data?.medicines || v?.medicines || v?.data?.items || v?.items || v?.data || (Array.isArray(v) ? v : [])
+    if (Array.isArray(items)) rawList.push(...items)
+  }
+
+  if (inventoryRes.status === 'fulfilled') {
+    const v = inventoryRes.value
+    const items = v?.data?.items || v?.items || v?.data?.inventory || v?.inventory || v?.data || (Array.isArray(v) ? v : [])
+    if (Array.isArray(items)) rawList.push(...items)
+  }
+
+  try {
+    const cache = typeof readMedicineCache === 'function' ? readMedicineCache() : {}
+    if (cache && typeof cache === 'object') {
+      rawList.push(...Object.values(cache))
+    }
+  } catch {}
+
+  const mapByName = new Map()
+  for (const raw of rawList) {
+    const norm = normalizeMedicineOption(raw)
+    if (!norm) continue
+    const key = norm.name.trim().toLowerCase()
+    if (!mapByName.has(key)) {
+      mapByName.set(key, norm)
+    } else {
+      const existing = mapByName.get(key)
+      mapByName.set(key, {
+        ...existing,
+        ...norm,
+        strength: norm.strength || existing.strength,
+        unitPrice: norm.unitPrice !== '' ? norm.unitPrice : existing.unitPrice,
+        stock: norm.stock != null ? norm.stock : existing.stock,
+      })
+    }
+  }
+
+  return Array.from(mapByName.values()).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function highlightMatch(text, query) {
+  if (!query || !text) return text
+  const q = String(query).trim()
+  if (!q) return text
+  const lowerText = text.toLowerCase()
+  const lowerQ = q.toLowerCase()
+  const index = lowerText.indexOf(lowerQ)
+  if (index === -1) return text
+  return (
+    <>
+      {text.slice(0, index)}
+      <strong className="rx-autocomplete-match">{text.slice(index, index + q.length)}</strong>
+      {text.slice(index + q.length)}
+    </>
+  )
+}
 
 function Photo({ file, alt = 'Prescription image' }) {
   const image = useRef(null)
@@ -68,14 +150,50 @@ export default function PrescriptionWorkspace() {
   }
 
   const [availableMeds, setAvailableMeds] = useState([])
+  const [activeAutocompleteRow, setActiveAutocompleteRow] = useState(null)
+  const [focusedOptionIndex, setFocusedOptionIndex] = useState(-1)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (!event.target.closest('.rx-autocomplete-wrapper')) {
+        setActiveAutocompleteRow(null)
+        setFocusedOptionIndex(-1)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  function getMatchingMedicines(queryStr) {
+    return filterMedicineMatches(queryStr, availableMeds)
+  }
+
+  function selectMedicineOption(rowKey, medicine) {
+    change((current) => ({
+      ...current,
+      medicines: current.medicines.map((item) => {
+        if (item.key !== rowKey) return item
+        let updated = updateMedicine(item, 'medicineName', medicine.name)
+        if (medicine.strength) {
+          updated = updateMedicine(updated, 'strength', medicine.strength)
+        }
+        if (medicine.unitPrice !== '' && medicine.unitPrice != null) {
+          updated = updateMedicine(updated, 'unitPrice', String(medicine.unitPrice))
+        }
+        return updated
+      })
+    }))
+    setActiveAutocompleteRow(null)
+    setFocusedOptionIndex(-1)
+  }
 
   useEffect(() => {
     let active = true
     async function initWorkspace() {
       try {
-        const [draftsRes, medsRes] = await Promise.allSettled([
+        const [draftsRes, medsList] = await Promise.allSettled([
           listDispensingDrafts(),
-          getDispensingMedicines(),
+          fetchAvailableMedicines(),
         ])
         if (!active) return
         if (draftsRes.status === 'fulfilled') {
@@ -117,8 +235,8 @@ export default function PrescriptionWorkspace() {
             }
           }
         }
-        if (medsRes.status === 'fulfilled') {
-          const mList = medsRes.value?.data || medsRes.value?.medicines || (Array.isArray(medsRes.value) ? medsRes.value : [])
+        if (medsList.status === 'fulfilled') {
+          const mList = medsList.value
           if (Array.isArray(mList) && mList.length > 0) {
             setAvailableMeds(mList)
           }
@@ -130,7 +248,24 @@ export default function PrescriptionWorkspace() {
       }
     }
     initWorkspace()
-    return () => { active = false }
+
+    function handleSync() {
+      fetchAvailableMedicines().then((meds) => {
+        if (active && Array.isArray(meds) && meds.length > 0) {
+          setAvailableMeds(meds)
+        }
+      })
+    }
+    window.addEventListener('pms:medicines-updated', handleSync)
+    window.addEventListener('pms:stock-updated', handleSync)
+    window.addEventListener('storage', handleSync)
+
+    return () => {
+      active = false
+      window.removeEventListener('pms:medicines-updated', handleSync)
+      window.removeEventListener('pms:stock-updated', handleSync)
+      window.removeEventListener('storage', handleSync)
+    }
   }, [])
 
   async function attachPhoto(file) {
@@ -435,28 +570,149 @@ export default function PrescriptionWorkspace() {
           </section>
         </div>}
         {medicinesStep && <section className="rx-card rx-medicines"><header><div><h2><FiFileText />Add Medicines Manually</h2><p>Enter medicines and dose schedules exactly as prescribed by the doctor.</p></div><button type="button" disabled={busy || locked} onClick={() => { change((current) => ({ ...current, medicines: [...current.medicines, newMedicine()] })); setMedicinePage(Math.floor(draft.medicines.length / 3)) }}><FiPlus />Add Medicine</button></header>
-          <fieldset disabled={busy || locked}><div className="rx-table-scroll"><table><thead><tr>{['Medicine Name', 'Strength', 'Morning', 'Afternoon', 'Evening', 'Duration (days)', 'Quantity', 'Unit Price', 'Amount', 'Actions'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{draft.medicines.slice(visiblePage * 3, visiblePage * 3 + 3).map((row, localIndex) => { const index = visiblePage * 3 + localIndex; return <tr key={row.key}>{['medicineName', 'strength', 'morning', 'afternoon', 'evening', 'days', 'quantity', 'unitPrice'].map((field) => <td key={field}><input aria-label={`${field} ${index + 1}`} type={field === 'medicineName' || field === 'strength' ? 'text' : 'number'} required={['medicineName', 'days', 'quantity', 'unitPrice'].includes(field)} min={field === 'days' || field === 'quantity' ? 1 : 0} step={field === 'days' || field === 'quantity' ? 1 : .01} maxLength={field === 'medicineName' ? 200 : undefined} placeholder={field === 'medicineName' ? 'Enter medicine name' : field === 'strength' ? 'As prescribed' : '0'} list={field === 'medicineName' ? `rx-med-options-${row.key}` : undefined} value={row[field]} onChange={(event) => {
-            const val = event.target.value
-            let matchedPrice = null
-            let matchedStrength = null
-            if (field === 'medicineName' && Array.isArray(availableMeds) && availableMeds.length > 0) {
-              const match = availableMeds.find((m) => String(m.name || m.medicineName || '').trim().toLowerCase() === val.trim().toLowerCase())
-              if (match) {
-                matchedPrice = match.sellingPrice || match.unitPrice || match.price || match.costPrice
-                matchedStrength = match.strength || match.power
+          <fieldset disabled={busy || locked}><div className="rx-table-scroll"><table><thead><tr>{['Medicine Name', 'Strength', 'Morning', 'Afternoon', 'Evening', 'Duration (days)', 'Quantity', 'Unit Price', 'Amount', 'Actions'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{draft.medicines.slice(visiblePage * 3, visiblePage * 3 + 3).map((row, localIndex) => {
+            const index = visiblePage * 3 + localIndex
+            const isThisRowActive = activeAutocompleteRow === row.key
+            const rowMatches = isThisRowActive ? getMatchingMedicines(row.medicineName) : []
+            const showDropdown = isThisRowActive && rowMatches.length > 0
+
+            return <tr key={row.key}>{['medicineName', 'strength', 'morning', 'afternoon', 'evening', 'days', 'quantity', 'unitPrice'].map((field) => {
+              if (field === 'medicineName') {
+                return (
+                  <td key={field} className="rx-med-name-cell">
+                    <div className="rx-autocomplete-wrapper">
+                      <input
+                        aria-label={`${field} ${index + 1}`}
+                        type="text"
+                        required
+                        maxLength={200}
+                        autoComplete="off"
+                        placeholder="Enter medicine name"
+                        list={`rx-med-options-${row.key}`}
+                        value={row.medicineName}
+                        onFocus={() => {
+                          setActiveAutocompleteRow(row.key)
+                          setFocusedOptionIndex(-1)
+                        }}
+                        onKeyDown={(event) => {
+                          if (!showDropdown || rowMatches.length === 0) {
+                            if (event.key === 'ArrowDown' && availableMeds.length > 0) {
+                              setActiveAutocompleteRow(row.key)
+                            }
+                            return
+                          }
+                          if (event.key === 'ArrowDown') {
+                            event.preventDefault()
+                            setFocusedOptionIndex((prev) => (prev + 1) % rowMatches.length)
+                          } else if (event.key === 'ArrowUp') {
+                            event.preventDefault()
+                            setFocusedOptionIndex((prev) => (prev - 1 + rowMatches.length) % rowMatches.length)
+                          } else if (event.key === 'Enter') {
+                            if (focusedOptionIndex >= 0 && focusedOptionIndex < rowMatches.length) {
+                              event.preventDefault()
+                              selectMedicineOption(row.key, rowMatches[focusedOptionIndex])
+                            }
+                          } else if (event.key === 'Escape') {
+                            event.preventDefault()
+                            setActiveAutocompleteRow(null)
+                            setFocusedOptionIndex(-1)
+                          }
+                        }}
+                        onChange={(event) => {
+                          const val = event.target.value
+                          setActiveAutocompleteRow(row.key)
+                          setFocusedOptionIndex(-1)
+                          let matchedPrice = null
+                          let matchedStrength = null
+                          if (Array.isArray(availableMeds) && availableMeds.length > 0) {
+                            const match = availableMeds.find((m) => String(m.name || m.medicineName || '').trim().toLowerCase() === val.trim().toLowerCase())
+                            if (match) {
+                              matchedPrice = match.sellingPrice || match.unitPrice || match.price || match.costPrice
+                              matchedStrength = match.strength || match.power || match.dosageForm
+                            }
+                          }
+                          change((current) => ({
+                            ...current,
+                            medicines: current.medicines.map((medicine) => {
+                              if (medicine.key !== row.key) return medicine
+                              let updated = updateMedicine(medicine, field, val)
+                              if (matchedPrice != null && matchedPrice !== '') updated = updateMedicine(updated, 'unitPrice', String(matchedPrice))
+                              if (matchedStrength) updated = updateMedicine(updated, 'strength', String(matchedStrength))
+                              return updated
+                            })
+                          }))
+                        }}
+                      />
+                      {showDropdown && (
+                        <ul className="rx-autocomplete-dropdown" role="listbox" id={`rx-med-list-${row.key}`}>
+                          {rowMatches.map((med, mIdx) => {
+                            const isFocused = mIdx === focusedOptionIndex
+                            return (
+                              <li
+                                key={med.id || med.name || mIdx}
+                                role="option"
+                                aria-selected={isFocused}
+                                className={`rx-autocomplete-item ${isFocused ? 'is-focused' : ''}`}
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  selectMedicineOption(row.key, med)
+                                }}
+                                onMouseEnter={() => setFocusedOptionIndex(mIdx)}
+                              >
+                                <div className="rx-autocomplete-main">
+                                  <span className="rx-autocomplete-name">
+                                    {highlightMatch(med.name, row.medicineName)}
+                                  </span>
+                                  {med.category ? <span className="rx-autocomplete-category">{med.category}</span> : null}
+                                </div>
+                                <div className="rx-autocomplete-details">
+                                  {med.strength ? <span className="rx-autocomplete-strength">{med.strength}</span> : null}
+                                  {med.unitPrice ? <span className="rx-autocomplete-price">₹{med.unitPrice}</span> : null}
+                                  {med.stock != null ? (
+                                    <span className={`rx-autocomplete-stock ${med.stock <= 5 ? 'is-low' : ''}`}>
+                                      {med.stock > 0 ? `${med.stock} in stock` : 'Out of stock'}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                      {Array.isArray(availableMeds) && availableMeds.length > 0 && (
+                        <datalist id={`rx-med-options-${row.key}`}>
+                          {availableMeds.map((m, mIdx) => <option key={m.id || m.medicineId || mIdx} value={m.name || m.medicineName} />)}
+                        </datalist>
+                      )}
+                    </div>
+                  </td>
+                )
               }
-            }
-            change((current) => ({
-              ...current,
-              medicines: current.medicines.map((medicine) => {
-                if (medicine.key !== row.key) return medicine
-                let updated = updateMedicine(medicine, field, val)
-                if (matchedPrice != null) updated = updateMedicine(updated, 'unitPrice', String(matchedPrice))
-                if (matchedStrength) updated = updateMedicine(updated, 'strength', String(matchedStrength))
-                return updated
-              })
-            }))
-          }} />{field === 'medicineName' && Array.isArray(availableMeds) && availableMeds.length > 0 && <datalist id={`rx-med-options-${row.key}`}>{availableMeds.map((m, mIdx) => <option key={m.id || m.medicineId || mIdx} value={m.name || m.medicineName} />)}</datalist>}</td>)}<td className="rx-line-amount">{currency(totals.lines[index])}</td><td><button type="button" aria-label={`Remove medicine ${index + 1}`} disabled={draft.medicines.length === 1} onClick={() => change((current) => ({ ...current, medicines: current.medicines.filter((medicine) => medicine.key !== row.key) }))}><FiTrash2 /></button></td></tr> })}</tbody></table></div></fieldset>
+
+              return (
+                <td key={field}>
+                  <input
+                    aria-label={`${field} ${index + 1}`}
+                    type={field === 'strength' ? 'text' : 'number'}
+                    required={['days', 'quantity', 'unitPrice'].includes(field)}
+                    min={field === 'days' || field === 'quantity' ? 1 : 0}
+                    step={field === 'days' || field === 'quantity' ? 1 : .01}
+                    placeholder={field === 'strength' ? 'As prescribed' : '0'}
+                    value={row[field]}
+                    onChange={(event) => {
+                      const val = event.target.value
+                      change((current) => ({
+                        ...current,
+                        medicines: current.medicines.map((medicine) => {
+                          if (medicine.key !== row.key) return medicine
+                          return updateMedicine(medicine, field, val)
+                        })
+                      }))
+                    }}
+                  />
+                </td>
+              )
+            })}<td className="rx-line-amount">{currency(totals.lines[index])}</td><td><button type="button" aria-label={`Remove medicine ${index + 1}`} disabled={draft.medicines.length === 1} onClick={() => change((current) => ({ ...current, medicines: current.medicines.filter((medicine) => medicine.key !== row.key) }))}><FiTrash2 /></button></td></tr> })}</tbody></table></div></fieldset>
           {medicinePagination()}<p className="rx-dose-note">Morning, afternoon and evening values are units per dose. Quantity is calculated from doses × days and can be adjusted.</p><div className="rx-totals"><span>Medicines: {draft.medicines.length}</span><span>Total quantity: {totals.quantity}</span><strong>Total payable {currency(totals.amount)}</strong></div>
         </section>}
         <footer className="rx-footer"><p><FiCreditCard />{medicinesStep ? 'Next: payment method and billing' : 'Next: add medicines and dose schedules'}</p><div>{medicinesStep ? <button type="button" disabled={busy} onClick={() => navigate('/pharmacist/dispensing')}>Back</button> : null}<button type="button" disabled={busy || photoLoading} onClick={saveDraft}>Save Draft</button><button className="rx-primary" type="submit" disabled={busy || cameraActive || photoLoading}>{busy ? 'Please wait...' : medicinesStep ? 'Proceed to Payment' : 'Next: Add Medicines'}<FiArrowRight /></button></div></footer>
