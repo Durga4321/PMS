@@ -166,3 +166,108 @@ export function filterMedicineMatches(queryStr, availableMeds) {
   return [...prefixMatches, ...containsMatches].slice(0, 10)
 }
 
+export function extractUniqueStrengths(availableMeds = [], apiStrengths = []) {
+  const set = new Set()
+  const result = []
+
+  const apiList = Array.isArray(apiStrengths)
+    ? apiStrengths
+    : Array.isArray(apiStrengths?.data)
+      ? apiStrengths.data
+      : []
+  for (const s of apiList) {
+    const str = String(typeof s === 'string' ? s : (s?.strength || s?.name || s?.value || '')).trim()
+    const k = str.toLowerCase()
+    if (str && !set.has(k)) {
+      set.add(k)
+      result.push(str)
+    }
+  }
+
+  for (const med of (availableMeds || [])) {
+    const str = String(med.strength || med.power || med.dosageForm || '').trim()
+    const k = str.toLowerCase()
+    if (str && str !== '-' && str.toLowerCase() !== 'as prescribed' && !set.has(k)) {
+      set.add(k)
+      result.push(str)
+    }
+  }
+
+  const common = ['100 mg', '250 mg', '500 mg', '650 mg', '1 g', '5 mg', '10 mg', '20 mg', '40 mg', '50 mg', '5 ml', '10 ml', '15 ml']
+  for (const c of common) {
+    const k = c.toLowerCase()
+    if (!set.has(k)) {
+      set.add(k)
+      result.push(c)
+    }
+  }
+
+  return result
+}
+
+export function filterStrengthMatches(queryStr, availableStrengths = [], currentMedicineName = '', availableMeds = []) {
+  const q = String(queryStr || '').trim().toLowerCase()
+
+  // 1. If row already has a medicineName, find strengths specific to that medicine
+  const medSpecific = []
+  if (currentMedicineName && Array.isArray(availableMeds)) {
+    const cleanMedName = currentMedicineName.trim().toLowerCase()
+    const matchingMeds = availableMeds.filter((m) => {
+      const mName = String(m.name || m.medicineName || '').trim().toLowerCase()
+      return mName === cleanMedName || mName.startsWith(cleanMedName)
+    })
+    for (const m of matchingMeds) {
+      const str = String(m.strength || m.power || '').trim()
+      if (str && !medSpecific.some((item) => item.strength.toLowerCase() === str.toLowerCase())) {
+        const price = m.sellingPrice || m.unitPrice || m.price || m.costPrice
+        medSpecific.push({
+          strength: str,
+          isSpecific: true,
+          unitPrice: price != null && price !== '' ? String(price) : '',
+        })
+      }
+    }
+  }
+
+  // 2. Combine medicine-specific strengths (first) and general strengths
+  const allCandidates = []
+  const seen = new Set()
+
+  for (const item of medSpecific) {
+    const k = item.strength.toLowerCase()
+    if (k && !seen.has(k)) {
+      seen.add(k)
+      allCandidates.push(item)
+    }
+  }
+
+  for (const s of (availableStrengths || [])) {
+    const str = typeof s === 'string' ? s : (s?.strength || s?.name || s?.value || String(s))
+    const cleanStr = String(str || '').trim()
+    const k = cleanStr.toLowerCase()
+    if (k && !seen.has(k)) {
+      seen.add(k)
+      allCandidates.push({ strength: cleanStr, isSpecific: false, unitPrice: '' })
+    }
+  }
+
+  if (!q) {
+    return allCandidates.slice(0, 8)
+  }
+
+  const prefixMatches = []
+  const containsMatches = []
+
+  for (const item of allCandidates) {
+    const lower = item.strength.toLowerCase()
+    if (lower.startsWith(q)) {
+      prefixMatches.push(item)
+    } else if (lower.includes(q)) {
+      containsMatches.push(item)
+    }
+  }
+
+  return [...prefixMatches, ...containsMatches].slice(0, 10)
+}
+
+

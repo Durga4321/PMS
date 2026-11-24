@@ -11,6 +11,7 @@ import {
   uploadPrescriptionPhoto,
   getDispensingMedicines,
   listMedicines,
+  listMedicineStrengths,
   getPharmacistInventory,
   getPharmacistAssignedBranch,
   readMedicineCache,
@@ -20,7 +21,18 @@ import {
 import { useToast } from '../../components/ToastProvider'
 import { confirmAction } from '../../components/confirmAction'
 import { useLanguage } from '../../i18n/language'
-import { newMedicine, newPrescription, prescriptionPayload, prescriptionTotals, savedRecord, updateMedicine, normalizeMedicineOption, filterMedicineMatches } from './prescriptionModel'
+import {
+  newMedicine,
+  newPrescription,
+  prescriptionPayload,
+  prescriptionTotals,
+  savedRecord,
+  updateMedicine,
+  normalizeMedicineOption,
+  filterMedicineMatches,
+  filterStrengthMatches,
+  extractUniqueStrengths
+} from './prescriptionModel'
 import usePrescriptionCamera from './usePrescriptionCamera'
 import './PrescriptionWorkspace.css'
 
@@ -150,14 +162,19 @@ export default function PrescriptionWorkspace() {
   }
 
   const [availableMeds, setAvailableMeds] = useState([])
+  const [availableStrengths, setAvailableStrengths] = useState([])
   const [activeAutocompleteRow, setActiveAutocompleteRow] = useState(null)
   const [focusedOptionIndex, setFocusedOptionIndex] = useState(-1)
+  const [activeStrengthRow, setActiveStrengthRow] = useState(null)
+  const [focusedStrengthIndex, setFocusedStrengthIndex] = useState(-1)
 
   useEffect(() => {
     function handleClickOutside(event) {
       if (!event.target.closest('.rx-autocomplete-wrapper')) {
         setActiveAutocompleteRow(null)
         setFocusedOptionIndex(-1)
+        setActiveStrengthRow(null)
+        setFocusedStrengthIndex(-1)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -166,6 +183,10 @@ export default function PrescriptionWorkspace() {
 
   function getMatchingMedicines(queryStr) {
     return filterMedicineMatches(queryStr, availableMeds)
+  }
+
+  function getMatchingStrengths(queryStr, currentMedicineName) {
+    return filterStrengthMatches(queryStr, availableStrengths, currentMedicineName, availableMeds)
   }
 
   function selectMedicineOption(rowKey, medicine) {
@@ -187,13 +208,40 @@ export default function PrescriptionWorkspace() {
     setFocusedOptionIndex(-1)
   }
 
+  function selectStrengthOption(rowKey, strengthItem) {
+    const strengthVal = typeof strengthItem === 'string' ? strengthItem : strengthItem.strength
+    change((current) => ({
+      ...current,
+      medicines: current.medicines.map((item) => {
+        if (item.key !== rowKey) return item
+        let updated = updateMedicine(item, 'strength', strengthVal)
+        if (item.medicineName && Array.isArray(availableMeds)) {
+          const match = availableMeds.find((m) =>
+            String(m.name || m.medicineName || '').trim().toLowerCase() === item.medicineName.trim().toLowerCase() &&
+            String(m.strength || m.power || '').trim().toLowerCase() === strengthVal.trim().toLowerCase()
+          )
+          if (match) {
+            const price = match.sellingPrice || match.unitPrice || match.price || match.costPrice
+            if (price != null && price !== '') {
+              updated = updateMedicine(updated, 'unitPrice', String(price))
+            }
+          }
+        }
+        return updated
+      })
+    }))
+    setActiveStrengthRow(null)
+    setFocusedStrengthIndex(-1)
+  }
+
   useEffect(() => {
     let active = true
     async function initWorkspace() {
       try {
-        const [draftsRes, medsList] = await Promise.allSettled([
+        const [draftsRes, medsList, strengthsRes] = await Promise.allSettled([
           listDispensingDrafts(),
           fetchAvailableMedicines(),
+          listMedicineStrengths(),
         ])
         if (!active) return
         if (draftsRes.status === 'fulfilled') {
@@ -235,12 +283,12 @@ export default function PrescriptionWorkspace() {
             }
           }
         }
-        if (medsList.status === 'fulfilled') {
-          const mList = medsList.value
-          if (Array.isArray(mList) && mList.length > 0) {
-            setAvailableMeds(mList)
-          }
+        const allMeds = medsList.status === 'fulfilled' && Array.isArray(medsList.value) ? medsList.value : []
+        const apiStrengths = strengthsRes.status === 'fulfilled' ? strengthsRes.value : []
+        if (allMeds.length > 0) {
+          setAvailableMeds(allMeds)
         }
+        setAvailableStrengths(extractUniqueStrengths(allMeds, apiStrengths))
       } catch (failure) {
         if (active) setNotice(failure.message)
       } finally {
@@ -253,6 +301,7 @@ export default function PrescriptionWorkspace() {
       fetchAvailableMedicines().then((meds) => {
         if (active && Array.isArray(meds) && meds.length > 0) {
           setAvailableMeds(meds)
+          setAvailableStrengths((prev) => extractUniqueStrengths(meds, prev))
         }
       })
     }
@@ -592,6 +641,7 @@ export default function PrescriptionWorkspace() {
                         value={row.medicineName}
                         onFocus={() => {
                           setActiveAutocompleteRow(row.key)
+                          setActiveStrengthRow(null)
                           setFocusedOptionIndex(-1)
                         }}
                         onKeyDown={(event) => {
@@ -689,15 +739,132 @@ export default function PrescriptionWorkspace() {
                 )
               }
 
+              if (field === 'strength') {
+                const query = (row.strength || '').trim()
+                const isThisRowActive = activeStrengthRow === row.key
+                const strengthMatches = isThisRowActive ? getMatchingStrengths(query, row.medicineName) : []
+                const showStrengthDropdown = isThisRowActive && strengthMatches.length > 0
+
+                return (
+                  <td key={field} className="rx-strength-cell">
+                    <div className="rx-autocomplete-wrapper">
+                      <input
+                        aria-label={`${field} ${index + 1}`}
+                        type="text"
+                        maxLength={100}
+                        autoComplete="off"
+                        placeholder="As prescribed"
+                        list={`rx-strength-options-${row.key}`}
+                        value={row.strength}
+                        onFocus={() => {
+                          setActiveStrengthRow(row.key)
+                          setActiveAutocompleteRow(null)
+                          setFocusedStrengthIndex(-1)
+                        }}
+                        onKeyDown={(event) => {
+                          if (!showStrengthDropdown || strengthMatches.length === 0) {
+                            if (event.key === 'ArrowDown' && availableStrengths.length > 0) {
+                              setActiveStrengthRow(row.key)
+                            }
+                            return
+                          }
+                          if (event.key === 'ArrowDown') {
+                            event.preventDefault()
+                            setFocusedStrengthIndex((prev) => (prev + 1) % strengthMatches.length)
+                          } else if (event.key === 'ArrowUp') {
+                            event.preventDefault()
+                            setFocusedStrengthIndex((prev) => (prev - 1 + strengthMatches.length) % strengthMatches.length)
+                          } else if (event.key === 'Enter') {
+                            if (focusedStrengthIndex >= 0 && focusedStrengthIndex < strengthMatches.length) {
+                              event.preventDefault()
+                              selectStrengthOption(row.key, strengthMatches[focusedStrengthIndex])
+                            }
+                          } else if (event.key === 'Escape') {
+                            event.preventDefault()
+                            setActiveStrengthRow(null)
+                            setFocusedStrengthIndex(-1)
+                          }
+                        }}
+                        onChange={(event) => {
+                          const val = event.target.value
+                          setActiveStrengthRow(row.key)
+                          setFocusedStrengthIndex(-1)
+                          change((current) => ({
+                            ...current,
+                            medicines: current.medicines.map((medicine) => {
+                              if (medicine.key !== row.key) return medicine
+                              let updated = updateMedicine(medicine, field, val)
+                              if (medicine.medicineName && Array.isArray(availableMeds)) {
+                                const match = availableMeds.find((m) =>
+                                  String(m.name || m.medicineName || '').trim().toLowerCase() === medicine.medicineName.trim().toLowerCase() &&
+                                  String(m.strength || m.power || '').trim().toLowerCase() === val.trim().toLowerCase()
+                                )
+                                if (match) {
+                                  const price = match.sellingPrice || match.unitPrice || match.price || match.costPrice
+                                  if (price != null && price !== '') {
+                                    updated = updateMedicine(updated, 'unitPrice', String(price))
+                                  }
+                                }
+                              }
+                              return updated
+                            })
+                          }))
+                        }}
+                      />
+                      {showStrengthDropdown && (
+                        <ul className="rx-autocomplete-dropdown rx-strength-dropdown" role="listbox" id={`rx-strength-list-${row.key}`}>
+                          {strengthMatches.map((item, sIdx) => {
+                            const isFocused = sIdx === focusedStrengthIndex
+                            return (
+                              <li
+                                key={`${item.strength}-${sIdx}`}
+                                role="option"
+                                aria-selected={isFocused}
+                                className={`rx-autocomplete-item ${isFocused ? 'is-focused' : ''}`}
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  selectStrengthOption(row.key, item)
+                                }}
+                                onMouseEnter={() => setFocusedStrengthIndex(sIdx)}
+                              >
+                                <div className="rx-autocomplete-main">
+                                  <span className="rx-autocomplete-name">
+                                    {highlightMatch(item.strength, row.strength)}
+                                  </span>
+                                  {item.isSpecific ? (
+                                    <span className="rx-autocomplete-category" style={{ color: '#168250', fontWeight: 600 }}>
+                                      {row.medicineName ? `Prescribed for ${row.medicineName}` : 'Uploaded'}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="rx-autocomplete-details">
+                                  {item.unitPrice ? <span className="rx-autocomplete-price">₹{item.unitPrice}</span> : null}
+                                  <span className="rx-autocomplete-strength">{item.strength}</span>
+                                </div>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                      {Array.isArray(availableStrengths) && availableStrengths.length > 0 && (
+                        <datalist id={`rx-strength-options-${row.key}`}>
+                          {availableStrengths.map((str, sIdx) => <option key={sIdx} value={str} />)}
+                        </datalist>
+                      )}
+                    </div>
+                  </td>
+                )
+              }
+
               return (
                 <td key={field}>
                   <input
                     aria-label={`${field} ${index + 1}`}
-                    type={field === 'strength' ? 'text' : 'number'}
+                    type="number"
                     required={['days', 'quantity', 'unitPrice'].includes(field)}
                     min={field === 'days' || field === 'quantity' ? 1 : 0}
                     step={field === 'days' || field === 'quantity' ? 1 : .01}
-                    placeholder={field === 'strength' ? 'As prescribed' : '0'}
+                    placeholder="0"
                     value={row[field]}
                     onChange={(event) => {
                       const val = event.target.value

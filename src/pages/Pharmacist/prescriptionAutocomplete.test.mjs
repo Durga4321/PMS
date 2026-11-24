@@ -5,7 +5,9 @@ import {
   updateMedicine,
   prescriptionTotals,
   normalizeMedicineOption,
-  filterMedicineMatches
+  filterMedicineMatches,
+  filterStrengthMatches,
+  extractUniqueStrengths
 } from './prescriptionModel.js'
 
 test('normalizeMedicineOption maps different medicine shapes and attributes correctly', () => {
@@ -110,4 +112,55 @@ test('selecting an autocomplete option populates medicine name, strength, and un
   assert.equal(totals.quantity, 5)
   assert.equal(totals.amount, 77.5)
   assert.equal(totals.lines[0], 77.5)
+})
+
+test('extractUniqueStrengths extracts and deduplicates strengths from catalogue and api', () => {
+  const catalogue = [
+    { name: 'Folic Acid', strength: '5mg' },
+    { name: 'Paracetamol', strength: '650mg' },
+    { name: 'Paracetamol', strength: '500mg' },
+  ]
+  const apiStrengths = ['100 mg', '250 mg', '500 mg']
+  const strengths = extractUniqueStrengths(catalogue, apiStrengths)
+
+  assert.ok(strengths.includes('5mg'))
+  assert.ok(strengths.includes('650mg'))
+  assert.ok(strengths.includes('100 mg'))
+  assert.ok(strengths.includes('250 mg'))
+})
+
+test('filterStrengthMatches autocompletes strengths from the first letter or number', () => {
+  const availableStrengths = ['100 mg', '250 mg', '500 mg', '650 mg', '5 mg', '10 mg', '5 ml']
+  const availableMeds = [
+    { name: 'Amoxicillin', strength: '500 mg', sellingPrice: 20 },
+    { name: 'Amoxicillin', strength: '250 mg', sellingPrice: 12 },
+    { name: 'Paracetamol', strength: '650 mg', sellingPrice: 3 },
+  ]
+
+  // Typing first digit '5' without medicine selected
+  const match5 = filterStrengthMatches('5', availableStrengths, '', availableMeds)
+  // Should match 500 mg, 5 mg, 5 ml starting with 5, followed by 250 mg, 650 mg containing 5
+  assert.ok(match5.length > 0)
+  assert.equal(match5[0].strength, '500 mg')
+  assert.ok(match5.some(m => m.strength === '5 mg'))
+  assert.ok(match5.some(m => m.strength === '5 ml'))
+
+  // Typing '6' matches 650 mg
+  const match6 = filterStrengthMatches('6', availableStrengths, '', availableMeds)
+  assert.equal(match6[0].strength, '650 mg')
+
+  // When medicineName is already set (e.g. 'Amoxicillin'):
+  // Strengths specific to Amoxicillin (500 mg, 250 mg) are prioritized first
+  const matchAmox = filterStrengthMatches('', availableStrengths, 'Amoxicillin', availableMeds)
+  assert.equal(matchAmox[0].strength, '500 mg')
+  assert.equal(matchAmox[0].isSpecific, true)
+  assert.equal(matchAmox[0].unitPrice, '20')
+  assert.equal(matchAmox[1].strength, '250 mg')
+  assert.equal(matchAmox[1].isSpecific, true)
+  assert.equal(matchAmox[1].unitPrice, '12')
+
+  // Typing '2' when Amoxicillin is selected matches '250 mg' first
+  const matchAmox2 = filterStrengthMatches('2', availableStrengths, 'Amoxicillin', availableMeds)
+  assert.equal(matchAmox2[0].strength, '250 mg')
+  assert.equal(matchAmox2[0].isSpecific, true)
 })

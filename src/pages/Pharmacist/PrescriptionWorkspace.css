@@ -60,12 +60,13 @@
 .rx-workspace th { text-align: left; white-space: nowrap; font-size: 12px; background: color-mix(in srgb, var(--rx-accent) 8%, var(--pms-surface, white)); padding: 12px 9px; }
 .rx-workspace td { padding: 10px 7px; border-top: 1px solid var(--rx-border); }
 .rx-workspace td:first-child { min-width: 220px; }
-.rx-workspace td:nth-child(2) { min-width: 125px; }
+.rx-workspace td:nth-child(2) { min-width: 140px; }
 .rx-workspace td:nth-child(n+3):nth-child(-n+8) { width: 85px; min-width: 80px; }
 .rx-workspace .rx-line-amount { font-weight: 700; white-space: nowrap; }
 
-/* Autocomplete styles for Medicine Name */
+/* Autocomplete styles for Medicine Name and Strength */
 .rx-med-name-cell { position: relative; min-width: 220px !important; }
+.rx-strength-cell { position: relative; min-width: 140px !important; }
 .rx-autocomplete-wrapper { position: relative; width: 100%; }
 .rx-autocomplete-dropdown {
   position: absolute;
@@ -84,6 +85,10 @@
   margin: 0;
   list-style: none;
   z-index: 1000;
+}
+.rx-strength-dropdown {
+  min-width: 200px;
+  max-width: 300px;
 }
 .rx-autocomplete-item {
   display: flex;
