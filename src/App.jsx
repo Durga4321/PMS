@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import ForgotPassword from './pages/ForgotPassword'
 import Login from './pages/Login'
 import PmsLanding from './pages/PmsLanding'
+import PlanInquiry from './pages/PlanInquiry'
 import ResetPassword from './pages/ResetPassword'
 import VerifyOTP from './pages/VerifyOTP'
 import SuperAdminDashboard from './pages/Super Admin/SuperAdminDashboard'
@@ -11,6 +12,7 @@ import SystemSettings from './pages/Super Admin/SystemSettings'
 import Reports from './pages/Super Admin/Reports'
 import ActivityLogs from './pages/Super Admin/Audit Logs'
 import Notifications from './pages/Super Admin/Notifications'
+import SubscriptionPlans from './pages/Super Admin/SubscriptionPlans'
 import Admins from './pages/Super Admin/Admins'
 import SuperAdminProfile from './pages/Super Admin/SuperAdminProfile'
 import AdminDashboard from './pages/Admin/AdminDashboard'
@@ -58,6 +60,9 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<PmsLanding />} />
+            <Route path="/plan-inquiry" element={<PlanInquiry />} />
+            <Route path="/subscribe" element={<Navigate to="/plan-inquiry" replace />} />
+            <Route path="/contact" element={<Navigate to="/plan-inquiry" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
             <Route path="/superadmin" element={<Navigate to="/super-admin/dashboard" replace />} />
@@ -70,6 +75,9 @@ function App() {
             <Route path="/super-admin/users-permissions" element={<UsersPermissions />} />
             <Route path="/super-admin/roles" element={<UsersPermissions />} />
             <Route path="/superadmin/roles" element={<UsersPermissions />} />
+            <Route path="/super-admin/subscription-plans" element={<SubscriptionPlans />} />
+            <Route path="/super-admin/plans" element={<Navigate to="/super-admin/subscription-plans" replace />} />
+            <Route path="/superadmin/plans" element={<Navigate to="/super-admin/subscription-plans" replace />} />
             <Route path="/super-admin/medicines" element={<Medicines />} />
             <Route path="/super-admin/system-settings" element={<SystemSettings />} />
             <Route path="/superadmin/settings" element={<SystemSettings />} />
