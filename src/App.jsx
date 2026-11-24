@@ -37,6 +37,7 @@ import PharmacistPending from './pages/Pharmacist/Pending'
 import PharmacistDispensing, { DispensingHistory } from './pages/Pharmacist/Dispensing'
 import PharmacistMedicines from './pages/Pharmacist/Medicines'
 import PharmacistBills from './pages/Pharmacist/Bills'
+import PharmacistPayments from './pages/Pharmacist/Payments'
 import PharmacistReturns from './pages/Pharmacist/Returns'
 import PharmacistReports from './pages/Pharmacist/Reports'
 import PharmacistNotifications from './pages/Pharmacist/Notifications'
@@ -126,6 +127,7 @@ function App() {
             <Route path="/pharmacist/dispensing/history" element={<DispensingHistory />} />
             <Route path="/pharmacist/medicines" element={<PharmacistMedicines />} />
             <Route path="/pharmacist/bills" element={<PharmacistBills />} />
+            <Route path="/pharmacist/payments" element={<Navigate to="/pharmacist/bills" replace />} />
             <Route path="/pharmacist/returns" element={<PharmacistReturns />} />
             <Route path="/pharmacist/reports" element={<PharmacistReports />} />
             <Route path="/pharmacist/profile" element={<SuperAdminProfile initialTab="profile" roleType="pharmacist" />} />

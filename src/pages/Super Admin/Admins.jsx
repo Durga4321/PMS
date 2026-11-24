@@ -1,12 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { confirmAction } from '../../components/confirmAction'
 import { useToast } from '../../components/ToastProvider'
 import RowActions from '../../components/RowActions'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
-import {  assignPharmacyToAdmin,
+import {
+  assignPharmacyToAdmin,
   changePharmacyAdminStatus,
-  createPharmacyAdmin,  getPharmacyAdmin,  getSuperAdminPharmacy,  getSuperAdminPharmacies,  listPharmacyAdmins,
+  createPharmacyAdmin,
+  getPharmacyAdmin,
+  getSuperAdminPharmacy,
+  getSuperAdminPharmacies,
+  listPharmacyAdmins,
   deleteSuperAdminRole,
   listSuperAdminRoleDropdown,
   resetPharmacyAdminPassword,
@@ -19,6 +24,7 @@ const emptyForm = {
   email: '',
   mobileNumber: '',
   pharmacyPermissionRoleId: '',
+  city: '',
   isActive: true,
 }
 const digitsOnly = (value, limit = 10) => String(value || '').replace(/\D/g, '').slice(0, limit)
@@ -32,33 +38,77 @@ function mergeAdmins(current, incoming) {
   return [...map.values()]
 }
 
-function unwrapAdmin(response) {
-  return response?.admin || response?.data?.admin || response?.data || response
+function unwrapAdmin(item) {
+  if (!item || typeof item !== 'object') return item
+  if (item.admin && typeof item.admin === 'object') return item.admin
+  if (item.data && typeof item.data === 'object' && !item.name && !item.email && !item.id && !item.adminId && !item.adminUserId) {
+    return item.data.admin || item.data
+  }
+  return item
 }
 
 function normalizeList(response) {
-  if (Array.isArray(response)) return response.map(unwrapAdmin)
-  if (Array.isArray(response?.data)) return response.data.map(unwrapAdmin)
-  if (Array.isArray(response?.data?.admins)) return response.data.admins.map(unwrapAdmin)
-  if (Array.isArray(response?.data?.pharmacies)) return response.data.pharmacies.map(unwrapAdmin)
-  if (Array.isArray(response?.data?.hospitals)) return response.data.hospitals
-  if (Array.isArray(response?.data?.branches)) return response.data.branches
+  const body = response?.data ?? response
+  if (Array.isArray(body)) return body.map(unwrapAdmin)
+  if (Array.isArray(body?.admins)) return body.admins.map(unwrapAdmin)
+  if (Array.isArray(body?.items)) return body.items.map(unwrapAdmin)
+  if (Array.isArray(body?.results)) return body.results.map(unwrapAdmin)
+  if (Array.isArray(body?.data)) return body.data.map(unwrapAdmin)
+  if (Array.isArray(body?.list)) return body.list.map(unwrapAdmin)
+  if (Array.isArray(body?.rows)) return body.rows.map(unwrapAdmin)
   if (Array.isArray(response?.admins)) return response.admins.map(unwrapAdmin)
-  if (Array.isArray(response?.pharmacies)) return response.pharmacies.map(unwrapAdmin)
-  if (Array.isArray(response?.hospitals)) return response.hospitals
-  if (Array.isArray(response?.branches)) return response.branches
   if (Array.isArray(response?.items)) return response.items.map(unwrapAdmin)
   if (Array.isArray(response?.results)) return response.results.map(unwrapAdmin)
+  if (Array.isArray(response?.data?.admins)) return response.data.admins.map(unwrapAdmin)
+  if (Array.isArray(response?.data?.items)) return response.data.items.map(unwrapAdmin)
+  if (Array.isArray(response?.data?.results)) return response.data.results.map(unwrapAdmin)
+  if (Array.isArray(response?.data?.pharmacies)) return response.data.pharmacies.map(unwrapAdmin)
+  if (Array.isArray(response?.pharmacies)) return response.pharmacies.map(unwrapAdmin)
   return []
 }
 
 function getId(item) {
-  return item?._id || item?.id || item?.pharmacyId || item?.PharmacyId || item?.adminId || item?.hospitalId || item?.branchId || item?.uuid
+  if (!item) return ''
+  const val =
+    item.id ??
+    item.adminId ??
+    item.adminUserId ??
+    item.userId ??
+    item.AdminId ??
+    item.AdminUserId ??
+    item.UserId ??
+    item.Id ??
+    item._id ??
+    item.pharmacyId ??
+    item.PharmacyId ??
+    item.hospitalId ??
+    item.branchId ??
+    item.uuid ??
+    ''
+  return String(val)
 }
 
 function getName(item) {
-  return item?.name || item?.fullName || item?.adminName || item?.email || 'Pharmacy Admin'
+  if (!item) return 'Pharmacy Admin'
+  const val = item.name || item.fullName || item.adminName || item.pharmacyAdminName || item.userName || item.email
+  if (typeof val === 'string' && val.trim()) return val.trim()
+  if (typeof val === 'object' && val !== null) {
+    const combined = [val.firstName, val.lastName].filter(Boolean).join(' ')
+    if (combined.trim()) return combined.trim()
+    if (val.name) return String(val.name).trim()
+  }
+  return 'Pharmacy Admin'
 }
+
+function getInitials(name) {
+  const str = String(name || '').trim()
+  if (!str) return 'PA'
+  const parts = str.split(/\s+/).filter(Boolean)
+  if (!parts.length) return 'PA'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return parts.slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || 'PA'
+}
+
 function getValue(item, keys, fallback = '-') {
   return keys.map((key) => item?.[key]).find((value) => value !== undefined && value !== null && value !== '') ?? fallback
 }
@@ -77,9 +127,17 @@ function displayValue(value, fallback = '-') {
   return value
 }
 
-function getAssignedPharmacyName(item) {
+function getAssignedPharmacyName(item, pharmacyOptions = []) {
   const admin = unwrapAdmin(item)
-  return displayValue(getNestedValue(admin, ['pharmacyName', 'PharmacyName', 'pharmacy.name', 'pharmacy.pharmacyName', 'assignedPharmacy.name', 'assignedPharmacy.pharmacyName', 'hospitalName']))
+  const direct = displayValue(getNestedValue(admin, ['pharmacyName', 'PharmacyName', 'pharmacy.name', 'pharmacy.pharmacyName', 'assignedPharmacy.name', 'assignedPharmacy.pharmacyName', 'hospitalName']))
+  if (direct && direct !== '-') return direct
+
+  const pId = admin?.pharmacyId || admin?.PharmacyId
+  if (pId && Array.isArray(pharmacyOptions) && pharmacyOptions.length) {
+    const matched = pharmacyOptions.find((p) => String(getId(p)) === String(pId))
+    if (matched) return getPharmacyOptionName(matched)
+  }
+  return '-'
 }
 
 function getPharmacyOptionName(item) {
@@ -104,7 +162,7 @@ function getPharmacyEmail(item) {
 
 function getMobileNumber(item) {
   const admin = unwrapAdmin(item)
-  return getValue(admin, ['mobileNumber', 'MobileNumber', 'phone', 'mobile'])
+  return getValue(admin, ['mobileNumber', 'MobileNumber', 'phone', 'mobile', 'phoneNumber', 'PhoneNumber', 'contactNumber'])
 }
 
 function getLocation(item) {
@@ -116,11 +174,20 @@ function rolePayloadValue(value) {
   if (value === '') return undefined
   return /^\d+$/.test(String(value)) ? Number(value) : value
 }
+
 function getStatus(item) {
   const value = item?.status ?? item?.isActive
   if (typeof value === 'boolean') return value ? 'Active' : 'Inactive'
-  return value || 'Active'
+  if (typeof value === 'number') return value === 1 ? 'Active' : 'Inactive'
+  if (typeof value === 'string' && value.trim()) {
+    const s = value.trim().toLowerCase()
+    if (s === 'active' || s === 'true' || s === '1') return 'Active'
+    if (s === 'inactive' || s === 'false' || s === '0' || s === 'deactivated' || s === 'disabled') return 'Inactive'
+    return value
+  }
+  return 'Active'
 }
+
 function Admins() {
   const { showToast } = useToast()
   const [admins, setAdmins] = useState([])
@@ -134,8 +201,9 @@ function Admins() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [page, setPage] = useState(1)
-  const pageSize = 5
+  const [pageSize, setPageSize] = useState(10)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -148,22 +216,51 @@ function Admins() {
   const didLoadInitialData = useRef(false)
 
   const filteredAdmins = useMemo(() => {
-    const value = query.trim().toLowerCase()
+    const q = query.trim().toLowerCase()
     return admins.filter((admin) => {
-      const matchesQuery = !value || JSON.stringify(admin).toLowerCase().includes(value)
-      const matchesStatus = statusFilter === 'All' || String(getStatus(admin)).toLowerCase() === statusFilter.toLowerCase()
-      return matchesQuery && matchesStatus
+      // 1. Status Filter
+      const adminStatus = String(getStatus(admin)).toLowerCase()
+      if (statusFilter !== 'All' && adminStatus !== statusFilter.toLowerCase()) {
+        return false
+      }
+
+      // 2. Query Filter (Name, Email, Pharmacy, City, Mobile)
+      if (!q) return true
+
+      const name = getName(admin).toLowerCase()
+      const email = String(admin?.email || '').toLowerCase()
+      const pharmacy = String(getAssignedPharmacyName(admin, pharmacyOptions) || '').toLowerCase()
+      const city = String(getValue(admin, ['city', 'City'], '')).toLowerCase()
+      const location = String(getLocation(admin) || '').toLowerCase()
+      const mobile = String(getMobileNumber(admin) || '').toLowerCase()
+
+      return (
+        name.includes(q) ||
+        email.includes(q) ||
+        pharmacy.includes(q) ||
+        city.includes(q) ||
+        location.includes(q) ||
+        mobile.includes(q) ||
+        JSON.stringify(admin).toLowerCase().includes(q)
+      )
     })
-  }, [admins, query, statusFilter])
+  }, [admins, query, statusFilter, pharmacyOptions])
 
   useEffect(() => {
     setPage(1)
-  }, [query, statusFilter])
+  }, [query, statusFilter, pageSize])
 
   const pageCount = Math.max(1, Math.ceil(filteredAdmins.length / pageSize))
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount)
+    }
+  }, [page, pageCount])
+
   const visibleAdmins = filteredAdmins.slice((page - 1) * pageSize, page * pageSize)
 
-  async function loadPharmacyOptions() {
+  const loadPharmacyOptions = useCallback(async () => {
     try {
       const response = await getSuperAdminPharmacies({ page: 1, pageSize: 100 })
       const options = normalizeList(response)
@@ -173,9 +270,9 @@ function Admins() {
       setPharmacyOptions([])
       console.warn('Background load pharmacies notice:', error)
     }
-  }
+  }, [assignmentPharmacyId])
 
-  async function loadRoleOptions() {
+  const loadRoleOptions = useCallback(async () => {
     try {
       const response = await listSuperAdminRoleDropdown()
       const options = Array.isArray(response) ? response : response?.data?.roles || response?.data || response?.roles || response?.items || []
@@ -183,19 +280,25 @@ function Admins() {
     } catch {
       setRoleOptions([])
     }
-  }
-  async function loadAdmins() {
+  }, [])
+
+  const loadAdmins = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const response = await listPharmacyAdmins({ page: 1, pageSize: 100 })
-      setAdmins(normalizeList(response))
-    } catch (error) {
+      const list = normalizeList(response)
+      setAdmins(list)
+    } catch (err) {
       setAdmins([])
-      showToast(error.message || 'Unable to load pharmacy admins.', 'error')
+      const message = err.message || 'Unable to load pharmacy admins.'
+      setError(message)
+      showToast(message, 'error')
     } finally {
       setLoading(false)
     }
-  }
+  }, [showToast])
+
   useEffect(() => {
     if (didLoadInitialData.current) return
     didLoadInitialData.current = true
@@ -203,7 +306,7 @@ function Admins() {
     loadAdmins()
     loadRoleOptions()
     loadPharmacyOptions()
-  }, [])
+  }, [loadAdmins, loadRoleOptions, loadPharmacyOptions])
 
   function openCreate() {
     setCreateOpen(true)
@@ -236,6 +339,7 @@ function Admins() {
       isActive: String(getStatus(admin)).toLowerCase() === 'active',
     })
   }
+
   async function handleSubmit(event) {
     event.preventDefault()
     setSaving(true)
@@ -245,18 +349,32 @@ function Admins() {
       email: form.email,
       mobileNumber: form.mobileNumber,
       pharmacyPermissionRoleId: rolePayloadValue(form.pharmacyPermissionRoleId),
-      ...(editingAdmin ? { isActive: form.isActive } : {}),
+      ...(form.city ? { city: form.city } : {}),
+      ...(editingAdmin ? {
+        isActive: form.isActive,
+        pharmacyName: form.pharmacyName,
+        pharmacyAddress: form.pharmacyAddress,
+        pharmacyContactNumber: form.pharmacyContactNumber,
+        pharmacyEmail: form.pharmacyEmail,
+        city: form.city,
+        state: form.state,
+        country: form.country,
+        postalCode: form.postalCode,
+      } : {}),
     }
+
     try {
       if (editingAdmin) {
-        const data = await updatePharmacyAdmin(getId(editingAdmin), payload)
+        const adminId = getId(editingAdmin)
+        if (!adminId) throw new Error('Missing admin ID for update.')
+        const data = await updatePharmacyAdmin(adminId, payload)
         const responseAdmin = unwrapAdmin(data)
-        const hasMatchingResponseId = String(getId(responseAdmin) || '') === String(getId(editingAdmin))
+        const hasMatchingResponseId = String(getId(responseAdmin) || '') === String(adminId)
         const updatedAdmin = hasMatchingResponseId
           ? { ...editingAdmin, ...payload, ...responseAdmin }
           : { ...editingAdmin, ...payload }
         setAdmins((current) => current.map((admin) => (
-          String(getId(admin)) === String(getId(editingAdmin)) ? updatedAdmin : admin
+          String(getId(admin)) === String(adminId) ? updatedAdmin : admin
         )))
         showToast(data?.message || 'Admin updated successfully.')
       } else {
@@ -289,6 +407,7 @@ function Admins() {
       setViewingAdmin(unwrapAdmin(admin))
     }
   }
+
   async function handleAssignPharmacy(admin, targetPharmacyId = null) {
     const adminId = getId(admin)
     const pharmacyId = Number(targetPharmacyId || assignmentPharmacyId)
@@ -312,14 +431,21 @@ function Admins() {
   }
 
   async function handleStatus(admin) {
-    const nextStatus = String(getStatus(admin)).toLowerCase() === 'active' ? 'inactive' : 'active'
+    const adminId = getId(admin)
+    if (!adminId) {
+      showToast('Unable to update status: missing admin ID.', 'error')
+      return
+    }
+    const currentStatus = String(getStatus(admin)).toLowerCase()
+    const nextStatus = currentStatus === 'active' ? 'inactive' : 'active'
+    const nextIsActive = nextStatus === 'active'
 
     try {
-      const data = await changePharmacyAdminStatus(getId(admin), { status: nextStatus })
-      showToast(data?.message || 'Admin status updated successfully.')
+      const data = await changePharmacyAdminStatus(adminId, { status: nextStatus, isActive: nextIsActive })
+      showToast(data?.message || `Admin status updated to ${nextStatus}.`)
       await loadAdmins()
     } catch (error) {
-      showToast(error.message, 'error')
+      showToast(error.message || 'Unable to update admin status.', 'error')
     }
   }
 
@@ -342,17 +468,23 @@ function Admins() {
 
   async function handleResetPassword(event) {
     event.preventDefault()
+    const adminId = getId(resettingAdmin)
+    if (!adminId) {
+      showToast('Unable to reset password: missing admin ID.', 'error')
+      return
+    }
 
     try {
-      const data = await resetPharmacyAdminPassword(getId(resettingAdmin), {
+      const data = await resetPharmacyAdminPassword(adminId, {
         temporaryPassword,
         password: temporaryPassword,
+        newPassword: temporaryPassword,
       })
       showToast(data?.message || 'Temporary password set successfully.')
       setResettingAdmin(null)
       setTemporaryPassword('')
     } catch (error) {
-      showToast(error.message, 'error')
+      showToast(error.message || 'Unable to reset password.', 'error')
     }
   }
 
@@ -367,14 +499,43 @@ function Admins() {
           <div className="admins-section-header">
             <div>
               <h1>Admin Management</h1>
-              <p>{filteredAdmins.length} admins found</p>
+              {loading ? (
+                <p>Loading pharmacy admins...</p>
+              ) : error ? (
+                <p className="admins-header-error">Failed to load admins</p>
+              ) : (
+                <p>{filteredAdmins.length} {filteredAdmins.length === 1 ? 'admin' : 'admins'} found</p>
+              )}
+            </div>
+            <div className="admins-header-actions">
+              <button
+                type="button"
+                className="admins-refresh-btn"
+                onClick={() => {
+                  loadAdmins()
+                  loadRoleOptions()
+                  loadPharmacyOptions()
+                }}
+                disabled={loading}
+                title="Refresh admins list"
+                aria-label="Refresh admins list"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+                </svg>
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
             </div>
           </div>
 
           <div className="admins-toolbar">
             <label className="admins-table-search">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="M16 16L21 21" /></svg>
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search admins, pharmacy, city, or email..." />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search admins by name, email, pharmacy, or city..."
+              />
             </label>
             <div style={{ position: 'relative' }}>
               <button
@@ -452,53 +613,127 @@ function Admins() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="7" className="admins-empty-cell">Loading admins...</td></tr>
-                ) : visibleAdmins.length ? visibleAdmins.map((admin, index) => (
-                  <tr key={getId(admin)}>
-                    <td>{(page - 1) * pageSize + index + 1}</td>
-                    <td>
-                      <span className="admin-name-cell">
-                      <span className="admin-avatar">{getName(admin).split(' ').slice(0,2).map((part) => part.charAt(0)).join('').slice(0,2).toUpperCase() || 'A'}</span>
-                      <span className="admin-name-text">{getName(admin)}</span>
-                      </span>
-                    </td>
-                    <td>{getAssignedPharmacyName(admin)}</td>
-                    <td>{admin?.email || '-'}</td>
-                    <td>{getMobileNumber(admin)}</td>
-                    <td><span className={`admin-status ${String(getStatus(admin)).toLowerCase()}`}>{getStatus(admin)}</span></td>
-                    <td>
-                      <span className="row-actions">
-                        <button
-                          type="button"
-                          className="row-action-button view"
-                          title="Assign pharmacy"
-                          disabled={assigningAdminId === String(getId(admin))}
-                          onClick={() => {
-                            setAssigningAdmin(admin)
-                            setSelectedAssignPharmacyId(assignmentPharmacyId || (pharmacyOptions[0] ? String(getId(pharmacyOptions[0])) : ''))
-                          }}
-                        >
-                          Assign
-                        </button>
-                        <RowActions
-                          itemName={getName(admin)}
-                          isActive={String(getStatus(admin)).toLowerCase() === 'active'}
-                          onView={() => openView(admin)}
-                          onEdit={() => openEdit(admin)}
-                          onDelete={() => handleDelete(admin)}
-                        />
-                      </span>
+                  <tr>
+                    <td colSpan="7" className="admins-empty-cell">
+                      <span className="admins-loading-spinner" />
+                      Loading admins...
                     </td>
                   </tr>
-                )) : (
-                  <tr><td className="admins-empty-cell" colSpan="7">No pharmacy admins found.</td></tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan="7" className="admins-empty-cell admins-error-cell">
+                      <div className="admins-error-box">
+                        <span className="admins-error-icon">⚠️</span>
+                        <div className="admins-error-text">
+                          <strong>Failed to load admins</strong>
+                          <p>{error}</p>
+                        </div>
+                        <button type="button" className="admins-retry-button" onClick={loadAdmins}>
+                          Retry
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : visibleAdmins.length ? visibleAdmins.map((admin, index) => {
+                  const adminId = getId(admin)
+                  const rowKey = adminId || admin?.email || `admin-row-${(page - 1) * pageSize + index}`
+                  const adminName = getName(admin)
+                  const isActive = String(getStatus(admin)).toLowerCase() === 'active'
+
+                  return (
+                    <tr key={rowKey}>
+                      <td>{(page - 1) * pageSize + index + 1}</td>
+                      <td>
+                        <span className="admin-name-cell">
+                          <span className="admin-avatar">{getInitials(adminName)}</span>
+                          <span className="admin-name-text">{adminName}</span>
+                        </span>
+                      </td>
+                      <td>{getAssignedPharmacyName(admin, pharmacyOptions)}</td>
+                      <td>{admin?.email || '-'}</td>
+                      <td>{getMobileNumber(admin)}</td>
+                      <td>
+                        <span className={`admin-status ${isActive ? 'active' : 'inactive'}`}>
+                          {isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="row-actions">
+                          <button
+                            type="button"
+                            className="row-action-button view"
+                            title="Assign pharmacy"
+                            disabled={assigningAdminId === String(adminId)}
+                            onClick={() => {
+                              setAssigningAdmin(admin)
+                              setSelectedAssignPharmacyId(assignmentPharmacyId || (pharmacyOptions[0] ? String(getId(pharmacyOptions[0])) : ''))
+                            }}
+                          >
+                            Assign
+                          </button>
+                          <RowActions
+                            itemName={adminName}
+                            isActive={isActive}
+                            onView={() => openView(admin)}
+                            onEdit={() => openEdit(admin)}
+                            onStatus={() => handleStatus(admin)}
+                            onDelete={() => handleDelete(admin)}
+                          />
+                          <button
+                            type="button"
+                            className="row-action-button key"
+                            title={`Reset password for ${adminName}`}
+                            aria-label={`Reset password for ${adminName}`}
+                            onClick={() => {
+                              setResettingAdmin(admin)
+                              setTemporaryPassword('')
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <circle cx="8" cy="15" r="4" />
+                              <path d="m10.85 12.15 7.65-7.65a1.5 1.5 0 0 1 2.12 0l1.38 1.38a1.5 1.5 0 0 1 0 2.12l-1.5 1.5M16 8l2 2" />
+                            </svg>
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                }) : (
+                  <tr>
+                    <td className="admins-empty-cell" colSpan="7">
+                      {query || statusFilter !== 'All'
+                        ? 'No admins match your search or filter criteria.'
+                        : 'No pharmacy admins found. Click "Create Pharmacy Admin" to add one.'}
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
           </div>
 
           <div className="admins-pagination-row">
-            <span>Showing {visibleAdmins.length} of {filteredAdmins.length} admins</span>
+            <div className="admins-pagination-info">
+              <span>
+                Showing {filteredAdmins.length ? (page - 1) * pageSize + 1 : 0} to{' '}
+                {Math.min(page * pageSize, filteredAdmins.length)} of {filteredAdmins.length} admins
+              </span>
+              <label className="admins-page-size-selector">
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value))
+                    setPage(1)
+                  }}
+                  aria-label="Admins per page"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </label>
+            </div>
             <div className="admins-pagination">
               <button type="button" onClick={() => setPage(1)} disabled={page === 1}>First</button>
               <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Prev</button>
@@ -514,8 +749,8 @@ function Admins() {
                     {pageNum}
                   </button>
                 ))}
-              <button type="button" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>Next</button>
-              <button type="button" onClick={() => setPage(pageCount)} disabled={page === pageCount}>Last</button>
+              <button type="button" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount || pageCount === 0}>Next</button>
+              <button type="button" onClick={() => setPage(pageCount)} disabled={page === pageCount || pageCount === 0}>Last</button>
             </div>
           </div>
         </section>
@@ -544,7 +779,7 @@ function Admins() {
                   >
                     <option value="">Select pharmacy to assign</option>
                     {pharmacyOptions.map((pharmacy) => (
-                      <option key={getId(pharmacy)} value={getId(pharmacy)}>
+                      <option key={getId(pharmacy) || getPharmacyOptionName(pharmacy)} value={getId(pharmacy)}>
                         {getPharmacyOptionName(pharmacy)}
                       </option>
                     ))}
@@ -599,7 +834,7 @@ function Admins() {
                 </div>
                 <div className="sa-modal-field">
                   <label>Pharmacy Name</label>
-                  <span>{getAssignedPharmacyName(viewingAdmin)}</span>
+                  <span>{getAssignedPharmacyName(viewingAdmin, pharmacyOptions)}</span>
                 </div>
                 <div className="sa-modal-field">
                   <label>Pharmacy Address</label>
@@ -646,7 +881,7 @@ function Admins() {
                   {editingAdmin ? 'Edit Admin' : 'Create new admin'}
                 </h2>
                 <p style={{ margin: '6px 0 0', color: 'var(--admins-muted, #64748b)', fontSize: '0.92rem' }}>
-                  Create pharmacy admin access. Assign pharmacy and main branch after creation.
+                  {editingAdmin ? 'Update pharmacy admin details and access status.' : 'Create pharmacy admin access. Assign pharmacy and main branch after creation.'}
                 </p>
               </div>
               <button type="button" className="admins-modal-close" onClick={closeEditor} aria-label="Close">&times;</button>
@@ -667,6 +902,28 @@ function Admins() {
                   <span>Mobile Number</span>
                   <input inputMode="numeric" maxLength={10} pattern="[0-9]{10}" value={form.mobileNumber} onChange={(event) => setForm({ ...form, mobileNumber: digitsOnly(event.target.value) })} placeholder="Mobile number" />
                 </label>
+
+                <label className="admins-field">
+                  <span>City</span>
+                  <input value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} placeholder="City" />
+                </label>
+
+                {roleOptions.length > 0 && (
+                  <label className="admins-field">
+                    <span>Role / Permissions</span>
+                    <select
+                      value={form.pharmacyPermissionRoleId}
+                      onChange={(event) => setForm({ ...form, pharmacyPermissionRoleId: event.target.value })}
+                    >
+                      <option value="">Default Permissions</option>
+                      {roleOptions.map((role) => (
+                        <option key={getId(role) || role.name} value={getId(role)}>
+                          {role.name || role.roleName || `Role ${getId(role)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
 
                 {editingAdmin ? (
                   <label className="admins-field">
@@ -698,6 +955,7 @@ function Admins() {
                 <span className="admins-modal-icon">✦</span>
                 <div>
                   <h2>Reset Password</h2>
+                  <strong>Admin: {getName(resettingAdmin)}</strong>
                 </div>
               </div>
               <button type="button" className="admins-modal-close" onClick={() => setResettingAdmin(null)} aria-label="Close">×</button>
@@ -706,7 +964,13 @@ function Admins() {
               <div className="admins-form-grid single-column">
                 <label className="admins-field">
                   <span>Temporary Password</span>
-                  <input type="password" value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} required />
+                  <input
+                    type="password"
+                    value={temporaryPassword}
+                    onChange={(event) => setTemporaryPassword(event.target.value)}
+                    placeholder="Enter temporary password"
+                    required
+                  />
                 </label>
               </div>
               <div className="admins-form-actions">
@@ -722,12 +986,3 @@ function Admins() {
 }
 
 export default Admins
-
-
-
-
-
-
-
-
-

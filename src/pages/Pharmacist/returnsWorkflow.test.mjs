@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { applyReturnedInventory, isReturnApproved, matchingReturnMedicine, medicineOptions, newReturnLine, returnList, returnMedicineLabel, returnPayload, returnedRecord } from './returnsModel.js'
+import { applyReturnedInventory, formatConditionLabel, isReturnApproved, matchingReturnMedicine, medicineOptions, newReturnLine, parseReturnOptions, patientReturnPayload, returnList, returnMedicineLabel, returnPayload, returnedRecord } from './returnsModel.js'
 
 const medicines = medicineOptions([{ medicineId: 7, medicineName: 'Medicine A', batchNumber: 'B-1', quantity: 20 }])
 const form = { billId: '42', patientName: 'Example Patient', reason: 'Unused medicines', notes: '', verified: true }
@@ -54,4 +54,135 @@ test('return responses require real IDs and approval is distinguished from pendi
   assert.equal(isReturnApproved({ status: 'Pending' }), false)
   assert.throws(() => returnedRecord({ success: true }), /return ID/)
   assert.equal(returnList({ data: { items: [] } }).length, 0)
+})
+
+test('patientReturnPayload constructs backend contract structure with verifiedRestocking and medicines array', () => {
+  const customForm = {
+    billId: '25',
+    patientName: 'Test Patient',
+    reason: 'Unused medicines',
+    notes: 'Sample note',
+    verified: true,
+  }
+  const customLines = [
+    {
+      medicineId: '10',
+      originalBatch: 'BATCH001',
+      quantity: '2',
+      condition: 'restock',
+      returnableQuantity: 5,
+    },
+    {
+      medicineId: '12',
+      originalBatch: 'BATCH999',
+      quantity: '1',
+      condition: 'damaged',
+      returnableQuantity: 2,
+    },
+  ]
+  const payload = patientReturnPayload(customForm, customLines)
+  assert.deepEqual(payload, {
+    billId: 25,
+    patientName: 'Test Patient',
+    reason: 'Unused medicines',
+    notes: 'Sample note',
+    verifiedForRestocking: true,
+    medicines: [
+      {
+        medicineId: 10,
+        originalBatch: 'BATCH001',
+        quantity: 2,
+        condition: 'EligibleForRestocking',
+      },
+      {
+        medicineId: 12,
+        originalBatch: 'BATCH999',
+        quantity: 1,
+        condition: 'Damaged',
+      },
+    ],
+  })
+})
+
+test('patientReturnPayload validates return quantity against returnableQuantity', () => {
+  const customForm = {
+    billId: '25',
+    patientName: 'Test Patient',
+    reason: 'Unused medicines',
+    verified: true,
+  }
+  const excessLines = [
+    {
+      medicineId: '10',
+      originalBatch: 'BATCH001',
+      quantity: '6',
+      condition: 'restock',
+      returnableQuantity: 5,
+    },
+  ]
+  assert.throws(
+    () => patientReturnPayload(customForm, excessLines),
+    /exceeds returnable quantity \(5\)/
+  )
+})
+
+test('parseReturnOptions parses reasons and conditions dynamically from backend response structures', () => {
+  const envelope = {
+    data: {
+      reasons: ['Unused medicines', 'Incorrect supply'],
+      conditions: ['EligibleForRestocking', 'Damaged', 'Expired'],
+    },
+  }
+  const parsed = parseReturnOptions(envelope)
+  assert.deepEqual(parsed.reasons, [
+    { value: 'Unused medicines', label: 'Unused medicines' },
+    { value: 'Incorrect supply', label: 'Incorrect supply' },
+  ])
+  assert.deepEqual(parsed.conditions, [
+    { value: 'EligibleForRestocking', label: 'Eligible for restocking' },
+    { value: 'Damaged', label: 'Damaged — keep separate' },
+    { value: 'Expired', label: 'Expired — keep separate' },
+  ])
+
+  // Object elements
+  const objectStructure = {
+    reasons: [{ id: 1, name: 'Doctor changed prescription' }],
+    conditions: [{ id: 10, code: 'EligibleForRestocking', label: 'Restockable' }],
+  }
+  const parsedObj = parseReturnOptions(objectStructure)
+  assert.equal(parsedObj.reasons[0].value, '1')
+  assert.equal(parsedObj.reasons[0].label, 'Doctor changed prescription')
+  assert.equal(parsedObj.conditions[0].value, 'EligibleForRestocking')
+  assert.equal(parsedObj.conditions[0].label, 'Restockable')
+})
+
+test('patientReturnPayload enforces allowed options when provided', () => {
+  const allowed = {
+    reasons: [{ value: 'Unused medicines', label: 'Unused medicines' }],
+    conditions: [{ value: 'EligibleForRestocking', label: 'Eligible for restocking' }],
+  }
+  const validForm = {
+    billId: '10',
+    reason: 'Unused medicines',
+    verified: true,
+  }
+  const validLine = [
+    {
+      medicineId: '10',
+      originalBatch: 'B1',
+      quantity: '1',
+      condition: 'EligibleForRestocking',
+    },
+  ]
+  assert.ok(patientReturnPayload(validForm, validLine, [], allowed))
+
+  const invalidReasonForm = {
+    billId: '10',
+    reason: 'Fake reason not in options',
+    verified: true,
+  }
+  assert.throws(
+    () => patientReturnPayload(invalidReasonForm, validLine, [], allowed),
+    /valid return reason/
+  )
 })
