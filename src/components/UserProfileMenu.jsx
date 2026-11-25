@@ -176,9 +176,9 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
 
   return (
     <div className="user-profile-wrap" ref={wrapRef}>
-      <button className={`user-profile-chip${open ? ' open' : ''}`} type="button" onClick={() => setOpen((value) => !value)} title={`${profile.name} ${profile.email}`.trim()}>
+      <button className={`user-profile-chip${open ? ' open' : ''}`} type="button" onClick={() => setOpen((value) => !value)} title={profile.name || profile.roleLabel || 'User'}>
         <span className="user-profile-avatar-shell">
-          <span className="user-profile-avatar">{initials(profile.name || profile.email)}</span>
+          <span className="user-profile-avatar">{initials(profile.name || profile.roleLabel || 'User')}</span>
           <span className="user-profile-online-dot" />
         </span>
         <span className="user-profile-copy">
@@ -189,7 +189,7 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
               Online
             </span>
           ) : (
-            <em>{profile.email}</em>
+            <em>{profile.roleLabel || 'Admin'}</em>
           )}
         </span>
         <MenuIcon name="chevronDown" size={18} className="user-profile-chevron" />
@@ -239,7 +239,7 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
     >
       <span className="hc-profile-avatar-box">
         <span className="hc-profile-avatar-circle">
-          {initials(profile.name || profile.email)}
+          {initials(profile.name || profile.roleLabel || 'User')}
         </span>
       </span>
 
@@ -248,9 +248,11 @@ function UserProfileMenu({ roleType = 'pharmacy-admin' }) {
           {profile.name}
         </strong>
 
-        <span className="hc-profile-email">
-          {profile.email}
-        </span>
+        {profile.email ? (
+          <span className="hc-profile-email">
+            {profile.email}
+          </span>
+        ) : null}
 
         <span className="hc-profile-badge">
           {profile.roleLabel}

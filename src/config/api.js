@@ -122,7 +122,10 @@ function pickValidBranchId(...candidates) {
 }
 
 export function pharmacyTenantContext(authRole = '') {
-  const pharmacistSession = authRole === 'pharmacist' || (!authRole && typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))
+  const isPharmacistRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist')
+  const hasPharmacistToken = Boolean(readStoredToken('pharmacistToken'))
+
+  const pharmacistSession = isPharmacistRoute || (authRole === 'pharmacist' && hasPharmacistToken)
   if (pharmacistSession) {
     const assignment = readStoredJson('pharmacistAssignment') || {}
     const user = readStoredJson('pharmacistUser') || {}
@@ -373,7 +376,24 @@ export function authTokenFor(path = '', authRole = '') {
     const roleToken = readStoredToken(tokenKeysByRole[authRole])
     if (roleToken) return roleToken
     if (authRole === 'superAdmin') {
-      return readStoredToken('pharmacySuperAdminToken') || readStoredToken('token') || readStoredToken('authToken') || ''
+      const superFallback = readStoredToken('pharmacySuperAdminToken') || readStoredToken('token') || readStoredToken('authToken')
+      if (superFallback) return superFallback
+    }
+    if (authRole === 'pharmacist') {
+      if (route.startsWith('/admin') || readStoredToken('pharmacyAdminToken')) {
+        const adminToken = readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
+        if (adminToken) return adminToken
+      }
+      if (route.startsWith('/super-admin') || readStoredToken('superAdminToken')) {
+        const superToken = readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken')
+        if (superToken) return superToken
+      }
+    }
+    if (authRole === 'pharmacyAdmin') {
+      if (route.startsWith('/super-admin') || readStoredToken('superAdminToken')) {
+        const superToken = readStoredToken('superAdminToken') || readStoredToken('pharmacySuperAdminToken')
+        if (superToken) return superToken
+      }
     }
     return ''
   }
@@ -387,11 +407,12 @@ export function authTokenFor(path = '', authRole = '') {
     return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
   }
   if (cleanPath.startsWith('pharmacy/')) {
-    if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken')
-    if (route.startsWith('/admin')) return readStoredToken('pharmacyAdminToken')
-    return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
+    if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
+    if (route.startsWith('/admin')) return readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken') || readStoredToken('pharmacistToken')
+    if (route.startsWith('/super-admin')) return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken')
+    return readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken') || readStoredToken('superAdminToken')
   }
-  if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken')
+  if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken')
   const isInventoryRoute = [
     '/admin',
     '/inventory',
@@ -406,10 +427,10 @@ export function authTokenFor(path = '', authRole = '') {
 
   if (route.startsWith('/super-admin')) return readStoredToken('superAdminToken') || readStoredToken('pharmacyAdminToken')
   if (isInventoryRoute || cleanPath.startsWith('inventory') || cleanPath.startsWith('medicine')) {
-    return readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken') || readStoredToken('superAdminToken')
+    return readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken') || readStoredToken('pharmacistToken')
   }
   if (route.startsWith('/pharmacist')) return readStoredToken('pharmacistToken') || readStoredToken('pharmacyAdminToken')
-  return readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken') || readStoredToken('superAdminToken')
+  return readStoredToken('pharmacyAdminToken') || readStoredToken('superAdminToken') || readStoredToken('pharmacistToken')
 }
 
 
@@ -446,9 +467,21 @@ function passwordResetPayload(payload = {}) {
   const value = payload.NewPassword ?? payload.newPassword ?? payload.temporaryPassword ?? payload.password
   return value === undefined ? payload : { ...payload, newPassword: value, NewPassword: value }
 }
+export function isAbortError(error) {
+  if (!error) return false
+  if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') return true
+  const msg = String(error.message || '').toLowerCase()
+  return msg.includes('aborted') || msg.includes('canceled') || msg.includes('cancelled')
+}
+
 async function request(path, options = {}) {
+  let normalizedPath = path
+  const rawPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
+  if (rawPath === 'pharmacy/daily-sales' || rawPath.startsWith('pharmacy/daily-sales?')) {
+    normalizedPath = rawPath.replace('pharmacy/daily-sales', 'pharmacy/reports/daily-sales')
+  }
   const { authRole, signal, headers: customHeaders, tenantBranchId, publicRequest = false, validateResponse, ...fetchOptions } = options
-  const token = publicRequest ? null : authTokenFor(path, authRole)
+  const token = publicRequest ? null : authTokenFor(normalizedPath, authRole)
 
   const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
   const isGetOrHead = !fetchOptions.method || fetchOptions.method === 'GET' || fetchOptions.method === 'HEAD'
@@ -471,13 +504,13 @@ async function request(path, options = {}) {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     Accept: 'application/json, text/plain, */*',
     ...(token ? { Authorization: 'Bearer ' + token } : {}),
-    ...(publicRequest ? {} : pharmacyTenantHeaders(path, authRole, tenantBranchId)),
+    ...(publicRequest ? {} : pharmacyTenantHeaders(normalizedPath, authRole, tenantBranchId)),
     ...(customHeaders || {}),
   }
 
   let response
   try {
-    response = await fetch(apiUrl(path), {
+    response = await fetch(apiUrl(normalizedPath), {
       ...fetchOptions,
       headers: mergedHeaders,
       signal: controller.signal,
@@ -613,8 +646,13 @@ async function request(path, options = {}) {
         },
       })
     }
-    if (response.status === 401 && !publicRequest && token) {
+    if (response.status === 401 && !publicRequest) {
       errorMsg = 'Your session has expired or is no longer valid. Please log in again.'
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('pms:auth-unauthorized', {
+          detail: { path: normalizedPath, status: 401, message: errorMsg }
+        }))
+      }
     } else if (publicRequest && path === 'auth/login' && response.status === 401) {
       errorMsg = errorMsg || 'Login rejected. Check your email and password.'
     }
@@ -1509,7 +1547,7 @@ async function validateMedicineBranch(params = {}) {
   return branchId
 }
 
-export async function listMedicines(params = {}) {
+export async function listMedicines(params = {}, options = {}) {
   const isPharmacistCaller = params.authRole === 'pharmacist' ||
     (typeof window !== 'undefined' && window.location.pathname.startsWith('/pharmacist'))
   const context = pharmacyTenantContext(isPharmacistCaller ? 'pharmacist' : '')
@@ -1536,6 +1574,7 @@ export async function listMedicines(params = {}) {
   let backendResponded = false
   try {
     const response = await request(`medicine${query.toString() ? `?${query}` : ''}`, {
+      ...options,
       tenantBranchId: branchId,
       ...(isPharmacistCaller ? { authRole: 'pharmacist' } : {})
     })
@@ -1545,6 +1584,16 @@ export async function listMedicines(params = {}) {
       backendList = normalized
     } else if (Array.isArray(normalized?.data)) {
       backendList = normalized.data
+    } else if (Array.isArray(normalized?.data?.medicines)) {
+      backendList = normalized.data.medicines
+    } else if (Array.isArray(normalized?.data?.Medicines)) {
+      backendList = normalized.data.Medicines
+    } else if (Array.isArray(normalized?.data?.items)) {
+      backendList = normalized.data.items
+    } else if (Array.isArray(normalized?.data?.Items)) {
+      backendList = normalized.data.Items
+    } else if (Array.isArray(normalized?.data?.results)) {
+      backendList = normalized.data.results
     } else if (Array.isArray(normalized?.Data)) {
       backendList = normalized.Data
     } else if (Array.isArray(normalized?.medicines)) {
@@ -1553,14 +1602,21 @@ export async function listMedicines(params = {}) {
       backendList = normalized.Medicines
     } else if (Array.isArray(normalized?.items)) {
       backendList = normalized.items
+    } else if (Array.isArray(normalized?.Items)) {
+      backendList = normalized.Items
     }
   } catch (error) {
+    if (isAbortError(error)) {
+      // Intentionally aborted/cancelled by caller or cleanup - NEVER treat as backend failure, NEVER fall back to local data
+      throw error
+    }
     if (error.status === 400 && /invalid pharmacy branch/i.test(error.message)) {
       const context = pharmacyTenantContext()
       rejectedMedicineBranches.add(JSON.stringify([authTokenFor('medicine'), context.pharmacyId, branchId]))
       throw new Error('The server rejected this pharmacy branch. Ask your administrator to correct the branch assignment, then reload the page.')
     }
     if ([400, 401, 403, 404].includes(error.status)) throw error
+    if (options.throwOnError) throw error
     console.warn('Backend listMedicines failed, using local medicines:', error.message)
   }
 
@@ -1597,7 +1653,10 @@ export async function listMedicines(params = {}) {
     return combined
   }
 
-  // Fallback ONLY when backend could not be reached (offline mode)
+  // Fallback ONLY when backend could not be reached (offline mode) and throwOnError was not set
+  if (options.throwOnError) {
+    throw new Error('Unable to retrieve medicines from the server.')
+  }
   const localItems = readLocalMedicines()
   const deletedIds = readDeletedMedicineIds().map(d => String(d).trim().toLowerCase())
   return localItems.filter(item => {
@@ -1979,12 +2038,12 @@ export function downloadMedicineImportTemplate(format = 'xlsx') {
   })
 }
 
-export function getInventory(params = {}) {
+export function getInventory(params = {}, options = {}) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') query.set(key, value)
   })
-  return request(`inventory${query.toString() ? `?${query}` : ''}`)
+  return request(`inventory${query.toString() ? `?${query}` : ''}`, options)
 }
 
 export function addInventoryStock(payload) {
@@ -2433,19 +2492,29 @@ export const dispensePrescription = (payload = {}, options = {}) => {
     ...options
   })
 }
-export const generateBill = (payload, options = {}) => request('pharmacy/generate-bill', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options })
-export const getInvoice = (billId, options = {}) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }), { authRole: 'pharmacist', ...options })
-export const recordPayment = (payload, options = {}) => request('pharmacy/payment', { authRole: 'pharmacist', method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options })
-export const getPendingPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/pending${queryString(params)}`, { authRole: 'pharmacist', ...options })
-export const getPharmacyPrescription = (id, options = {}) => request(replacePathParams('pharmacy/prescriptions/{id}', { id }), { authRole: 'pharmacist', ...options })
-export const getDailySalesReport = (params = {}, options = {}) => request(`pharmacy/reports/daily-sales${queryString(params)}`, { authRole: 'pharmacist', ...options })
+function resolvePharmacyRole(options = {}) {
+  if (options.authRole) return options.authRole
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) return 'pharmacyAdmin'
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/super-admin')) return 'superAdmin'
+  if (readStoredToken('pharmacistToken')) return 'pharmacist'
+  if (readStoredToken('pharmacyAdminToken')) return 'pharmacyAdmin'
+  if (readStoredToken('superAdminToken')) return 'superAdmin'
+  return 'pharmacist'
+}
 
-export const listBills = (params = {}, options = {}) => request(`pharmacy/bills${queryString(params)}`, { authRole: 'pharmacist', ...options })
-export const getBill = (id, options = {}) => request(replacePathParams('pharmacy/bills/{id}', { id }), { authRole: 'pharmacist', ...options })
-export const cancelBill = (id, payload = {}) => request(replacePathParams('pharmacy/bills/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
-export const refundPayment = (id, payload = {}) => request(replacePathParams('pharmacy/payments/{id}/refund', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
+export const generateBill = (payload, options = {}) => request('pharmacy/generate-bill', { method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options, authRole: resolvePharmacyRole(options) })
+export const getInvoice = (billId, options = {}) => request(replacePathParams('pharmacy/invoice/{billId}', { billId }), { ...options, authRole: resolvePharmacyRole(options) })
+export const recordPayment = (payload, options = {}) => request('pharmacy/payment', { method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options, authRole: resolvePharmacyRole(options) })
+export const getPendingPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/pending${queryString(params)}`, { ...options, authRole: resolvePharmacyRole(options) })
+export const getPharmacyPrescription = (id, options = {}) => request(replacePathParams('pharmacy/prescriptions/{id}', { id }), { ...options, authRole: resolvePharmacyRole(options) })
+export const getDailySalesReport = (params = {}, options = {}) => request(`pharmacy/reports/daily-sales${queryString(params)}`, { ...options, authRole: resolvePharmacyRole(options) })
 
-export const listMedicineReturns = (params = {}, options = {}) => request(`pharmacy/returns${queryString(params)}`, { authRole: 'pharmacist', ...options })
+export const listBills = (params = {}, options = {}) => request(`pharmacy/bills${queryString(params)}`, { ...options, authRole: resolvePharmacyRole(options) })
+export const getBill = (id, options = {}) => request(replacePathParams('pharmacy/bills/{id}', { id }), { ...options, authRole: resolvePharmacyRole(options) })
+export const cancelBill = (id, payload = {}, options = {}) => request(replacePathParams('pharmacy/bills/{id}/cancel', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options, authRole: resolvePharmacyRole(options) })
+export const refundPayment = (id, payload = {}, options = {}) => request(replacePathParams('pharmacy/payments/{id}/refund', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)), ...options, authRole: resolvePharmacyRole(options) })
+
+export const listMedicineReturns = (params = {}, options = {}) => request(`pharmacy/returns${queryString(params)}`, { ...options, authRole: resolvePharmacyRole(options) })
 export const createMedicineReturn = (payload) => request('pharmacy/returns', { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
 export const getMedicineReturn = (id) => request(replacePathParams('pharmacy/returns/{id}', { id }))
 export const approveMedicineReturn = (id, payload = {}) => request(replacePathParams('pharmacy/returns/{id}/approve', { id }), { method: 'POST', body: JSON.stringify(apiPayload(payload)) })
@@ -2850,14 +2919,14 @@ export function writeLocalStockTransfers() {}
 export const getPharmacyAlerts = () => request('pharmacy/alerts')
 export const getPharmacyAuditLogs = (params = {}) => request(`pharmacy/audit-logs${queryString(params)}`)
 export const getPharmacyDashboard = () => request('pharmacy/dashboard')
-export const getPharmacyPayments = (params = {}) => request(`pharmacy/payments${queryString(params)}`)
+export const getPharmacyPayments = (params = {}, options = {}) => request(`pharmacy/payments${queryString(params)}`, options)
 export const getPharmacyExpiryReport = (params = {}) => request(`pharmacy/reports/expiry${queryString(params)}`)
 export const getPharmacyPurchasesReport = (params = {}) => request(`pharmacy/reports/purchases${queryString(params)}`)
 export const getPharmacySalesReport = (params = {}) => request(`pharmacy/reports/sales${queryString(params)}`)
 export const getPharmacyStockMovementReport = (params = {}) => request(`pharmacy/reports/stock-movement${queryString(params)}`)
 export const getPharmacyStockSummaryReport = () => request('pharmacy/reports/stock-summary')
 export const getPharmacyTopSellingReport = (params = {}) => request(`pharmacy/reports/top-selling${queryString(params)}`)
-export const getPharmacyAdminDashboard = () => request('pharmacy/dashboard', { authRole: 'pharmacyAdmin' })
+export const getPharmacyAdminDashboard = (params = {}, options = {}) => request(`pharmacy/dashboard${queryString(params)}`, { ...options, authRole: 'pharmacyAdmin' })
 export const getPharmacistDashboard = () => request('pharmacist/dashboard', { authRole: 'pharmacist' })
 export const getPharmacistInventory = async (params = {}) => {
   const branchId = params.branchId || params.BranchId
@@ -3815,8 +3884,8 @@ export const pharmacistPrescriptionApi = {
 }
 export const getPharmacyAdminAuthPermissions = () => request('pharmacy-admin-auth/permissions', { authRole: 'pharmacyAdmin' })
 export const getSuperAdminProfile = () => request('pharmacy-super-admin-auth/profile')
-export const getPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/prescriptions${queryString(params)}`, { authRole: 'pharmacist', ...options })
-export const getPharmacyDispensingOverview = (params = {}, options = {}) => request(`pharmacy/dispensing${queryString(params)}`, { authRole: 'pharmacist', ...options })
+export const getPharmacyPrescriptions = (params = {}, options = {}) => request(`pharmacy/prescriptions${queryString(params)}`, { ...options, authRole: resolvePharmacyRole(options) })
+export const getPharmacyDispensingOverview = (params = {}, options = {}) => request(`pharmacy/dispensing${queryString(params)}`, { ...options, authRole: resolvePharmacyRole(options) })
 export const getSuperAdminAuditLogs = (params = {}, options = {}) => request(`pharmacy-super-admin/audit-logs${queryString(params)}`, { authRole: 'superAdmin', ...options })
 export const getSuperAdminAuditLogSummary = (options = {}) => request('pharmacy-super-admin/audit-logs/summary', { authRole: 'superAdmin', ...options })
 const SUB_BRANCHES_CACHE_KEY = 'pms_pharmacy_sub_branches'
