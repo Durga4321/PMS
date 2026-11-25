@@ -1,9 +1,9 @@
 /* eslint-disable no-irregular-whitespace */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import './PmsLanding.css'
 import ThemeToggle from '../components/ThemeToggle'
-import { getSubscriptionPlans } from '../services/subscriptionPlansService'
+import { fetchSubscriptionPlans, calculateSavingsPercent } from '../services/subscriptionPlansService'
 
 const modules = [
   ['▣', 'Inventory', 'Track medicines, stock movement, and availability across all branches.'],
@@ -40,22 +40,44 @@ function DashboardMockup({ compact = false }) {
 
 function PmsLanding() {
   const [billingCycle, setBillingCycle] = useState('monthly')
-  const [plans, setPlans] = useState(getSubscriptionPlans)
+  const [plans, setPlans] = useState([])
+  const [loadingPlans, setLoadingPlans] = useState(true)
+  const [plansError, setPlansError] = useState('')
+
+  const loadPlans = useCallback(async () => {
+    try {
+      setLoadingPlans(true)
+      setPlansError('')
+      const data = await fetchSubscriptionPlans()
+      setPlans(data)
+    } catch (err) {
+      setPlansError(err.message || 'Unable to load subscription plans.')
+    } finally {
+      setLoadingPlans(false)
+    }
+  }, [])
 
   useEffect(() => {
+    let isMounted = true
+    loadPlans()
+
     function onPlansUpdated(e) {
-      if (Array.isArray(e.detail)) {
+      if (Array.isArray(e.detail) && isMounted) {
         setPlans(e.detail)
       }
     }
     window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
-    return () => window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
-  }, [])
+    return () => {
+      isMounted = false
+      window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+    }
+  }, [loadPlans])
 
   const visiblePlans = plans.filter((p) => p.active !== false)
-  const maxSavings = visiblePlans.length > 0
-    ? Math.max(0, ...visiblePlans.map((p) => Math.round(((Number(p.monthlyPrice || 0) - Number(p.yearlyPrice || 0)) / (Number(p.monthlyPrice) || 1)) * 100)))
-    : 20
+  const savingsList = visiblePlans
+    .map((p) => calculateSavingsPercent(p.monthlyPrice, p.yearlyPrice))
+    .filter((s) => s > 0)
+  const maxSavings = savingsList.length > 0 ? Math.max(...savingsList) : 20
 
   return <main className="pms-landing">
     <section className="pms-hero" id="home">
@@ -103,7 +125,34 @@ function PmsLanding() {
       </div>
 
       <div className="pms-pricing-grid">
-        {visiblePlans.map((plan) => {
+        {loadingPlans ? (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '56px 24px', color: '#64748b' }}>
+            <div style={{ width: '36px', height: '36px', border: '3px solid #e2e8f0', borderTopColor: '#0bb8ab', borderRadius: '50%', animation: 'pmsSpin 0.8s linear infinite', margin: '0 auto 16px' }} />
+            <p style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>Loading subscription plans...</p>
+          </div>
+        ) : plansError && visiblePlans.length === 0 ? (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px 24px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '18px' }}>
+            <div style={{ fontSize: '36px', marginBottom: '12px' }}>⚠</div>
+            <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700, color: '#991b1b' }}>Unable to Connect to Backend</h3>
+            <p style={{ margin: '0 0 20px', fontSize: '14px', color: '#b91c1c', maxWidth: '560px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+              {plansError}
+            </p>
+            <button
+              type="button"
+              className="pms-primary"
+              onClick={loadPlans}
+              disabled={loadingPlans}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '0 auto' }}
+            >
+              ↻ Retry Loading Plans
+            </button>
+          </div>
+        ) : visiblePlans.length === 0 ? (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
+            <p style={{ margin: 0, fontSize: '15px' }}>No subscription plans currently published.</p>
+          </div>
+        ) : (
+          visiblePlans.map((plan) => {
           const price = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
           return (
             <article
@@ -116,8 +165,16 @@ function PmsLanding() {
                 <p>{plan.tagline}</p>
               </header>
               <div className="pms-pricing-price">
-                <strong>₹{price.toLocaleString('en-IN')}</strong>
-                <span>/ month</span>
+                {price != null ? (
+                  <>
+                    <strong>₹{Number(price).toLocaleString('en-IN')}</strong>
+                    <span>{billingCycle === 'yearly' ? '/ year' : '/ month'}</span>
+                  </>
+                ) : (
+                  <span className="pms-pricing-unavailable" style={{ fontSize: '1.25rem', fontWeight: 600, color: '#94a3b8' }}>
+                    Option Unavailable
+                  </span>
+                )}
               </div>
               <ul className="pms-pricing-features">
                 {plan.features.map((feature, idx) => {
@@ -130,16 +187,27 @@ function PmsLanding() {
                 })}
               </ul>
               <div className="pms-pricing-cta">
-                <Link
-                  className={plan.popular ? 'pms-primary' : 'pms-secondary'}
-                  to={`/plan-inquiry?plan=${encodeURIComponent(plan.id)}&cycle=${encodeURIComponent(billingCycle)}`}
-                >
-                  {plan.ctaText} →
-                </Link>
+                {price != null ? (
+                  <Link
+                    className={plan.popular ? 'pms-primary' : 'pms-secondary'}
+                    to={`/plan-inquiry?plan=${encodeURIComponent(plan.id)}&cycle=${encodeURIComponent(billingCycle)}`}
+                  >
+                    {plan.ctaText} →
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className="pms-secondary"
+                    disabled
+                    style={{ opacity: 0.6, cursor: 'not-allowed', width: '100%', padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#94a3b8' }}
+                  >
+                    Unavailable
+                  </button>
+                )}
               </div>
             </article>
           )
-        })}
+        }))}
       </div>
 
       <div className="pms-pricing-note">

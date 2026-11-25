@@ -3,6 +3,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import Login from './pages/Login'
 import PmsLanding from './pages/PmsLanding'
 import PlanInquiry from './pages/PlanInquiry'
+import AcceptInvitation from './pages/AcceptInvitation'
 import ResetPassword from './pages/ResetPassword'
 import VerifyOTP from './pages/VerifyOTP'
 import SuperAdminDashboard from './pages/Super Admin/SuperAdminDashboard'
@@ -62,6 +63,8 @@ function App() {
           <Routes>
             <Route path="/" element={<PmsLanding />} />
             <Route path="/plan-inquiry" element={<PlanInquiry />} />
+            <Route path="/accept-invitation" element={<AcceptInvitation />} />
+            <Route path="/invitation/accept" element={<Navigate to="/accept-invitation" replace />} />
             <Route path="/subscribe" element={<Navigate to="/plan-inquiry" replace />} />
             <Route path="/contact" element={<Navigate to="/plan-inquiry" replace />} />
             <Route path="/login" element={<Login />} />

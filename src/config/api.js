@@ -1,6 +1,5 @@
 import medicineCatalogReference from '../data/medicineCatalogReference.json' with { type: 'json' }
-const DEFAULT_API_BASE_URL = 'https://wanting-pessimist-provolone.ngrok-free.dev';
-//const DEFAULT_API_BASE_URL = ' https://irritant-kilobyte-until.ngrok-free.dev'
+const DEFAULT_API_BASE_URL = 'http://localhost:5001'
 const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
 
 const env = typeof process !== 'undefined' ? process.env : {}
@@ -347,7 +346,7 @@ export async function syncPharmacyAdminTenantContext(assignmentHint = null) {
 function pharmacyTenantHeaders(path = '', authRole = '', branchOverride) {
   const cleanPath = String(path || '').replace(/^\/+/, '').replace(/^api\/?/i, '')
   // Do not send pharmacy tenant headers for super admin platform management routes
-  if (cleanPath.startsWith('pharmacy-super-admin')) {
+  if (cleanPath.startsWith('pharmacy-super-admin') || cleanPath.startsWith('pharmacy-subscriptions') || authRole === 'superAdmin') {
     return {}
   }
 
@@ -403,7 +402,7 @@ export function authTokenFor(path = '', authRole = '') {
     }
     return ''
   }
-  if (cleanPath.startsWith('pharmacy-super-admin')) {
+  if (cleanPath.startsWith('pharmacy-super-admin') || cleanPath.startsWith('pharmacy-subscriptions')) {
     return readStoredToken('superAdminToken') || readStoredToken('pharmacySuperAdminToken') || readStoredToken('token') || readStoredToken('authToken') || readStoredToken('pharmacyAdminToken') || readStoredToken('pharmacistToken')
   }
   if (cleanPath.startsWith('pharmacy-admin-auth') || cleanPath.startsWith('pharmacy-admin')) {
@@ -540,7 +539,7 @@ async function request(path, options = {}) {
           })
         }
       }
-      throw new Error('Cannot connect to the server. Check your connection and try again.')
+      throw new Error('Cannot connect to the backend server. Please verify your network connection and backend API URL.')
     }
     throw error
   } finally {
@@ -549,7 +548,9 @@ async function request(path, options = {}) {
 
   const contentType = response.headers?.get ? (response.headers.get('content-type') || '') : (response.headers?.['content-type'] || '')
   let data = null
-  if (contentType.includes('json')) {
+  if (response.status === 204) {
+    data = null
+  } else if (contentType.includes('json')) {
     try {
       data = await response.json()
     } catch {
@@ -564,7 +565,7 @@ async function request(path, options = {}) {
         } catch {
           let cleanMsg = text
           if (text.includes('ERR_NGROK_3200') || (text.includes('endpoint') && text.includes('offline'))) {
-            cleanMsg = 'Backend server tunnel is currently offline (ngrok ERR_NGROK_3200). Operating in local offline mode.'
+            cleanMsg = 'Backend server tunnel is currently offline (ngrok ERR_NGROK_3200). Please ensure ngrok and the backend server are running.'
           } else if (text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<html')) {
             cleanMsg = 'Backend server returned an HTML error response. Server may be offline or restarting.'
           }
@@ -615,7 +616,7 @@ async function request(path, options = {}) {
       errorMsg = data?.title || data?.Title || response.statusText || 'Request failed. Please try again.'
     }
     if (typeof errorMsg === 'string' && (errorMsg.includes('<!DOCTYPE') || errorMsg.includes('<html') || errorMsg.includes('ERR_NGROK'))) {
-      errorMsg = 'Backend server tunnel is currently offline (ngrok ERR_NGROK_3200). Operating in local offline mode.'
+      errorMsg = 'Backend server tunnel is currently offline (ngrok ERR_NGROK_3200). Please ensure ngrok and the backend server are running.'
     }
     if (/pharmacy tenant must be assigned/i.test(errorMsg) && !options.__retriedTenant) {
       let resolvedPharmacyId = ''
@@ -690,6 +691,9 @@ async function request(path, options = {}) {
     }
     const error = new Error(errorMsg)
     error.status = response.status
+    error.statusCode = response.status
+    error.method = fetchOptions.method || 'GET'
+    error.url = apiUrl(normalizedPath)
     error.data = data
     throw error
   }
@@ -4617,6 +4621,129 @@ export const createMedicineImportRow = (importId, payload) => request(replacePat
 export const listMedicineImportRows = (importId) => request(replacePathParams('medicine-import/{importId}/rows', { importId }), { authRole: 'pharmacyAdmin' })
 export const updateMedicineImportRow = (importId, rowId, payload) => request(replacePathParams('medicine-import/{importId}/rows/{rowId}', { importId, rowId }), { authRole: 'pharmacyAdmin', method: 'PUT', body: JSON.stringify(apiPayload(payload)) })
 export const deleteMedicineImportRow = (importId, rowId) => request(replacePathParams('medicine-import/{importId}/rows/{rowId}', { importId, rowId }), { authRole: 'pharmacyAdmin', method: 'DELETE' })
+
+// ==========================================
+// Pharmacy Subscription Plans & Requests APIs
+// ==========================================
+
+// 1. Public: Load published plans and monthly or annual prices
+// GET /api/public/pharmacy-subscription-plans
+export const getPublicSubscriptionPlans = (options = {}) =>
+  request('public/pharmacy-subscription-plans', {
+    publicRequest: true,
+    ...options,
+  })
+
+// 2. Public: Submit the plan and contact details
+// POST /api/public/pharmacy-subscription-requests
+export const submitSubscriptionRequest = (payload, options = {}) =>
+  request('public/pharmacy-subscription-requests', {
+    publicRequest: true,
+    method: 'POST',
+    body: JSON.stringify(apiPayload(payload)),
+    ...options,
+  })
+
+// 3. Public: Accept the emailed token and set a password
+// POST /api/public/pharmacy-subscription-invitations/accept
+export const acceptSubscriptionInvitation = (payload, options = {}) =>
+  request('public/pharmacy-subscription-invitations/accept', {
+    publicRequest: true,
+    method: 'POST',
+    body: JSON.stringify(apiPayload(payload)),
+    ...options,
+  })
+
+// 5. Super Admin: List subscription requests
+// GET /api/pharmacy-super-admin/subscription-requests
+export const listSuperAdminSubscriptionRequests = (params = {}, options = {}) =>
+  request(`pharmacy-super-admin/subscription-requests${queryString(params)}`, {
+    authRole: 'superAdmin',
+    ...options,
+  })
+
+// 6. Super Admin: View request details and status
+// GET /api/pharmacy-super-admin/subscription-requests/{id}
+export const getSuperAdminSubscriptionRequestDetails = (id, options = {}) =>
+  request(replacePathParams('pharmacy-super-admin/subscription-requests/{id}', { id }), {
+    authRole: 'superAdmin',
+    ...options,
+  })
+
+// 7. Super Admin: Approve and email the invitation
+// POST /api/pharmacy-super-admin/subscription-requests/{id}/approve
+export const approveSuperAdminSubscriptionRequest = (id, payload = {}, options = {}) =>
+  request(replacePathParams('pharmacy-super-admin/subscription-requests/{id}/approve', { id }), {
+    authRole: 'superAdmin',
+    method: 'POST',
+    body: JSON.stringify(apiPayload(payload)),
+    ...options,
+  })
+
+// 8. Super Admin: Reject a pending request
+// POST /api/pharmacy-super-admin/subscription-requests/{id}/reject
+export const rejectSuperAdminSubscriptionRequest = (id, payload = {}, options = {}) =>
+  request(replacePathParams('pharmacy-super-admin/subscription-requests/{id}/reject', { id }), {
+    authRole: 'superAdmin',
+    method: 'POST',
+    body: JSON.stringify(apiPayload(payload)),
+    ...options,
+  })
+
+// 9. Super Admin: Replace an unused invitation and resend it
+// POST /api/pharmacy-super-admin/subscription-requests/{id}/resend-invitation
+export const resendSuperAdminSubscriptionInvitation = (id, payload = {}, options = {}) =>
+  request(replacePathParams('pharmacy-super-admin/subscription-requests/{id}/resend-invitation', { id }), {
+    authRole: 'superAdmin',
+    method: 'POST',
+    body: JSON.stringify(apiPayload(payload)),
+    ...options,
+  })
+
+// ==========================================
+// Pharmacy Super Admin Subscription Plans CRUD APIs
+// ==========================================
+
+// 1. GET /api/pharmacy-subscriptions/plans — List all plans, including hidden
+export const listSuperAdminSubscriptionPlans = (options = {}) =>
+  request('pharmacy-subscriptions/plans', {
+    authRole: 'superAdmin',
+    ...options,
+  })
+
+// 2. GET /api/pharmacy-subscriptions/plans/{id} — Get the full plan for editing
+export const getSuperAdminSubscriptionPlan = (id, options = {}) =>
+  request(replacePathParams('pharmacy-subscriptions/plans/{id}', { id }), {
+    authRole: 'superAdmin',
+    ...options,
+  })
+
+// 3. POST /api/pharmacy-subscriptions/plans — Create; expects 201
+export const createSuperAdminSubscriptionPlan = (payload, options = {}) =>
+  request('pharmacy-subscriptions/plans', {
+    authRole: 'superAdmin',
+    method: 'POST',
+    body: JSON.stringify(payload),
+    ...options,
+  })
+
+// 4. PUT /api/pharmacy-subscriptions/plans/{id} — Update; expects 204
+export const updateSuperAdminSubscriptionPlan = (id, payload, options = {}) =>
+  request(replacePathParams('pharmacy-subscriptions/plans/{id}', { id }), {
+    authRole: 'superAdmin',
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    ...options,
+  })
+
+// 5. DELETE /api/pharmacy-subscriptions/plans/{id} — Permanently delete; expects 204
+export const deleteSuperAdminSubscriptionPlan = (id, options = {}) =>
+  request(replacePathParams('pharmacy-subscriptions/plans/{id}', { id }), {
+    authRole: 'superAdmin',
+    method: 'DELETE',
+    ...options,
+  })
+
 
 
 
