@@ -5,16 +5,12 @@ import RowActions from '../../components/RowActions'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import {
-  assignPharmacyToAdmin,
-  changePharmacyAdminStatus,
   createPharmacyAdmin,
   getPharmacyAdmin,
-  getSuperAdminPharmacy,
   getSuperAdminPharmacies,
   listPharmacyAdmins,
   deleteSuperAdminRole,
   listSuperAdminRoleDropdown,
-  resetPharmacyAdminPassword,
   updatePharmacyAdmin,
 } from '../../config/api'
 import './AdminsModern.css'
@@ -193,10 +189,6 @@ function Admins() {
   const [admins, setAdmins] = useState([])
   const [roleOptions, setRoleOptions] = useState([])
   const [pharmacyOptions, setPharmacyOptions] = useState([])
-  const [assigningAdminId, setAssigningAdminId] = useState('')
-  const [assignmentPharmacyId, setAssignmentPharmacyId] = useState('')
-  const [assigningAdmin, setAssigningAdmin] = useState(null)
-  const [selectedAssignPharmacyId, setSelectedAssignPharmacyId] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
@@ -210,8 +202,6 @@ function Admins() {
 
   const [editingAdmin, setEditingAdmin] = useState(null)
   const [viewingAdmin, setViewingAdmin] = useState(null)
-  const [resettingAdmin, setResettingAdmin] = useState(null)
-  const [temporaryPassword, setTemporaryPassword] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const didLoadInitialData = useRef(false)
 
@@ -265,12 +255,11 @@ function Admins() {
       const response = await getSuperAdminPharmacies({ page: 1, pageSize: 100 })
       const options = normalizeList(response)
       setPharmacyOptions(options)
-      if (!assignmentPharmacyId && options[0]) setAssignmentPharmacyId(String(getId(options[0]) || ''))
     } catch (error) {
       setPharmacyOptions([])
       console.warn('Background load pharmacies notice:', error)
     }
-  }, [assignmentPharmacyId])
+  }, [])
 
   const loadRoleOptions = useCallback(async () => {
     try {
@@ -408,47 +397,6 @@ function Admins() {
     }
   }
 
-  async function handleAssignPharmacy(admin, targetPharmacyId = null) {
-    const adminId = getId(admin)
-    const pharmacyId = Number(targetPharmacyId || assignmentPharmacyId)
-    if (!adminId || !pharmacyId) return showToast('Select a pharmacy before assignment.', 'error')
-    setAssigningAdminId(String(adminId))
-    try {
-      const pharmacyResponse = await getSuperAdminPharmacy(pharmacyId)
-      const pharmacy = pharmacyResponse?.data?.pharmacy || pharmacyResponse?.pharmacy || pharmacyResponse?.data || pharmacyResponse || {}
-      const branches = pharmacyResponse?.data?.branches || pharmacyResponse?.branches || pharmacy?.branches || []
-      const mainBranch = branches.find((branch) => branch?.isMainBranch || branch?.IsMainBranch) || branches[0]
-      const branchId = Number(mainBranch?.id || mainBranch?.branchId || mainBranch?.BranchId || sessionStorage.getItem('lastCreatedMainBranchId'))
-      if (!branchId) throw new Error('Main branch not found for the selected pharmacy.')
-      const response = await assignPharmacyToAdmin(adminId, { pharmacyId, branchId })
-      showToast(response?.message || 'Pharmacy and main branch assigned to admin.')
-      await loadAdmins()
-    } catch (error) {
-      showToast(error.message || 'Unable to assign pharmacy to admin.', 'error')
-    } finally {
-      setAssigningAdminId('')
-    }
-  }
-
-  async function handleStatus(admin) {
-    const adminId = getId(admin)
-    if (!adminId) {
-      showToast('Unable to update status: missing admin ID.', 'error')
-      return
-    }
-    const currentStatus = String(getStatus(admin)).toLowerCase()
-    const nextStatus = currentStatus === 'active' ? 'inactive' : 'active'
-    const nextIsActive = nextStatus === 'active'
-
-    try {
-      const data = await changePharmacyAdminStatus(adminId, { status: nextStatus, isActive: nextIsActive })
-      showToast(data?.message || `Admin status updated to ${nextStatus}.`)
-      await loadAdmins()
-    } catch (error) {
-      showToast(error.message || 'Unable to update admin status.', 'error')
-    }
-  }
-
   async function handleDelete(admin) {
     const adminId = getId(admin)
     if (!adminId) {
@@ -463,28 +411,6 @@ function Admins() {
       await loadAdmins()
     } catch (error) {
       showToast(error.message || 'Unable to delete admin.', 'error')
-    }
-  }
-
-  async function handleResetPassword(event) {
-    event.preventDefault()
-    const adminId = getId(resettingAdmin)
-    if (!adminId) {
-      showToast('Unable to reset password: missing admin ID.', 'error')
-      return
-    }
-
-    try {
-      const data = await resetPharmacyAdminPassword(adminId, {
-        temporaryPassword,
-        password: temporaryPassword,
-        newPassword: temporaryPassword,
-      })
-      showToast(data?.message || 'Temporary password set successfully.')
-      setResettingAdmin(null)
-      setTemporaryPassword('')
-    } catch (error) {
-      showToast(error.message || 'Unable to reset password.', 'error')
     }
   }
 
@@ -658,43 +584,13 @@ function Admins() {
                         </span>
                       </td>
                       <td>
-                        <span className="row-actions">
-                          <button
-                            type="button"
-                            className="row-action-button view"
-                            title="Assign pharmacy"
-                            disabled={assigningAdminId === String(adminId)}
-                            onClick={() => {
-                              setAssigningAdmin(admin)
-                              setSelectedAssignPharmacyId(assignmentPharmacyId || (pharmacyOptions[0] ? String(getId(pharmacyOptions[0])) : ''))
-                            }}
-                          >
-                            Assign
-                          </button>
-                          <RowActions
-                            itemName={adminName}
-                            isActive={isActive}
-                            onView={() => openView(admin)}
-                            onEdit={() => openEdit(admin)}
-                            onStatus={() => handleStatus(admin)}
-                            onDelete={() => handleDelete(admin)}
-                          />
-                          <button
-                            type="button"
-                            className="row-action-button key"
-                            title={`Reset password for ${adminName}`}
-                            aria-label={`Reset password for ${adminName}`}
-                            onClick={() => {
-                              setResettingAdmin(admin)
-                              setTemporaryPassword('')
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <circle cx="8" cy="15" r="4" />
-                              <path d="m10.85 12.15 7.65-7.65a1.5 1.5 0 0 1 2.12 0l1.38 1.38a1.5 1.5 0 0 1 0 2.12l-1.5 1.5M16 8l2 2" />
-                            </svg>
-                          </button>
-                        </span>
+                        <RowActions
+                          itemName={adminName}
+                          isActive={isActive}
+                          onView={() => openView(admin)}
+                          onEdit={() => openEdit(admin)}
+                          onDelete={() => handleDelete(admin)}
+                        />
                       </td>
                     </tr>
                   )
@@ -755,57 +651,6 @@ function Admins() {
           </div>
         </section>
       </main>
-
-      {assigningAdmin && (
-        <div className="admins-modal-backdrop" onClick={() => setAssigningAdmin(null)}>
-          <div className="admins-modal-card small-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
-            <div className="admins-modal-header">
-              <div className="admins-modal-title-wrap">
-                <span className="admins-modal-icon">✦</span>
-                <div>
-                  <h2>Assign Pharmacy</h2>
-                  <strong>Admin: {getName(assigningAdmin)}</strong>
-                </div>
-              </div>
-              <button type="button" className="admins-modal-close" onClick={() => setAssigningAdmin(null)} aria-label="Close">×</button>
-            </div>
-            <div className="admins-form">
-              <div className="admins-form-grid single-column">
-                <label className="admins-field">
-                  <span>Select Pharmacy</span>
-                  <select 
-                    value={selectedAssignPharmacyId} 
-                    onChange={(event) => setSelectedAssignPharmacyId(event.target.value)}
-                  >
-                    <option value="">Select pharmacy to assign</option>
-                    {pharmacyOptions.map((pharmacy) => (
-                      <option key={getId(pharmacy) || getPharmacyOptionName(pharmacy)} value={getId(pharmacy)}>
-                        {getPharmacyOptionName(pharmacy)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="admins-form-actions">
-                <button type="button" className="admins-cancel-button" onClick={() => setAssigningAdmin(null)}>Cancel</button>
-                <button
-                  type="button"
-                  className="admins-submit-button"
-                  disabled={!selectedAssignPharmacyId || assigningAdminId === String(getId(assigningAdmin))}
-                  onClick={async () => {
-                    const pid = selectedAssignPharmacyId
-                    setAssignmentPharmacyId(pid)
-                    await handleAssignPharmacy(assigningAdmin, pid)
-                    setAssigningAdmin(null)
-                  }}
-                >
-                  {assigningAdminId === String(getId(assigningAdmin)) ? 'Assigning...' : 'Assign Pharmacy'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {viewingAdmin && (
         <div className="sa-modal-backdrop" onClick={() => setViewingAdmin(null)}>
@@ -941,41 +786,6 @@ function Admins() {
                 <button type="submit" className="admins-submit-button" disabled={saving}>
                   {saving ? 'Saving...' : editingAdmin ? 'Save Admin' : 'Create admin'}
                 </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {resettingAdmin ? (
-        <div className="admins-modal-backdrop" onClick={() => setResettingAdmin(null)}>
-          <div className="admins-modal-card small-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
-            <div className="admins-modal-header">
-              <div className="admins-modal-title-wrap">
-                <span className="admins-modal-icon">✦</span>
-                <div>
-                  <h2>Reset Password</h2>
-                  <strong>Admin: {getName(resettingAdmin)}</strong>
-                </div>
-              </div>
-              <button type="button" className="admins-modal-close" onClick={() => setResettingAdmin(null)} aria-label="Close">×</button>
-            </div>
-            <form className="admins-form" onSubmit={handleResetPassword}>
-              <div className="admins-form-grid single-column">
-                <label className="admins-field">
-                  <span>Temporary Password</span>
-                  <input
-                    type="password"
-                    value={temporaryPassword}
-                    onChange={(event) => setTemporaryPassword(event.target.value)}
-                    placeholder="Enter temporary password"
-                    required
-                  />
-                </label>
-              </div>
-              <div className="admins-form-actions">
-                <button type="button" className="admins-cancel-button" onClick={() => setResettingAdmin(null)}>Cancel</button>
-                <button type="submit" className="admins-submit-button">Set Password</button>
               </div>
             </form>
           </div>
