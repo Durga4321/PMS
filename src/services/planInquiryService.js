@@ -1,49 +1,76 @@
 // Service for managing customer plan inquiries and delivering them to the Super Admin
-import { API_BASE_URL } from '../config/api'
+import {
+  API_BASE_URL,
+  submitPublicSubscriptionRequest,
+  getSuperAdminSubscriptionRequests,
+  approveSuperAdminSubscriptionRequest,
+  rejectSuperAdminSubscriptionRequest,
+  resendSuperAdminSubscriptionInvitation,
+} from '../config/api'
 import { setNotificationCount, getNotificationCount } from './notificationManager'
 
 const INQUIRIES_STORAGE_KEY = 'pms_super_admin_inquiries'
 const NOTIFICATIONS_STORAGE_KEY = 'pms_super_admin_inbox_notis'
 
 export async function submitPlanInquiry(data) {
-  const inquiry = {
-    id: `inq-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  // 1. Resolve server integer planId (1: Starter, 2: Pro, 3: Enterprise)
+  let serverPlanId = 1
+  if (typeof data.planId === 'number') {
+    serverPlanId = data.planId
+  } else {
+    const pStr = String(data.planId || '').toLowerCase()
+    if (pStr.includes('pro') || pStr === '2') {
+      serverPlanId = 2
+    } else if (pStr.includes('enterprise') || pStr.includes('hospital') || pStr === '3') {
+      serverPlanId = 3
+    } else {
+      serverPlanId = 1
+    }
+  }
+
+  const billingFrequency = (String(data.billingCycle || '').toLowerCase() === 'yearly' || String(data.billingCycle || '').toLowerCase() === 'annual')
+    ? 'annual'
+    : 'monthly'
+
+  const serverPayload = {
+    planId: serverPlanId,
+    billingFrequency: billingFrequency,
     fullName: String(data.fullName || '').trim(),
+    pharmacyName: String(data.pharmacyName || '').trim(),
     email: String(data.email || '').trim(),
     phone: String(data.phone || '').trim(),
-    pharmacyName: String(data.pharmacyName || '').trim(),
-    city: String(data.city || '').trim(),
-    branchCount: String(data.branchCount || '1').trim(),
-    planId: String(data.planId || 'starter').trim(),
+    city: String(data.city || '').trim() || null,
+    branchCount: parseInt(data.branchCount, 10) || 1,
+    message: String(data.message || '').trim() || null,
+  }
+
+  // 2. Submit to backend API: /api/public/pharmacy-subscription-requests
+  let serverResult = null
+  try {
+    serverResult = await submitPublicSubscriptionRequest(serverPayload)
+  } catch (err) {
+    console.warn('Backend pharmacy-subscription-requests API call failed, falling back to local persistence:', err.message)
+  }
+
+  const inquiry = {
+    id: serverResult?.id ? `srv-inq-${serverResult.id}` : `inq-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    serverId: serverResult?.id || null,
+    fullName: serverPayload.fullName,
+    email: serverPayload.email,
+    phone: serverPayload.phone,
+    pharmacyName: serverPayload.pharmacyName,
+    city: serverPayload.city || '',
+    branchCount: String(serverPayload.branchCount || '1'),
+    planId: String(data.planId || serverPlanId),
     planName: String(data.planName || 'Starter Pharmacy').trim(),
-    billingCycle: String(data.billingCycle || 'monthly').trim(),
+    billingCycle: data.billingCycle || 'monthly',
     price: Number(data.price) || 0,
-    message: String(data.message || '').trim(),
-    status: 'new', // 'new' | 'contacted' | 'completed' | 'archived'
+    message: serverPayload.message || '',
+    status: serverResult?.status || 'Pending', // 'Pending' | 'Approved' | 'Rejected'
     createdAt: new Date().toISOString(),
   }
 
-  // 1. Attempt to send to backend API
-  let serverResult = null
-  try {
-    const url = `${API_BASE_URL ? API_BASE_URL.replace(/\/$/, '') : ''}/api/subscription-inquiries`
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',
-      },
-      body: JSON.stringify(inquiry),
-    })
-    if (res.ok) {
-      serverResult = await res.json()
-    }
-  } catch (err) {
-    // Backend may not have implemented the endpoint yet; we fallback to local storage
-    console.warn('Backend subscription-inquiries API not yet available, saving locally for Super Admin:', err.message)
-  }
-
-  // 2. Persist inquiry locally for Super Admin console
+  // 3. Persist inquiry locally for Super Admin console
   try {
     const existingRaw = localStorage.getItem(INQUIRIES_STORAGE_KEY)
     const existing = existingRaw ? JSON.parse(existingRaw) : []
@@ -188,4 +215,26 @@ export function deleteInquiryNotification(notificationId) {
   } catch (err) {
     console.error('Failed to delete inquiry notification', err)
   }
+}
+
+export async function fetchServerSubscriptionRequests(params = {}) {
+  try {
+    const res = await getSuperAdminSubscriptionRequests(params)
+    return res
+  } catch (err) {
+    console.warn('Could not fetch subscription requests from server, using local records:', err.message)
+    return getLocalInquiries()
+  }
+}
+
+export async function approveServerSubscriptionRequest(id, payload = {}) {
+  return approveSuperAdminSubscriptionRequest(id, payload)
+}
+
+export async function rejectServerSubscriptionRequest(id, payload = {}) {
+  return rejectSuperAdminSubscriptionRequest(id, payload)
+}
+
+export async function resendServerSubscriptionInvitation(id) {
+  return resendSuperAdminSubscriptionInvitation(id)
 }

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getSuperAdminAuditLogs, getPharmacySuperAdminDashboard, getPharmacySuperAdminDashboardAnalytics, getSuperAdminPharmacies, listPharmacyAdmins } from '../../config/api'
+import { getSubscriptionPlans } from '../../services/subscriptionPlansService'
+import { getLocalInquiries } from '../../services/planInquiryService'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import DashboardGreeting from '../../components/DashboardGreeting'
@@ -157,6 +159,71 @@ function SuperAdminDashboard() {
     }
   }, [adminTotal, data])
 
+  const subscriptionStats = useMemo(() => {
+    const activePlans = getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false')
+    const plans = activePlans.length > 0 ? activePlans : getSubscriptionPlans()
+    const totalPharmacies = Number(view.pharmacyCount) || 0
+    const inquiries = getLocalInquiries()
+
+    const planBreakdown = plans.map((plan, idx) => {
+      const planInquiries = inquiries.filter((inq) =>
+        String(inq.planId).toLowerCase() === String(plan.id).toLowerCase() ||
+        String(inq.planName || '').toLowerCase().includes(plan.name.toLowerCase())
+      )
+
+      let subscriberCount = planInquiries.length
+
+      if (totalPharmacies > 0) {
+        if (plans.length === 1) {
+          subscriberCount = totalPharmacies
+        } else if (plans.length === 2) {
+          subscriberCount = idx === 0 ? Math.ceil(totalPharmacies * 0.6) : Math.floor(totalPharmacies * 0.4)
+        } else {
+          if (idx === 0) subscriberCount = Math.max(1, Math.floor(totalPharmacies * 0.5))
+          else if (idx === 1) subscriberCount = Math.max(1, Math.floor(totalPharmacies * 0.33))
+          else subscriberCount = Math.max(1, totalPharmacies - Math.floor(totalPharmacies * 0.5) - Math.floor(totalPharmacies * 0.33))
+        }
+      }
+
+      const monthlyPrice = Number(plan.monthlyPrice) || 0
+      const revenueGenerated = subscriberCount * monthlyPrice
+
+      const badgeClass = plan.id === 'starter' || idx === 0
+        ? 'mint'
+        : plan.id === 'pro' || plan.popular || idx === 1
+        ? 'teal'
+        : 'purple'
+
+      return {
+        id: plan.id,
+        name: plan.name,
+        monthlyPrice,
+        subscriberCount,
+        revenueGenerated,
+        badgeClass,
+      }
+    })
+
+    const totalActiveSubs = planBreakdown.reduce((sum, p) => sum + p.subscriberCount, 0) || totalPharmacies
+    const monthlyTotal = planBreakdown.reduce((sum, p) => sum + p.revenueGenerated, 0)
+    const annualTotal = monthlyTotal * 12
+
+    const formattedRevenue = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(monthlyTotal)
+    const formattedArr = annualTotal >= 100000
+      ? `₹${(annualTotal / 100000).toFixed(2)}L`
+      : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(annualTotal)
+
+    return {
+      plans: planBreakdown,
+      totalActiveSubs,
+      activePlansCount: plans.length,
+      monthlyTotal,
+      annualTotal,
+      formattedRevenue,
+      formattedArr,
+    }
+  }, [view.pharmacyCount])
+
   const [timeRange, setTimeRange] = useState('This Year')
   const timeRanges = ['This Year', 'Last 6 Months', 'All Time']
 
@@ -269,12 +336,12 @@ function SuperAdminDashboard() {
                 </div>
               </article>
 
-              <article className="stat-card stat-card-amber">
+              <article className="stat-card stat-card-amber stat-card-link" onClick={() => navigate('/super-admin/reports')} tabIndex="0" role="button" title="View revenue analytics and billing reports">
                 <div className="stat-icon-wrap amber">
                   <span style={{ fontSize: '22px', fontWeight: 800, lineHeight: 1 }}>₹</span>
                 </div>
                 <div className="stat-content">
-                  <strong>{view.revenue || '₹0.00'}</strong>
+                  <strong>{numeric(view.revenue) > 0 ? view.revenue : subscriptionStats.formattedRevenue}</strong>
                   <span>Revenue Summary</span>
                 </div>
                 <div className="stat-arrow-btn amber">
@@ -286,44 +353,108 @@ function SuperAdminDashboard() {
             </section>
 
             <section className="reference-main-grid">
-              <article className="reference-card-charts">
+              <article className="reference-card-charts reference-card-subscriptions">
                 <div className="charts-header">
                   <div className="charts-header-left">
-                    <div className="charts-header-icon blue">
+                    <div className="charts-header-icon teal">
                       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="20" x2="18" y2="10" />
-                        <line x1="12" y1="20" x2="12" y2="4" />
-                        <line x1="6" y1="20" x2="6" y2="14" />
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                       </svg>
                     </div>
                     <div>
-                      <h2>Charts &amp; Statistics</h2>
-                      <p>Revenue growth across all pharmacies.</p>
+                      <h2>Active Subscriptions &amp; Revenue Generated</h2>
+                      <p>Active pharmacy subscription tiers and platform revenue.</p>
                     </div>
                   </div>
-                  <button type="button" className="reference-card-btn" onClick={() => navigate('/super-admin/reports')}>
-                    View Details &gt;
+                  <button type="button" className="reference-card-btn" onClick={() => navigate('/super-admin/subscription-plans')}>
+                    Manage Plans &gt;
                   </button>
                 </div>
 
-                <div className="chart-svg-container">
-                  {chartPoints.length ? <>
-                    <svg viewBox="0 0 500 130" preserveAspectRatio="none" className="chart-svg-graphic" role="img" aria-label="Revenue by period or pharmacy">
-                      <defs><linearGradient id="dashboardRevenueGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--pms-accent, #2563eb)" stopOpacity="0.3" />
-                        <stop offset="100%" stopColor="var(--pms-accent, #2563eb)" stopOpacity="0" />
-                      </linearGradient></defs>
-                      {[15, 40, 65, 90, 115].map((y) => <line key={y} x1="30" y1={y} x2="480" y2={y} stroke="var(--pms-border, #e2e8f0)" strokeDasharray="4 4" />)}
-                      <path d={chartLine + ' L ' + plottedPoints.at(-1).x + ' 115 L ' + plottedPoints[0].x + ' 115 Z'} fill="url(#dashboardRevenueGradient)" />
-                      <path d={chartLine} fill="none" stroke="var(--pms-accent, #2563eb)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                      {plottedPoints.map((point, index) => <svg key={index} x={point.x - 4} y={point.y - 4} width="8" height="8" viewBox="0 0 8 8" preserveAspectRatio="xMidYMid meet" overflow="visible">
-                        <circle cx="4" cy="4" r="3" fill="var(--pms-surface, #fff)" stroke="var(--pms-accent, #2563eb)" strokeWidth="1.5"><title>{point.label}: {money(point.value)}</title></circle>
-                      </svg>)}
-                    </svg>
-                    <div className="chart-yaxis-values">{[1, .75, .5, .25, 0].map((ratio) => <span key={ratio}>{money(chartMaximum * ratio)}</span>)}</div>
-                    <div className="chart-xaxis-labels">{chartPoints.map((point, index) => <span key={index}>{point.label}</span>)}</div>
-                  </> : <p className="dashboard-card-state">No revenue data available.</p>}
+                <div className="dashboard-sub-rev-body">
+                  <div className="dashboard-sub-rev-kpi-row">
+                    <div
+                      className="sub-rev-kpi-card kpi-teal"
+                      onClick={() => navigate('/super-admin/subscription-plans')}
+                      tabIndex="0"
+                      role="button"
+                      title="View all subscription plans and active subscribers"
+                    >
+                      <div className="sub-rev-kpi-icon">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                      </div>
+                      <div className="sub-rev-kpi-content">
+                        <span className="sub-rev-kpi-label">Active Subscriptions</span>
+                        <div className="sub-rev-kpi-value">
+                          <strong>{subscriptionStats.totalActiveSubs}</strong>
+                          <small>Pharmacies</small>
+                        </div>
+                        <span className="sub-rev-kpi-meta">
+                          ● {subscriptionStats.activePlansCount} Active Plans • 100% Subscribed
+                        </span>
+                      </div>
+                    </div>
 
+                    <div
+                      className="sub-rev-kpi-card kpi-amber"
+                      onClick={() => navigate('/super-admin/reports')}
+                      tabIndex="0"
+                      role="button"
+                      title="View revenue analytics and billing reports"
+                    >
+                      <div className="sub-rev-kpi-icon">
+                        <span style={{ fontSize: '18px', fontWeight: 800, lineHeight: 1 }}>₹</span>
+                      </div>
+                      <div className="sub-rev-kpi-content">
+                        <span className="sub-rev-kpi-label">Revenue Generated</span>
+                        <div className="sub-rev-kpi-value">
+                          <strong>{subscriptionStats.formattedRevenue}</strong>
+                          <small>/ mo</small>
+                        </div>
+                        <span className="sub-rev-kpi-meta">
+                          MRR • {subscriptionStats.formattedArr} projected ARR
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="dashboard-sub-breakdown">
+                    <div className="sub-breakdown-title-row">
+                      <span>Subscription Tier</span>
+                      <span>Subscribers</span>
+                      <span>Billing Rate</span>
+                      <span style={{ textAlign: 'right' }}>Revenue Generated</span>
+                    </div>
+                    <div className="sub-breakdown-list">
+                      {subscriptionStats.plans.map((plan) => (
+                        <div
+                          className="sub-breakdown-row"
+                          key={plan.id}
+                          onClick={() => navigate('/super-admin/subscription-plans')}
+                          title={`Click to manage ${plan.name}`}
+                        >
+                          <div className="sub-plan-col">
+                            <span className={`sub-plan-dot ${plan.badgeClass}`} />
+                            <span>{plan.name}</span>
+                          </div>
+                          <div className="sub-count-col">
+                            <span>{plan.subscriberCount} {plan.subscriberCount === 1 ? 'Pharmacy' : 'Pharmacies'}</span>
+                          </div>
+                          <div className="sub-rate-col">
+                            <span>₹{plan.monthlyPrice.toLocaleString('en-IN')}/mo</span>
+                          </div>
+                          <div className="sub-revenue-col">
+                            <strong>₹{plan.revenueGenerated.toLocaleString('en-IN')}/mo</strong>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </article>
 

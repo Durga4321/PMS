@@ -1,6 +1,5 @@
 import medicineCatalogReference from '../data/medicineCatalogReference.json' with { type: 'json' }
-const DEFAULT_API_BASE_URL = 'https://wanting-pessimist-provolone.ngrok-free.dev';
-//const DEFAULT_API_BASE_URL = ' https://irritant-kilobyte-until.ngrok-free.dev'
+const DEFAULT_API_BASE_URL = 'https://jackpot-citrus-compare.ngrok-free.dev';
 const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
 
 const env = typeof process !== 'undefined' ? process.env : {}
@@ -4761,4 +4760,57 @@ export function matchesMedicineBranch(medicine, targetBranchId, targetBranchName
   if (!mId && !mName && isMainTarget) return true
 
   return false
+}
+
+export function getPublicSubscriptionPlans() {
+  return request('public/pharmacy-subscription-plans', {
+    publicRequest: true,
+  })
+}
+
+export function submitPublicSubscriptionRequest(payload) {
+  return request('public/pharmacy-subscription-requests', {
+    publicRequest: true,
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getSuperAdminSubscriptionRequests(params = {}) {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', params.page)
+  if (params.pageSize) query.set('pageSize', params.pageSize)
+  const qs = query.toString()
+  return request(`pharmacy-super-admin/subscription-requests${qs ? `?${qs}` : ''}`, {
+    authRole: 'superAdmin',
+  })
+}
+
+export function getSuperAdminSubscriptionRequest(id) {
+  return request(`pharmacy-super-admin/subscription-requests/${encodeURIComponent(id)}`, {
+    authRole: 'superAdmin',
+  })
+}
+
+export function approveSuperAdminSubscriptionRequest(id, payload) {
+  return request(`pharmacy-super-admin/subscription-requests/${encodeURIComponent(id)}/approve`, {
+    authRole: 'superAdmin',
+    method: 'POST',
+    ...(payload && Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
+  })
+}
+
+export function rejectSuperAdminSubscriptionRequest(id, payload) {
+  return request(`pharmacy-super-admin/subscription-requests/${encodeURIComponent(id)}/reject`, {
+    authRole: 'superAdmin',
+    method: 'POST',
+    ...(payload && Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
+  })
+}
+
+export function resendSuperAdminSubscriptionInvitation(id) {
+  return request(`pharmacy-super-admin/subscription-requests/${encodeURIComponent(id)}/resend-invitation`, {
+    authRole: 'superAdmin',
+    method: 'POST',
+  })
 }

@@ -1,4 +1,6 @@
 // Shared subscription plans and pricing service for Super Admin and Landing Page
+import { getPublicSubscriptionPlans } from '../config/api'
+
 export const DEFAULT_SUBSCRIPTION_PLANS = [
   {
     id: 'starter',
@@ -99,6 +101,7 @@ export function getSubscriptionPlans() {
           const features = rawFeatures.map(cleanFeatureText)
           return {
             id: item.id || `plan-${Date.now()}-${index}`,
+            serverId: item.serverId,
             name: item.name || fallback.name || 'Custom Plan',
             tagline: item.tagline || fallback.tagline || '',
             monthlyPrice: Number(item.monthlyPrice) >= 0 ? Number(item.monthlyPrice) : (fallback.monthlyPrice || 0),
@@ -108,7 +111,8 @@ export function getSubscriptionPlans() {
             features,
             ctaText: item.ctaText || fallback.ctaText || 'Get Started',
             ctaLink: item.ctaLink || fallback.ctaLink || '/login',
-            active: item.active !== false,
+            active: item.active !== false && item.active !== 'false',
+            branchLimit: item.branchLimit,
           }
         })
         try {
@@ -127,6 +131,7 @@ export function saveSubscriptionPlans(plans) {
   try {
     const sanitized = plans.map((p, i) => ({
       id: p.id || `plan-${Date.now()}-${i}`,
+      serverId: p.serverId,
       name: String(p.name || '').trim() || 'Untitled Plan',
       tagline: String(p.tagline || '').trim(),
       monthlyPrice: Math.max(0, Math.round(Number(p.monthlyPrice) || 0)),
@@ -138,7 +143,8 @@ export function saveSubscriptionPlans(plans) {
         : [],
       ctaText: String(p.ctaText || '').trim() || 'Get Started',
       ctaLink: String(p.ctaLink || '').trim() || '/login',
-      active: p.active !== false,
+      active: p.active !== false && p.active !== 'false',
+      branchLimit: p.branchLimit,
     }))
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized))
     window.dispatchEvent(new CustomEvent(EVENT_KEY, { detail: sanitized }))
@@ -167,4 +173,64 @@ export function calculateSavingsPercent(monthly, yearly) {
   const y = Number(yearly) || 0
   if (m <= 0 || y >= m) return 0
   return Math.round(((m - y) / m) * 100)
+}
+
+export async function fetchSubscriptionPlansFromServer() {
+  try {
+    const serverPlans = await getPublicSubscriptionPlans()
+    if (Array.isArray(serverPlans) && serverPlans.length > 0) {
+      const existingPlans = getSubscriptionPlans()
+      const matchedLocalIds = new Set()
+
+      const merged = serverPlans.map((sp, idx) => {
+        const planCodeOrId = sp.code || (sp.id === 1 ? 'starter' : sp.id === 2 ? 'pro' : sp.id === 3 ? 'enterprise' : String(sp.id))
+
+        // Find existing plan to preserve Super Admin customizations (active/hidden flag, edited features, etc.)
+        const existing = existingPlans.find((p) =>
+          (sp.id && (p.serverId === sp.id || p.id === String(sp.id))) ||
+          p.id === planCodeOrId ||
+          (p.name && sp.name && p.name.trim().toLowerCase() === sp.name.trim().toLowerCase()) ||
+          p.id === (idx === 0 ? 'starter' : idx === 1 ? 'pro' : idx === 2 ? 'enterprise' : undefined)
+        )
+
+        if (existing) {
+          matchedLocalIds.add(existing.id)
+        }
+
+        const fallback = DEFAULT_SUBSCRIPTION_PLANS[idx] || DEFAULT_SUBSCRIPTION_PLANS[0]
+        const monthly = Math.round(Number(sp.monthlyAmountPaise || 0) / 100) || fallback.monthlyPrice
+        const yearlyAnnual = Math.round(Number(sp.annualAmountPaise || 0) / 100)
+        const yearlyMonthly = Math.round(yearlyAnnual / 12) || fallback.yearlyPrice
+
+        // CRITICAL: Preserve Super Admin's hidden / active setting
+        const isActive = existing ? (existing.active !== false && existing.active !== 'false') : true
+
+        return {
+          id: existing?.id || planCodeOrId,
+          serverId: sp.id,
+          name: existing?.name || sp.name || fallback.name,
+          tagline: existing?.tagline || fallback.tagline || '',
+          monthlyPrice: existing?.monthlyPrice !== undefined && existing?.monthlyPrice !== null ? existing.monthlyPrice : monthly,
+          yearlyPrice: existing?.yearlyPrice !== undefined && existing?.yearlyPrice !== null ? existing.yearlyPrice : yearlyMonthly,
+          popular: existing?.popular !== undefined ? existing.popular : (sp.code === 'professional' || sp.id === 2 || fallback.popular),
+          badge: existing?.badge !== undefined ? existing.badge : (fallback.badge || ''),
+          features: Array.isArray(existing?.features) && existing.features.length > 0 ? existing.features : (fallback.features || []),
+          ctaText: existing?.ctaText || fallback.ctaText || 'Get Started',
+          ctaLink: existing?.ctaLink || fallback.ctaLink || '/login',
+          active: isActive,
+          branchLimit: sp.branchLimit,
+        }
+      })
+
+      // Preserve any custom plans created by Super Admin that are not in serverPlans
+      const customPlans = existingPlans.filter((p) => !matchedLocalIds.has(p.id))
+      const combined = [...merged, ...customPlans]
+
+      saveSubscriptionPlans(combined)
+      return combined
+    }
+  } catch (err) {
+    console.warn('Could not fetch plans from server, using local/cached plans:', err?.message || err)
+  }
+  return getSubscriptionPlans()
 }

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './PmsLanding.css'
 import ThemeToggle from '../components/ThemeToggle'
-import { getSubscriptionPlans } from '../services/subscriptionPlansService'
+import { getSubscriptionPlans, fetchSubscriptionPlansFromServer } from '../services/subscriptionPlansService'
 
 const modules = [
   ['▣', 'Inventory', 'Track medicines, stock movement, and availability across all branches.'],
@@ -43,16 +43,30 @@ function PmsLanding() {
   const [plans, setPlans] = useState(getSubscriptionPlans)
 
   useEffect(() => {
+    fetchSubscriptionPlansFromServer().then((latest) => {
+      if (Array.isArray(latest) && latest.length > 0) {
+        setPlans(latest)
+      }
+    })
     function onPlansUpdated(e) {
       if (Array.isArray(e.detail)) {
         setPlans(e.detail)
       }
     }
+    function onStorageChange(e) {
+      if (!e.key || e.key === 'pms_subscription_plans_v2') {
+        setPlans(getSubscriptionPlans())
+      }
+    }
     window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
-    return () => window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+    window.addEventListener('storage', onStorageChange)
+    return () => {
+      window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+      window.removeEventListener('storage', onStorageChange)
+    }
   }, [])
 
-  const visiblePlans = plans.filter((p) => p.active !== false)
+  const visiblePlans = plans.filter((p) => p.active !== false && p.active !== 'false')
   const maxSavings = visiblePlans.length > 0
     ? Math.max(0, ...visiblePlans.map((p) => Math.round(((Number(p.monthlyPrice || 0) - Number(p.yearlyPrice || 0)) / (Number(p.monthlyPrice) || 1)) * 100)))
     : 20
@@ -102,16 +116,22 @@ function PmsLanding() {
         <span className="pms-pricing-save-badge">Save {maxSavings || 20}% on Annual</span>
       </div>
 
-      <div className="pms-pricing-grid">
-        {visiblePlans.map((plan) => {
-          const price = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
-          return (
-            <article
-              key={plan.id}
-              className={`pms-pricing-card${plan.popular ? ' pms-pricing-card--popular' : ''}`}
-            >
-              {plan.badge && <span className="pms-pricing-badge">{plan.badge}</span>}
-              <header className="pms-pricing-card-header">
+      <div className={`pms-pricing-grid pms-pricing-grid--count-${Math.min(visiblePlans.length, 3)}`}>
+        {visiblePlans.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#5c7485', gridColumn: '1 / -1' }}>
+            <p style={{ fontSize: '15px', fontWeight: '600' }}>No subscription plans are currently available for public enrollment.</p>
+            <p style={{ fontSize: '13px', marginTop: '6px' }}>Please contact support or check back soon.</p>
+          </div>
+        ) : (
+          visiblePlans.map((plan) => {
+            const price = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
+            return (
+              <article
+                key={plan.id}
+                className={`pms-pricing-card${plan.popular ? ' pms-pricing-card--popular' : ''}`}
+              >
+                {plan.badge && <span className="pms-pricing-badge">{plan.badge}</span>}
+                <header className="pms-pricing-card-header">
                 <h3>{plan.name}</h3>
                 <p>{plan.tagline}</p>
               </header>
@@ -139,7 +159,7 @@ function PmsLanding() {
               </div>
             </article>
           )
-        })}
+        }))}
       </div>
 
       <div className="pms-pricing-note">
