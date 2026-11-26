@@ -351,7 +351,7 @@ function Users({ initialAdd = false }) {
       const rawMsg = error.message || 'Unable to load pharmacists.'
       let message = rawMsg
       if (rawMsg.includes('<!DOCTYPE') || rawMsg.includes('<html') || rawMsg.includes('ERR_NGROK')) {
-        message = 'Backend server tunnel is currently offline (ngrok ERR_NGROK_3200). Operating in local offline mode.'
+        message = 'Backend server tunnel is currently offline (ngrok ERR_NGROK_3200). Please ensure ngrok and the backend server are running.'
       }
       setLoadError(message)
       setPharmacists([])

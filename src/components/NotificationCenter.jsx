@@ -127,8 +127,6 @@ export default function NotificationCenter({ role }) {
         if (!current) return
         const body = notificationBody(response)
         const total = body.total ?? body.pagination?.total ?? body.count
-        const unread = body.unread ?? body.unreadCount
-        const nextCounts = body.counts || {}
         let incoming = notificationList(response).map((item) => normalizeNotification(item, tab === 'sent' ? 'sent' : 'inbox'))
 
         if (role === 'superAdmin' && tab !== 'sent') {
@@ -147,6 +145,8 @@ export default function NotificationCenter({ role }) {
           incoming = [...formattedInquiries, ...incoming]
         }
         setItems((previous) => page === 1 ? incoming : [...previous, ...incoming.filter((item) => !item.id || !previous.some((old) => old.id === item.id))])
+        const nextCounts = body.counts || response?.counts || body.Counts || response?.Counts || {}
+        const unread = nextCounts.unread ?? nextCounts.Unread ?? body.unreadCount ?? response?.unreadCount
         setCounts({ ...nextCounts, ...(Number.isFinite(Number(unread)) && unread != null ? { unread: Number(unread) } : {}) })
         if (unread != null && Number.isFinite(Number(unread))) window.dispatchEvent(new CustomEvent('pms:notifications-updated', { detail: { role, unreadCount: Number(unread) } }))
         setHasMore(total != null ? page * PAGE_SIZE < Number(total) : incoming.length === PAGE_SIZE)

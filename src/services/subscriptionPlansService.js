@@ -1,5 +1,13 @@
 // Shared subscription plans and pricing service for Super Admin and Landing Page
-import { getPublicSubscriptionPlans } from '../config/api'
+// Supports both direct backend API communication and local caching/fallbacks
+import {
+  getPublicSubscriptionPlans,
+  listSuperAdminSubscriptionPlans,
+  getSuperAdminSubscriptionPlan,
+  createSuperAdminSubscriptionPlan,
+  updateSuperAdminSubscriptionPlan,
+  deleteSuperAdminSubscriptionPlan,
+} from '../config/api.js'
 
 export const DEFAULT_SUBSCRIPTION_PLANS = [
   {
@@ -69,10 +77,10 @@ export const DEFAULT_SUBSCRIPTION_PLANS = [
   },
 ]
 
-const STORAGE_KEY = 'pms_subscription_plans_v2'
-const EVENT_KEY = 'pms:subscription-plans-updated'
+export const STORAGE_KEY = 'pms_subscription_plans_v2'
+export const EVENT_KEY = 'pms:subscription-plans-updated'
 
-function cleanFeatureText(text) {
+export function cleanFeatureText(text) {
   return String(text || '')
     .replace(/\s*\+\s*Cashier/gi, '')
     .replace(/\bCashier\b/gi, '')
@@ -81,9 +89,271 @@ function cleanFeatureText(text) {
     .trim()
 }
 
-export function getSubscriptionPlans() {
+export function calculateSavingsPercent(monthly, yearly) {
+  const m = Number(monthly)
+  const y = Number(yearly)
+  if (!Number.isFinite(m) || !Number.isFinite(y) || m <= 0 || y <= 0) return 0
+  const annualMonthlyRate = y > m * 1.5 ? y / 12 : y
+  if (annualMonthlyRate >= m) return 0
+  return Math.round(((m - annualMonthlyRate) / m) * 100)
+}
+
+export function formatRupees(amount) {
+  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return '-'
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(Number(amount))
+}
+
+export function getFallbackCopy(code = '', name = '') {
+  const key = `${code} ${name}`.toLowerCase()
+  if (key.includes('starter')) {
+    return {
+      tagline: 'Ideal for independent chemists, standalone clinics & retail pharmacies.',
+      badge: '',
+      popular: false,
+      features: [
+        '1 Pharmacy Branch / Location',
+        'Up to 3 Staff Accounts (Pharmacist)',
+        'Real-time Medicine Inventory Tracking',
+        'Fast POS Billing & Tax Invoices (GST)',
+        'Expiry Date & Low-Stock Alerts',
+        'Standard Daily Sales & Stock Reports',
+        'Email & WhatsApp Support',
+      ],
+    }
+  }
+  if (key.includes('pro')) {
+    return {
+      tagline: 'Best for growing multi-branch pharmacy chains and polyclinics.',
+      badge: '★ Most Popular',
+      popular: true,
+      features: [
+        'Up to 5 Pharmacy Branches',
+        'Unlimited Staff & Pharmacist Accounts',
+        'Prescription Queue & Rapid Dispensing',
+        'Inter-Branch Stock Transfers & Approvals',
+        'Medicine Returns, Cancellations & Refunds',
+        'Split Payments (Cash, UPI & Card)',
+        'Advanced Profit, Sales & Audit Analytics',
+        'Priority 24/7 Phone & Technical Support',
+      ],
+    }
+  }
+  if (key.includes('enterprise') || key.includes('hospital')) {
+    return {
+      tagline: 'Tailored for large hospital networks, institutional pharmacies & chains.',
+      badge: 'Enterprise',
+      popular: false,
+      features: [
+        'Unlimited Branches & Central Warehouses',
+        'Granular Role-Based Access Controls',
+        'Supplier Purchase Orders & Batch Quarantine',
+        'Automated Stock Reordering Logic',
+        'Complete Audit Logs & Activity Trails',
+        'Custom HMIS / EHR API Integrations',
+        'Dedicated Account Manager & 99.9% SLA',
+        'On-site Staff Training & Data Migration',
+      ],
+    }
+  }
+
+  return {
+    tagline: 'Comprehensive pharmacy management plan tailored to your business needs.',
+    badge: '',
+    popular: false,
+    features: [
+      'Multi-branch inventory and stock management',
+      'Real-time POS and prescription dispensing',
+      'Tax-compliant invoices and financial reports',
+      'Role-based staff and pharmacist permissions',
+      'Customer and supplier ledger records',
+    ],
+  }
+}
+
+export function unwrapPlansList(response) {
+  if (!response) return []
+  if (Array.isArray(response)) return response
+  if (Array.isArray(response.data)) return response.data
+  if (Array.isArray(response.plans)) return response.plans
+  if (Array.isArray(response.items)) return response.items
+  if (Array.isArray(response.result)) return response.result
+  return []
+}
+export const unwrapPlansResponse = unwrapPlansList
+
+export function normalizeSubscriptionPlan(raw = {}, index = 0) {
+  if (!raw || typeof raw !== 'object') return null
+
+  const rawId = raw.id !== undefined && raw.id !== null ? raw.id : index + 1
+  const id = String(rawId)
+  const code = String(raw.code ?? raw.planCode ?? raw.Code ?? `plan-${id}`).trim()
+  const name = String(raw.name ?? raw.planName ?? raw.Name ?? 'Subscription Plan').trim()
+
+  const rawMonthlyPaise = raw.monthlyAmountPaise ?? (raw.billingIntervalMonths === 1 ? raw.amountPaise : null)
+  const rawAnnualPaise = raw.annualAmountPaise ?? (raw.billingIntervalMonths === 12 ? raw.amountPaise : null)
+
+  const monthlyPrice =
+    rawMonthlyPaise !== null && rawMonthlyPaise !== undefined && !Number.isNaN(Number(rawMonthlyPaise))
+      ? Math.round(Number(rawMonthlyPaise) / 100)
+      : raw.monthlyPrice !== undefined
+        ? Number(raw.monthlyPrice)
+        : null
+
+  const yearlyPrice =
+    rawAnnualPaise !== null && rawAnnualPaise !== undefined && !Number.isNaN(Number(rawAnnualPaise))
+      ? Math.round(Number(rawAnnualPaise) / 100)
+      : raw.yearlyPrice !== undefined
+        ? Number(raw.yearlyPrice)
+        : null
+
+  const amountPaise = raw.amountPaise !== undefined ? raw.amountPaise : (monthlyPrice !== null ? monthlyPrice * 100 : null)
+  const priceRupees = amountPaise !== null && amountPaise !== undefined ? Math.round(Number(amountPaise) / 100) : (monthlyPrice ?? yearlyPrice)
+  const billingIntervalMonths = raw.billingIntervalMonths !== undefined ? Number(raw.billingIntervalMonths) : 1
+  const branchLimit = raw.branchLimit !== undefined && raw.branchLimit !== null ? Number(raw.branchLimit) : null
+  const isPublished = raw.isPublished !== undefined ? Boolean(raw.isPublished) : true
+
+  const fallback = getFallbackCopy(code, name)
+  const features = Array.isArray(raw.features) && raw.features.length > 0
+    ? raw.features.map(cleanFeatureText)
+    : fallback.features
+
+  return {
+    id,
+    code,
+    name,
+    tagline: raw.tagline || fallback.tagline,
+    priceRupees,
+    monthlyPrice,
+    yearlyPrice,
+    amountPaise,
+    billingIntervalMonths,
+    branchLimit,
+    isPublished,
+    active: isPublished,
+    popular: raw.popular !== undefined ? Boolean(raw.popular) : fallback.popular,
+    badge: raw.badge !== undefined ? raw.badge : fallback.badge,
+    features,
+    ctaText: raw.ctaText || 'Get Started',
+    ctaLink: raw.ctaLink || '/login',
+    savingsPercent: calculateSavingsPercent(monthlyPrice, yearlyPrice),
+    raw,
+  }
+}
+
+// 1. Public: Load published plans and monthly or annual prices
+// GET /api/public/pharmacy-subscription-plans
+export async function fetchSubscriptionPlans(options = {}) {
+  const response = await getPublicSubscriptionPlans(options)
+  const rawList = unwrapPlansList(response)
+  const normalized = rawList.map((item, idx) => normalizeSubscriptionPlan(item, idx)).filter(Boolean)
+  if (normalized.length > 0) {
+    try {
+      saveSubscriptionPlans(normalized)
+    } catch {}
+  }
+  return normalized
+}
+
+export async function fetchSubscriptionPlansFromServer() {
   try {
-    // Purge any legacy storage key containing outdated cashier references
+    const plans = await fetchSubscriptionPlans()
+    if (Array.isArray(plans) && plans.length > 0) {
+      return plans
+    }
+  } catch (err) {
+    console.warn('Could not fetch plans from server, using local/cached plans:', err?.message || err)
+  }
+  return getSubscriptionPlans()
+}
+
+// 2. Super Admin: List all plans, including hidden
+// GET /api/pharmacy-subscriptions/plans
+export async function fetchSuperAdminSubscriptionPlans(options = {}) {
+  const response = await listSuperAdminSubscriptionPlans(options)
+  const rawList = unwrapPlansList(response)
+  return rawList.map((item, idx) => normalizeSubscriptionPlan(item, idx)).filter(Boolean)
+}
+
+// 3. Super Admin: Get the full plan for editing
+// GET /api/pharmacy-subscriptions/plans/{id}
+export async function getSuperAdminPlanById(id, options = {}) {
+  const response = await getSuperAdminSubscriptionPlan(id, options)
+  const raw = response?.data || response?.plan || response
+  return normalizeSubscriptionPlan(raw, 0)
+}
+export const fetchSuperAdminSubscriptionPlan = getSuperAdminPlanById
+
+// 4. Super Admin: Create plan
+// POST /api/pharmacy-subscriptions/plans
+export async function createSuperAdminPlan(formData = {}, options = {}) {
+  const priceRupees = formData.priceRupees !== undefined && formData.priceRupees !== '' ? Number(formData.priceRupees) : null
+  const amountPaise = priceRupees !== null && !Number.isNaN(priceRupees) ? Math.round(priceRupees * 100) : (formData.amountPaise ?? null)
+  const branchLimit = formData.branchLimit !== undefined && formData.branchLimit !== '' ? Number(formData.branchLimit) : null
+  const billingIntervalMonths = formData.billingIntervalMonths !== undefined ? Number(formData.billingIntervalMonths) : 1
+
+  const payload = {
+    code: String(formData.code || '').trim(),
+    name: String(formData.name || '').trim(),
+    amountPaise,
+    billingIntervalMonths,
+    branchLimit,
+    isPublished: Boolean(formData.isPublished),
+  }
+
+  return await createSuperAdminSubscriptionPlan(payload, options)
+}
+
+// 5. Super Admin: Update plan
+// PUT /api/pharmacy-subscriptions/plans/{id}
+export async function updateSuperAdminPlan(id, formData = {}, options = {}) {
+  const priceRupees = formData.priceRupees !== undefined && formData.priceRupees !== '' ? Number(formData.priceRupees) : null
+  const amountPaise = priceRupees !== null && !Number.isNaN(priceRupees) ? Math.round(priceRupees * 100) : (formData.amountPaise ?? null)
+  const branchLimit = formData.branchLimit !== undefined && formData.branchLimit !== '' ? Number(formData.branchLimit) : null
+  const billingIntervalMonths = formData.billingIntervalMonths !== undefined ? Number(formData.billingIntervalMonths) : 1
+
+  const payload = {
+    name: String(formData.name || '').trim(),
+    amountPaise,
+    billingIntervalMonths,
+    branchLimit,
+    isPublished: Boolean(formData.isPublished),
+  }
+
+  return await updateSuperAdminSubscriptionPlan(id, payload, options)
+}
+
+// 6. Super Admin: Delete plan
+// DELETE /api/pharmacy-subscriptions/plans/{id}
+export async function deleteSuperAdminPlan(id, options = {}) {
+  return await deleteSuperAdminSubscriptionPlan(id, options)
+}
+
+// 7. Super Admin: Hide/Show Toggle
+export async function toggleSuperAdminPlanPublish(id, options = {}) {
+  const currentRaw = await getSuperAdminSubscriptionPlan(id, options)
+  const current = currentRaw?.data ?? currentRaw?.plan ?? currentRaw
+  const norm = normalizeSubscriptionPlan(current, 0)
+  const nextPublished = !norm.isPublished
+
+  const payload = {
+    name: norm.name,
+    amountPaise: norm.amountPaise,
+    billingIntervalMonths: norm.billingIntervalMonths,
+    branchLimit: norm.branchLimit,
+    isPublished: nextPublished,
+  }
+
+  await updateSuperAdminSubscriptionPlan(id, payload, options)
+  return { success: true, isPublished: nextPublished }
+}
+
+export function getSubscriptionPlans() {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return []
+  try {
     try {
       const oldStorage = localStorage.getItem('pms_subscription_plans')
       if (oldStorage) {
@@ -95,7 +365,7 @@ export function getSubscriptionPlans() {
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const result = parsed.map((item, index) => {
+        return parsed.map((item, index) => {
           const fallback = DEFAULT_SUBSCRIPTION_PLANS[index] || {}
           const rawFeatures = Array.isArray(item.features) ? item.features.filter(Boolean) : (fallback.features || [])
           const features = rawFeatures.map(cleanFeatureText)
@@ -115,16 +385,12 @@ export function getSubscriptionPlans() {
             branchLimit: item.branchLimit,
           }
         })
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(result))
-        } catch {}
-        return result
       }
     }
   } catch (err) {
     console.error('Failed to read subscription plans from localStorage', err)
   }
-  return JSON.parse(JSON.stringify(DEFAULT_SUBSCRIPTION_PLANS))
+  return []
 }
 
 export function saveSubscriptionPlans(plans) {
@@ -166,71 +432,4 @@ export function resetSubscriptionPlans() {
     console.error('Failed to reset subscription plans', err)
     return DEFAULT_SUBSCRIPTION_PLANS
   }
-}
-
-export function calculateSavingsPercent(monthly, yearly) {
-  const m = Number(monthly) || 0
-  const y = Number(yearly) || 0
-  if (m <= 0 || y >= m) return 0
-  return Math.round(((m - y) / m) * 100)
-}
-
-export async function fetchSubscriptionPlansFromServer() {
-  try {
-    const serverPlans = await getPublicSubscriptionPlans()
-    if (Array.isArray(serverPlans) && serverPlans.length > 0) {
-      const existingPlans = getSubscriptionPlans()
-      const matchedLocalIds = new Set()
-
-      const merged = serverPlans.map((sp, idx) => {
-        const planCodeOrId = sp.code || (sp.id === 1 ? 'starter' : sp.id === 2 ? 'pro' : sp.id === 3 ? 'enterprise' : String(sp.id))
-
-        // Find existing plan to preserve Super Admin customizations (active/hidden flag, edited features, etc.)
-        const existing = existingPlans.find((p) =>
-          (sp.id && (p.serverId === sp.id || p.id === String(sp.id))) ||
-          p.id === planCodeOrId ||
-          (p.name && sp.name && p.name.trim().toLowerCase() === sp.name.trim().toLowerCase()) ||
-          p.id === (idx === 0 ? 'starter' : idx === 1 ? 'pro' : idx === 2 ? 'enterprise' : undefined)
-        )
-
-        if (existing) {
-          matchedLocalIds.add(existing.id)
-        }
-
-        const fallback = DEFAULT_SUBSCRIPTION_PLANS[idx] || DEFAULT_SUBSCRIPTION_PLANS[0]
-        const monthly = Math.round(Number(sp.monthlyAmountPaise || 0) / 100) || fallback.monthlyPrice
-        const yearlyAnnual = Math.round(Number(sp.annualAmountPaise || 0) / 100)
-        const yearlyMonthly = Math.round(yearlyAnnual / 12) || fallback.yearlyPrice
-
-        // CRITICAL: Preserve Super Admin's hidden / active setting
-        const isActive = existing ? (existing.active !== false && existing.active !== 'false') : true
-
-        return {
-          id: existing?.id || planCodeOrId,
-          serverId: sp.id,
-          name: existing?.name || sp.name || fallback.name,
-          tagline: existing?.tagline || fallback.tagline || '',
-          monthlyPrice: existing?.monthlyPrice !== undefined && existing?.monthlyPrice !== null ? existing.monthlyPrice : monthly,
-          yearlyPrice: existing?.yearlyPrice !== undefined && existing?.yearlyPrice !== null ? existing.yearlyPrice : yearlyMonthly,
-          popular: existing?.popular !== undefined ? existing.popular : (sp.code === 'professional' || sp.id === 2 || fallback.popular),
-          badge: existing?.badge !== undefined ? existing.badge : (fallback.badge || ''),
-          features: Array.isArray(existing?.features) && existing.features.length > 0 ? existing.features : (fallback.features || []),
-          ctaText: existing?.ctaText || fallback.ctaText || 'Get Started',
-          ctaLink: existing?.ctaLink || fallback.ctaLink || '/login',
-          active: isActive,
-          branchLimit: sp.branchLimit,
-        }
-      })
-
-      // Preserve any custom plans created by Super Admin that are not in serverPlans
-      const customPlans = existingPlans.filter((p) => !matchedLocalIds.has(p.id))
-      const combined = [...merged, ...customPlans]
-
-      saveSubscriptionPlans(combined)
-      return combined
-    }
-  } catch (err) {
-    console.warn('Could not fetch plans from server, using local/cached plans:', err?.message || err)
-  }
-  return getSubscriptionPlans()
 }

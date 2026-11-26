@@ -1,18 +1,24 @@
 // Service for managing customer plan inquiries and delivering them to the Super Admin
+// Connected directly to fresh backend APIs with notifications & local fallback
 import {
   API_BASE_URL,
   submitPublicSubscriptionRequest,
+  submitSubscriptionRequest,
   getSuperAdminSubscriptionRequests,
+  listSuperAdminSubscriptionRequests,
+  getSuperAdminSubscriptionRequestDetails,
   approveSuperAdminSubscriptionRequest,
   rejectSuperAdminSubscriptionRequest,
   resendSuperAdminSubscriptionInvitation,
-} from '../config/api'
-import { setNotificationCount, getNotificationCount } from './notificationManager'
+} from '../config/api.js'
+import { setNotificationCount, getNotificationCount } from './notificationManager.js'
 
 const INQUIRIES_STORAGE_KEY = 'pms_super_admin_inquiries'
 const NOTIFICATIONS_STORAGE_KEY = 'pms_super_admin_inbox_notis'
 
-export async function submitPlanInquiry(data) {
+// 1. Public: Submit the plan and contact details
+// POST /api/public/pharmacy-subscription-requests
+export async function submitPlanInquiry(data, options = {}) {
   // 1. Resolve server integer planId (1: Starter, 2: Pro, 3: Enterprise)
   let serverPlanId = 1
   if (typeof data.planId === 'number') {
@@ -47,7 +53,8 @@ export async function submitPlanInquiry(data) {
   // 2. Submit to backend API: /api/public/pharmacy-subscription-requests
   let serverResult = null
   try {
-    serverResult = await submitPublicSubscriptionRequest(serverPayload)
+    const submitFn = submitPublicSubscriptionRequest || submitSubscriptionRequest
+    serverResult = await submitFn(serverPayload, options)
   } catch (err) {
     console.warn('Backend pharmacy-subscription-requests API call failed, falling back to local persistence:', err.message)
   }
@@ -80,7 +87,7 @@ export async function submitPlanInquiry(data) {
     console.error('Failed to store inquiry locally', err)
   }
 
-  // 3. Create a high-priority notification for Super Admin
+  // 4. Create a high-priority notification for Super Admin
   const notificationItem = {
     id: `inq-noti-${inquiry.id}`,
     inquiryId: inquiry.id,
@@ -126,9 +133,96 @@ export async function submitPlanInquiry(data) {
     console.error('Failed to register inquiry notification', err)
   }
 
-  return { success: true, inquiry, serverResult }
+  return { success: true, inquiry, serverResult, data: serverResult }
 }
 
+export function unwrapRequestsList(response) {
+  if (!response) return []
+  if (Array.isArray(response)) return response
+  if (Array.isArray(response.data)) return response.data
+  if (Array.isArray(response.requests)) return response.requests
+  if (Array.isArray(response.items)) return response.items
+  if (Array.isArray(response.result)) return response.result
+  if (Array.isArray(response.subscriptionRequests)) return response.subscriptionRequests
+  return []
+}
+
+export function normalizeSubscriptionRequest(raw = {}, index = 0) {
+  if (!raw || typeof raw !== 'object') return null
+
+  const id = String(raw.id ?? raw.subscriptionRequestId ?? raw.requestId ?? raw.Id ?? raw.RequestId ?? `req-${index + 1}`)
+  const pharmacyName = String(raw.pharmacyName ?? raw.PharmacyName ?? raw.name ?? 'Pharmacy').trim()
+  const fullName = String(raw.fullName ?? raw.contactPerson ?? raw.contactName ?? raw.FullName ?? raw.ContactPerson ?? raw.name ?? 'Contact Person').trim()
+  const email = String(raw.email ?? raw.Email ?? raw.contactEmail ?? '').trim()
+  const phone = String(raw.phone ?? raw.phoneNumber ?? raw.contactNumber ?? raw.Phone ?? raw.PhoneNumber ?? '').trim()
+  const planId = String(raw.planId ?? raw.PlanId ?? 'starter')
+  const planName = String(raw.planName ?? raw.PlanName ?? 'Starter Pharmacy')
+  const billingCycle = String(raw.billingCycle ?? raw.BillingCycle ?? 'monthly').toLowerCase()
+  const price = Number(raw.price ?? raw.Price ?? 0)
+  const city = String(raw.city ?? raw.City ?? raw.location ?? '').trim()
+  const branchCount = Number(raw.branchCount ?? raw.BranchCount ?? 1)
+  const status = String(raw.status ?? raw.Status ?? raw.requestStatus ?? 'pending').toLowerCase()
+  const message = String(raw.message ?? raw.notes ?? raw.Message ?? raw.Notes ?? '').trim()
+  const createdAt = raw.createdAt ?? raw.CreatedDate ?? raw.createdDate ?? raw.created_at ?? new Date().toISOString()
+  const rejectionReason = String(raw.rejectionReason ?? raw.reason ?? raw.RejectionReason ?? '').trim()
+  const invitationSentAt = raw.invitationSentAt ?? raw.invitationEmailedAt ?? raw.InvitationSentAt ?? null
+
+  return {
+    id,
+    pharmacyName,
+    fullName,
+    email,
+    phone,
+    planId,
+    planName,
+    billingCycle,
+    price,
+    city,
+    branchCount,
+    status,
+    message,
+    createdAt,
+    rejectionReason,
+    invitationSentAt,
+  }
+}
+
+// 2. Super Admin: List subscription requests
+// GET /api/pharmacy-super-admin/subscription-requests
+export async function fetchSuperAdminSubscriptionRequests(params = {}, options = {}) {
+  const response = await (listSuperAdminSubscriptionRequests ? listSuperAdminSubscriptionRequests(params, options) : getSuperAdminSubscriptionRequests(params))
+  const rawList = unwrapRequestsList(response)
+  return rawList.map((item, idx) => normalizeSubscriptionRequest(item, idx)).filter(Boolean)
+}
+
+// 3. Super Admin: View request details and status
+// GET /api/pharmacy-super-admin/subscription-requests/{id}
+export async function fetchSuperAdminSubscriptionRequestDetails(id, options = {}) {
+  const response = await getSuperAdminSubscriptionRequestDetails(id, options)
+  const raw = response?.data || response?.request || response
+  return normalizeSubscriptionRequest(raw, 0)
+}
+
+// 4. Super Admin: Approve and email the invitation
+// POST /api/pharmacy-super-admin/subscription-requests/{id}/approve
+export async function approveSubscriptionRequest(id, payload = {}, options = {}) {
+  return await approveSuperAdminSubscriptionRequest(id, payload, options)
+}
+
+// 5. Super Admin: Reject a pending request
+// POST /api/pharmacy-super-admin/subscription-requests/{id}/reject
+export async function rejectSubscriptionRequest(id, reason = '', options = {}) {
+  const payload = typeof reason === 'object' ? reason : { reason: String(reason || '').trim() }
+  return await rejectSuperAdminSubscriptionRequest(id, payload, options)
+}
+
+// 6. Super Admin: Replace an unused invitation and resend it
+// POST /api/pharmacy-super-admin/subscription-requests/{id}/resend-invitation
+export async function resendSubscriptionInvitation(id, payload = {}, options = {}) {
+  return await resendSuperAdminSubscriptionInvitation(id, payload, options)
+}
+
+// Local Storage & Notification Center helpers
 export function getLocalInquiries() {
   try {
     const raw = localStorage.getItem(INQUIRIES_STORAGE_KEY)

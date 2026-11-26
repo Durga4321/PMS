@@ -81,7 +81,7 @@ test('[Notification Lifecycle] Distinguish paginated inbox request from header b
   const bellUrl = capturedRequests[1].url
   assert.match(bellUrl, /\/api\/pharmacy-super-admin\/notifications/)
   assert.match(bellUrl, /status=unread/)
-  assert.match(bellUrl, /pageSize=100/)
+  assert.match(bellUrl, /pageSize=1/)
 })
 
 test('[Notification Lifecycle] React StrictMode replay shares in-flight startup fetch (1 network call, 0 canceled)', async () => {

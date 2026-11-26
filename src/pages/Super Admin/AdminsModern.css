@@ -984,32 +984,20 @@
 }
 
 .admins-page-shell .admins-table .row-actions .row-action-button {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.08);
-}
-
-.admins-page-shell .admins-table .row-actions > .row-actions {
-  flex: 0 0 auto;
-  gap: 3px;
-}
-
-.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button {
   box-sizing: border-box;
   width: 30px;
   height: 30px;
   min-width: 30px;
   flex: 0 0 30px;
   padding: 0;
+  border: 1px solid transparent;
   border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.08);
 }
 
 .admins-page-shell .admins-table .row-actions .row-action-button svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   stroke-width: 2.2;
 }
 
@@ -1025,58 +1013,10 @@
   color: #8247e5;
 }
 
-.admins-page-shell .admins-table .row-actions .row-action-button.status {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-  color: #16a34a;
-}
-
-.admins-page-shell .admins-table .row-actions .row-action-button.status:hover {
-  background: #dcfce7;
-  border-color: #86efac;
-}
-
-.admins-page-shell .admins-table .row-actions .row-action-button.key {
-  border-color: #fed7aa;
-  background: #fffbeb;
-  color: #d97706;
-}
-
-.admins-page-shell .admins-table .row-actions .row-action-button.key:hover {
-  background: #fef3c7;
-  border-color: #fcd34d;
-}
-
 .admins-page-shell .admins-table .row-actions .row-action-button.delete {
   border-color: #ffaaaa;
   background: #fff0f0;
   color: #e52f3b;
-}
-
-.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button.view,
-.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button.edit,
-.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button.status,
-.admins-page-shell .admins-table .row-actions > .row-actions .row-action-button.delete,
-.admins-page-shell .admins-table .row-actions .row-action-button.key {
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
-  flex: 0 0 30px;
-  padding: 0;
-}
-
-.admins-page-shell .admins-table .row-actions > .row-action-button.view {
-  width: 52px;
-  min-width: 52px;
-  height: 30px;
-  flex: 0 0 auto;
-  padding: 0 5px;
-  border-color: #a5ddff;
-  border-radius: 10px;
-  background: #e4f5ff;
-  color: #0878b5;
-  box-shadow: none;
-  font-size: 12px;
 }
 
 .admins-page-shell .admins-table .row-actions .row-action-button:not(:disabled):hover {
@@ -1290,18 +1230,14 @@
   overflow-wrap: anywhere;
 }
 
-.admins-page-shell .admins-table .row-actions,
-.admins-page-shell .admins-table .row-actions > .row-actions {
-  flex-wrap: wrap;
+.admins-page-shell .admins-table .row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   max-width: 100%;
   min-width: 0;
-}
-
-.admins-page-shell .admins-table .row-actions > .row-action-button {
-  width: auto;
-  min-width: 0;
-  flex: 0 1 auto;
-  padding: 0 6px;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {

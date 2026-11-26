@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { getSubscriptionPlans, fetchSubscriptionPlansFromServer } from '../services/subscriptionPlansService'
+import { fetchSubscriptionPlans, getSubscriptionPlans, fetchSubscriptionPlansFromServer } from '../services/subscriptionPlansService'
 import { submitPlanInquiry } from '../services/planInquiryService'
 import { useToast } from '../components/ToastProvider'
 import ThemeToggle from '../components/ThemeToggle'
@@ -21,22 +21,50 @@ function Logo() {
 export default function PlanInquiry() {
   const [searchParams] = useSearchParams()
   const { showToast } = useToast()
-  const [allPlans, setAllPlans] = useState(() => getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false'))
+  const [plans, setPlans] = useState(() => getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false'))
+  const [loadingPlans, setLoadingPlans] = useState(false)
+  const [planLoadError, setPlanLoadError] = useState('')
+
+  const urlPlan = searchParams.get('plan') || ''
+  const initialCycle = searchParams.get('cycle') === 'yearly' ? 'yearly' : 'monthly'
+
+  const [selectedPlanId, setSelectedPlanId] = useState(urlPlan)
+  const [billingCycle, setBillingCycle] = useState(initialCycle)
+  const [submitting, setSubmitting] = useState(false)
+  const [submittedData, setSubmittedData] = useState(null)
+
+  const loadPlans = useCallback(async () => {
+    try {
+      setLoadingPlans(true)
+      setPlanLoadError('')
+      const list = await (fetchSubscriptionPlansFromServer ? fetchSubscriptionPlansFromServer() : fetchSubscriptionPlans())
+      const activeList = Array.isArray(list) ? list.filter((p) => p.active !== false && p.active !== 'false') : []
+      if (activeList.length > 0) {
+        setPlans(activeList)
+        setSelectedPlanId((prev) => {
+          if (prev && activeList.some((p) => p.id === prev)) return prev
+          const fromUrl = searchParams.get('plan')
+          if (fromUrl && activeList.some((p) => p.id === fromUrl)) return fromUrl
+          return activeList[0]?.id || ''
+        })
+      }
+    } catch (err) {
+      setPlanLoadError(err.message || 'Failed to load subscription plans.')
+    } finally {
+      setLoadingPlans(false)
+    }
+  }, [searchParams])
 
   useEffect(() => {
-    fetchSubscriptionPlansFromServer().then((latest) => {
-      if (Array.isArray(latest) && latest.length > 0) {
-        setAllPlans(latest.filter((p) => p.active !== false && p.active !== 'false'))
-      }
-    })
+    loadPlans()
     function onPlansUpdated(e) {
       if (Array.isArray(e.detail)) {
-        setAllPlans(e.detail.filter((p) => p.active !== false && p.active !== 'false'))
+        setPlans(e.detail.filter((p) => p.active !== false && p.active !== 'false'))
       }
     }
     function onStorageChange(e) {
       if (!e.key || e.key === 'pms_subscription_plans_v2') {
-        setAllPlans(getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false'))
+        setPlans(getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false'))
       }
     }
     window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
@@ -45,21 +73,15 @@ export default function PlanInquiry() {
       window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
       window.removeEventListener('storage', onStorageChange)
     }
-  }, [])
+  }, [loadPlans])
 
-  const initialPlanId = searchParams.get('plan') || (allPlans[0]?.id ?? 'starter')
-  const initialCycle = searchParams.get('cycle') === 'yearly' ? 'yearly' : 'monthly'
-
-  const [selectedPlanId, setSelectedPlanId] = useState(initialPlanId)
-  const [billingCycle, setBillingCycle] = useState(initialCycle)
+  const allPlans = plans
 
   useEffect(() => {
     if (allPlans.length > 0 && !allPlans.some((p) => p.id === selectedPlanId)) {
       setSelectedPlanId(allPlans[0].id)
     }
   }, [allPlans, selectedPlanId])
-  const [submitting, setSubmitting] = useState(false)
-  const [submittedData, setSubmittedData] = useState(null)
 
   const [form, setForm] = useState({
     fullName: '',
@@ -73,7 +95,13 @@ export default function PlanInquiry() {
 
   // Keep selected plan object in sync
   const currentPlan = useMemo(() => {
-    return allPlans.find((p) => p.id === selectedPlanId) || allPlans[0] || {}
+    return allPlans.find((p) => p.id === selectedPlanId) || allPlans[0] || {
+      id: selectedPlanId || 'starter',
+      name: 'Subscription Plan',
+      monthlyPrice: null,
+      yearlyPrice: null,
+      features: [],
+    }
   }, [allPlans, selectedPlanId])
 
   const price = billingCycle === 'yearly' ? currentPlan.yearlyPrice : currentPlan.monthlyPrice
@@ -114,10 +142,10 @@ export default function PlanInquiry() {
 
       await submitPlanInquiry(payload)
       setSubmittedData(payload)
-      showToast('Your subscription inquiry has been sent directly to the Super Admin!', 'success')
+      showToast('Your subscription request has been submitted successfully to Super Admin!', 'success')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
-      showToast('Unable to submit inquiry. Please try again.', 'error')
+      showToast(err.message || 'Unable to submit request. Please try again.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -163,7 +191,11 @@ export default function PlanInquiry() {
               </div>
               <div>
                 <span>Estimated Rate</span>
-                <strong>₹{Number(submittedData.price || 0).toLocaleString('en-IN')} / month</strong>
+                <strong>
+                  {submittedData.price != null
+                    ? `₹${Number(submittedData.price).toLocaleString('en-IN')} ${submittedData.billingCycle === 'yearly' ? '/ year' : '/ month'}`
+                    : 'Option Unavailable'}
+                </strong>
               </div>
               <div>
                 <span>Contact Phone</span>
@@ -207,8 +239,16 @@ export default function PlanInquiry() {
                 </header>
 
                 <div className="plan-inquiry-preview-price">
-                  <strong>₹{Number(price || 0).toLocaleString('en-IN')}</strong>
-                  <span>/ month</span>
+                  {price != null ? (
+                    <>
+                      <strong>₹{Number(price).toLocaleString('en-IN')}</strong>
+                      <span>{billingCycle === 'yearly' ? '/ year' : '/ month'}</span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: '1.25rem', fontWeight: 600, color: '#94a3b8' }}>
+                      Option Unavailable
+                    </span>
+                  )}
                 </div>
 
                 <div className="plan-inquiry-preview-features-heading">Plan Inclusions:</div>
@@ -235,6 +275,20 @@ export default function PlanInquiry() {
                   <p>Provide your pharmacy contact details and any special requirements.</p>
                 </header>
 
+                {planLoadError && (
+                  <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', marginBottom: '16px', color: '#b91c1c', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                    <span>⚠ {planLoadError}</span>
+                    <button
+                      type="button"
+                      onClick={loadPlans}
+                      disabled={loadingPlans}
+                      style={{ padding: '4px 10px', fontSize: '12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      ↻ Retry
+                    </button>
+                  </div>
+                )}
+
                 <form className="plan-inquiry-form" onSubmit={handleSubmit}>
                   {/* Plan & Cycle Selection */}
                   <div className="plan-inquiry-row">
@@ -248,11 +302,17 @@ export default function PlanInquiry() {
                         onChange={(e) => setSelectedPlanId(e.target.value)}
                         required
                       >
-                        {allPlans.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} (₹{Number(billingCycle === 'yearly' ? p.yearlyPrice : p.monthlyPrice).toLocaleString('en-IN')}/mo)
-                          </option>
-                        ))}
+                        {allPlans.map((p) => {
+                          const cyclePrice = billingCycle === 'yearly' ? p.yearlyPrice : p.monthlyPrice
+                          const priceText = cyclePrice != null
+                            ? `₹${Number(cyclePrice).toLocaleString('en-IN')}${billingCycle === 'yearly' ? '/yr' : '/mo'}`
+                            : 'Unavailable'
+                          return (
+                            <option key={p.id} value={p.id}>
+                              {p.name} ({priceText})
+                            </option>
+                          )
+                        })}
                       </select>
                     </div>
 
@@ -385,9 +445,13 @@ export default function PlanInquiry() {
                       <button
                         type="submit"
                         className="plan-inquiry-submit-btn"
-                        disabled={submitting}
+                        disabled={submitting || price == null}
                       >
-                        {submitting ? 'Sending Request...' : 'Send Request to Super Admin →'}
+                        {submitting
+                          ? 'Sending Request...'
+                          : price == null
+                          ? 'Plan Option Unavailable'
+                          : 'Send Request to Super Admin →'}
                       </button>
                     </div>
                   </div>
