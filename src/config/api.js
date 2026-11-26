@@ -1,5 +1,5 @@
 import medicineCatalogReference from '../data/medicineCatalogReference.json' with { type: 'json' }
-const DEFAULT_API_BASE_URL = 'http://localhost:5001'
+const DEFAULT_API_BASE_URL = 'https://jackpot-citrus-compare.ngrok-free.dev'
 const DEFAULT_API_ASSET_BASE_URL = DEFAULT_API_BASE_URL
 
 const env = typeof process !== 'undefined' ? process.env : {}
@@ -4939,4 +4939,28 @@ export function getSignedInRole() {
   if (readStoredToken('pharmacyAdminToken')) return 'pharmacyAdmin'
   if (readStoredToken('pharmacistToken')) return 'pharmacist'
   return null
+}
+
+export function submitPublicSubscriptionRequest(payload) {
+  return request('public/pharmacy-subscription-requests', {
+    publicRequest: true,
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getSuperAdminSubscriptionRequests(params = {}) {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', params.page)
+  if (params.pageSize) query.set('pageSize', params.pageSize)
+  const qs = query.toString()
+  return request(`pharmacy-super-admin/subscription-requests${qs ? `?${qs}` : ''}`, {
+    authRole: 'superAdmin',
+  })
+}
+
+export function getSuperAdminSubscriptionRequest(id) {
+  return request(`pharmacy-super-admin/subscription-requests/${encodeURIComponent(id)}`, {
+    authRole: 'superAdmin',
+  })
 }

@@ -103,11 +103,20 @@ export default function SubscriptionPlans() {
         setPlans(e.detail)
       }
     }
+    function onStorageChange(e) {
+      if (!e.key || e.key === 'pms_subscription_plans_v2') {
+        setPlans(getSubscriptionPlans())
+      }
+    }
     window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
-    return () => window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+    window.addEventListener('storage', onStorageChange)
+    return () => {
+      window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+      window.removeEventListener('storage', onStorageChange)
+    }
   }, [])
 
-  const activePlansCount = plans.filter((p) => p.isPublished !== false && p.active !== false).length
+  const activePlansCount = plans.filter((p) => p.isPublished !== false && p.active !== false && p.active !== 'false').length
   const validMonthly = plans.map((p) => p.monthlyPrice).filter((p) => p != null && p > 0)
   const lowestMonthlyPrice = validMonthly.length > 0 ? Math.min(...validMonthly) : 0
   const validSavings = plans.map((p) => calculateSavingsPercent(p.monthlyPrice, p.yearlyPrice)).filter((s) => s > 0)
@@ -819,7 +828,7 @@ export default function SubscriptionPlans() {
               </button>
             </header>
 
-            <form onSubmit={handleSavePlan}>
+            <form onSubmit={handleSavePlan} className="sub-modal-form">
               <div className="sub-modal-body">
                 <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px 14px', borderRadius: '10px', fontSize: '12px', color: '#1e40af', marginBottom: '16px' }}>
                   ℹ <strong>Backend Contract:</strong> Persists <code>name</code>, <code>amountPaise</code> (calculated from rupees &times; 100), <code>billingIntervalMonths</code>, <code>branchLimit</code>, and <code>isPublished</code>{isNewPlan ? ' along with unique code' : ''}. Taglines, badges, and features have no backend fields yet and remain display-only.

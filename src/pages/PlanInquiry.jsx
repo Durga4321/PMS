@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { fetchSubscriptionPlans } from '../services/subscriptionPlansService'
+import { fetchSubscriptionPlans, getSubscriptionPlans, fetchSubscriptionPlansFromServer } from '../services/subscriptionPlansService'
 import { submitPlanInquiry } from '../services/planInquiryService'
 import { useToast } from '../components/ToastProvider'
 import ThemeToggle from '../components/ThemeToggle'
@@ -21,8 +21,8 @@ function Logo() {
 export default function PlanInquiry() {
   const [searchParams] = useSearchParams()
   const { showToast } = useToast()
-  const [plans, setPlans] = useState([])
-  const [loadingPlans, setLoadingPlans] = useState(true)
+  const [plans, setPlans] = useState(() => getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false'))
+  const [loadingPlans, setLoadingPlans] = useState(false)
   const [planLoadError, setPlanLoadError] = useState('')
 
   const urlPlan = searchParams.get('plan') || ''
@@ -37,15 +37,17 @@ export default function PlanInquiry() {
     try {
       setLoadingPlans(true)
       setPlanLoadError('')
-      const list = await fetchSubscriptionPlans()
-      const activeList = list.filter((p) => p.active !== false)
-      setPlans(activeList)
-      setSelectedPlanId((prev) => {
-        if (prev && activeList.some((p) => p.id === prev)) return prev
-        const fromUrl = searchParams.get('plan')
-        if (fromUrl && activeList.some((p) => p.id === fromUrl)) return fromUrl
-        return activeList[0]?.id || ''
-      })
+      const list = await (fetchSubscriptionPlansFromServer ? fetchSubscriptionPlansFromServer() : fetchSubscriptionPlans())
+      const activeList = Array.isArray(list) ? list.filter((p) => p.active !== false && p.active !== 'false') : []
+      if (activeList.length > 0) {
+        setPlans(activeList)
+        setSelectedPlanId((prev) => {
+          if (prev && activeList.some((p) => p.id === prev)) return prev
+          const fromUrl = searchParams.get('plan')
+          if (fromUrl && activeList.some((p) => p.id === fromUrl)) return fromUrl
+          return activeList[0]?.id || ''
+        })
+      }
     } catch (err) {
       setPlanLoadError(err.message || 'Failed to load subscription plans.')
     } finally {
@@ -55,9 +57,31 @@ export default function PlanInquiry() {
 
   useEffect(() => {
     loadPlans()
+    function onPlansUpdated(e) {
+      if (Array.isArray(e.detail)) {
+        setPlans(e.detail.filter((p) => p.active !== false && p.active !== 'false'))
+      }
+    }
+    function onStorageChange(e) {
+      if (!e.key || e.key === 'pms_subscription_plans_v2') {
+        setPlans(getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false'))
+      }
+    }
+    window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
+    window.addEventListener('storage', onStorageChange)
+    return () => {
+      window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+      window.removeEventListener('storage', onStorageChange)
+    }
   }, [loadPlans])
 
   const allPlans = plans
+
+  useEffect(() => {
+    if (allPlans.length > 0 && !allPlans.some((p) => p.id === selectedPlanId)) {
+      setSelectedPlanId(allPlans[0].id)
+    }
+  }, [allPlans, selectedPlanId])
 
   const [form, setForm] = useState({
     fullName: '',

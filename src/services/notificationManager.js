@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { authTokenFor, notificationApis, normalizeRole, getSignedInRole } from '../config/api'
-import { notificationBody } from '../components/notificationModel'
+import { authTokenFor, notificationApis, normalizeRole, getSignedInRole } from '../config/api.js'
+import { notificationBody } from '../components/notificationModel.js'
 
 const CACHE_TTL_MS = 20000 // 20 seconds cache TTL
 

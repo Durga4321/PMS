@@ -4,7 +4,7 @@ import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './Audit Logs.css'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 5
 
 function Icon({ children }) {
   return <svg className="audit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">{children}</svg>

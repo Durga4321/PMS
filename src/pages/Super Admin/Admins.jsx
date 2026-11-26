@@ -193,7 +193,7 @@ function Admins() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(5)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)

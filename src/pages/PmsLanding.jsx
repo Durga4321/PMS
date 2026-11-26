@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import './PmsLanding.css'
 import ThemeToggle from '../components/ThemeToggle'
-import { fetchSubscriptionPlans, calculateSavingsPercent } from '../services/subscriptionPlansService'
+import { fetchSubscriptionPlans, getSubscriptionPlans, fetchSubscriptionPlansFromServer, calculateSavingsPercent } from '../services/subscriptionPlansService'
 
 const modules = [
   ['▣', 'Inventory', 'Track medicines, stock movement, and availability across all branches.'],
@@ -40,16 +40,18 @@ function DashboardMockup({ compact = false }) {
 
 function PmsLanding() {
   const [billingCycle, setBillingCycle] = useState('monthly')
-  const [plans, setPlans] = useState([])
-  const [loadingPlans, setLoadingPlans] = useState(true)
+  const [plans, setPlans] = useState(() => getSubscriptionPlans())
+  const [loadingPlans, setLoadingPlans] = useState(false)
   const [plansError, setPlansError] = useState('')
 
   const loadPlans = useCallback(async () => {
     try {
       setLoadingPlans(true)
       setPlansError('')
-      const data = await fetchSubscriptionPlans()
-      setPlans(data)
+      const data = await (fetchSubscriptionPlansFromServer ? fetchSubscriptionPlansFromServer() : fetchSubscriptionPlans())
+      if (Array.isArray(data) && data.length > 0) {
+        setPlans(data)
+      }
     } catch (err) {
       setPlansError(err.message || 'Unable to load subscription plans.')
     } finally {
@@ -66,14 +68,21 @@ function PmsLanding() {
         setPlans(e.detail)
       }
     }
+    function onStorageChange(e) {
+      if ((!e.key || e.key === 'pms_subscription_plans_v2') && isMounted) {
+        setPlans(getSubscriptionPlans())
+      }
+    }
     window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
+    window.addEventListener('storage', onStorageChange)
     return () => {
       isMounted = false
       window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+      window.removeEventListener('storage', onStorageChange)
     }
   }, [loadPlans])
 
-  const visiblePlans = plans.filter((p) => p.active !== false)
+  const visiblePlans = plans.filter((p) => p.active !== false && p.active !== 'false')
   const savingsList = visiblePlans
     .map((p) => calculateSavingsPercent(p.monthlyPrice, p.yearlyPrice))
     .filter((s) => s > 0)
@@ -124,8 +133,8 @@ function PmsLanding() {
         <span className="pms-pricing-save-badge">Save {maxSavings || 20}% on Annual</span>
       </div>
 
-      <div className="pms-pricing-grid">
-        {loadingPlans ? (
+      <div className={`pms-pricing-grid pms-pricing-grid--count-${Math.min(visiblePlans.length, 3)}`}>
+        {loadingPlans && visiblePlans.length === 0 ? (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '56px 24px', color: '#64748b' }}>
             <div style={{ width: '36px', height: '36px', border: '3px solid #e2e8f0', borderTopColor: '#0bb8ab', borderRadius: '50%', animation: 'pmsSpin 0.8s linear infinite', margin: '0 auto 16px' }} />
             <p style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>Loading subscription plans...</p>
@@ -148,19 +157,20 @@ function PmsLanding() {
             </button>
           </div>
         ) : visiblePlans.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
-            <p style={{ margin: 0, fontSize: '15px' }}>No subscription plans currently published.</p>
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#5c7485', gridColumn: '1 / -1' }}>
+            <p style={{ fontSize: '15px', fontWeight: '600' }}>No subscription plans are currently available for public enrollment.</p>
+            <p style={{ fontSize: '13px', marginTop: '6px' }}>Please contact support or check back soon.</p>
           </div>
         ) : (
           visiblePlans.map((plan) => {
-          const price = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
-          return (
-            <article
-              key={plan.id}
-              className={`pms-pricing-card${plan.popular ? ' pms-pricing-card--popular' : ''}`}
-            >
-              {plan.badge && <span className="pms-pricing-badge">{plan.badge}</span>}
-              <header className="pms-pricing-card-header">
+            const price = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
+            return (
+              <article
+                key={plan.id}
+                className={`pms-pricing-card${plan.popular ? ' pms-pricing-card--popular' : ''}`}
+              >
+                {plan.badge && <span className="pms-pricing-badge">{plan.badge}</span>}
+                <header className="pms-pricing-card-header">
                 <h3>{plan.name}</h3>
                 <p>{plan.tagline}</p>
               </header>

@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  // Default to local backend; override via VITE_API_BASE_URL in .env.development.local or shell
-  const defaultTarget = 'http://localhost:5001'
+  // Default to active tunnel or local backend; override via VITE_API_BASE_URL in .env.development.local
+  const defaultTarget = 'https://jackpot-citrus-compare.ngrok-free.dev'
   const apiTarget = (env.VITE_API_BASE_URL || env.REACT_APP_API_BASE_URL || defaultTarget).trim().replace(/\/+$/, '')
   console.log(`[Vite Proxy] Effective /api target: ${apiTarget}`)
 

@@ -1,11 +1,15 @@
 /* Subscription Plans & Pricing Screen - Super Admin */
 
 .subscription-plans-shell {
+  --teal: var(--pms-accent, #0d9488);
+  --deep: var(--pms-accent-strong, #0f766e);
+  --mint: color-mix(in srgb, var(--pms-accent, #0d9488) 12%, var(--pms-surface, #ffffff));
   width: 100%;
   min-height: 100vh;
-  background: #f4f7fb;
+  background: var(--pms-page-bg, #f4f7fb);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  color: #0f172a;
+  color: var(--pms-text, #0f172a);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .subscription-plans-main {
@@ -70,15 +74,15 @@
 }
 
 .sub-btn-primary {
-  background: linear-gradient(135deg, #0d9488, #0f766e);
+  background: var(--pms-gradient, linear-gradient(135deg, var(--teal), var(--deep)));
   color: #ffffff;
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.25);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--teal) 25%, transparent);
 }
 
 .sub-btn-primary:hover {
-  background: linear-gradient(135deg, #0f766e, #115e59);
+  background: var(--pms-gradient, linear-gradient(135deg, var(--deep), var(--teal)));
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.35);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--teal) 35%, transparent);
 }
 
 .sub-btn-secondary {
@@ -220,9 +224,9 @@
 }
 
 .sub-cycle-toggle button[aria-pressed="true"] {
-  background: #0d9488;
+  background: var(--teal);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--teal) 25%, transparent);
 }
 
 /* Plans Grid */
@@ -248,13 +252,13 @@
 .sub-plan-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
-  border-color: #94e2d5;
+  border-color: var(--teal);
 }
 
 .sub-plan-card--popular {
-  border: 2px solid #0d9488;
-  box-shadow: 0 14px 34px rgba(13, 148, 136, 0.12);
-  background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 32%);
+  border: 2px solid var(--teal);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--teal) 15%, transparent);
+  background: linear-gradient(180deg, var(--mint) 0%, #ffffff 32%);
 }
 
 .sub-plan-card--inactive {
@@ -270,13 +274,13 @@
   transform: translateX(-50%);
   padding: 5px 15px;
   border-radius: 99px;
-  background: linear-gradient(135deg, #0d9488, #0f766e);
+  background: var(--pms-gradient, linear-gradient(135deg, var(--teal), var(--deep)));
   color: #ffffff;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.28);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--teal) 28%, transparent);
   white-space: nowrap;
 }
 
@@ -388,8 +392,8 @@
   width: 17px;
   height: 17px;
   border-radius: 50%;
-  background: #ccfbf1;
-  color: #0d9488;
+  background: var(--mint);
+  color: var(--teal);
   font-size: 10.5px;
   font-weight: 900;
   margin-top: 1px;
@@ -409,9 +413,9 @@
 }
 
 .sub-plan-preview-cta.popular {
-  background: #0d9488;
+  background: var(--teal);
   color: #ffffff;
-  border-color: #0d9488;
+  border-color: var(--teal);
 }
 
 .sub-plan-card-actions {
@@ -473,12 +477,14 @@
   justify-content: center;
   padding: 20px;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .sub-modal-panel {
   width: 100%;
   max-width: 680px;
-  max-height: 90vh;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   background: #ffffff;
   border-radius: 18px;
   box-shadow: 0 20px 48px rgba(15, 23, 42, 0.2);
@@ -486,6 +492,7 @@
   flex-direction: column;
   overflow: hidden;
   animation: subModalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  margin: auto;
 }
 
 @keyframes subModalIn {
@@ -500,6 +507,7 @@
   align-items: center;
   justify-content: space-between;
   background: #f8fafc;
+  flex-shrink: 0;
 }
 
 .sub-modal-header h2 {
@@ -528,12 +536,42 @@
   color: #0f172a;
 }
 
+.sub-modal-panel form,
+.sub-modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .sub-modal-body {
   padding: 22px 24px;
   overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overscroll-behavior: contain;
+}
+
+.sub-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sub-modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sub-modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+
+.sub-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .sub-form-row {
@@ -578,8 +616,8 @@
 .sub-form-group input:focus,
 .sub-form-group textarea:focus,
 .sub-form-group select:focus {
-  border-color: #0d9488;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 18%, transparent);
 }
 
 .sub-price-input-wrap {
@@ -616,7 +654,7 @@
 .sub-checkbox-group input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: #0d9488;
+  accent-color: var(--teal);
   cursor: pointer;
 }
 
@@ -670,7 +708,7 @@
 .sub-add-feature-bar button {
   padding: 8px 14px;
   border-radius: 8px;
-  background: #0d9488;
+  background: var(--teal);
   color: #ffffff;
   border: none;
   font-size: 12px;
@@ -747,6 +785,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 /* Theme sync */
