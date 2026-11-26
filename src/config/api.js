@@ -491,7 +491,7 @@ async function request(path, options = {}) {
   const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData
   const isGetOrHead = !fetchOptions.method || fetchOptions.method === 'GET' || fetchOptions.method === 'HEAD'
   const controller = new AbortController()
-  const defaultTimeout = isGetOrHead ? 20000 : 30000
+  const defaultTimeout = 60000
   const timeoutMs = options.timeout || (isFormData ? 120000 : defaultTimeout);
   let didTimeout = false
   const timeout = setTimeout(() => {
@@ -3498,6 +3498,7 @@ export function listPharmacyAdmins(params = {}, options = {}) {
 
   return request(`pharmacy-super-admin/admins${query.toString() ? `?${query}` : ''}`, {
     authRole: 'superAdmin',
+    timeout: 60000,
     ...options,
   })
 }
