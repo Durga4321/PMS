@@ -27,11 +27,20 @@ export default function SubscriptionPlans() {
         setPlans(e.detail)
       }
     }
+    function onStorageChange(e) {
+      if (!e.key || e.key === 'pms_subscription_plans_v2') {
+        setPlans(getSubscriptionPlans())
+      }
+    }
     window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
-    return () => window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+    window.addEventListener('storage', onStorageChange)
+    return () => {
+      window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+      window.removeEventListener('storage', onStorageChange)
+    }
   }, [])
 
-  const activePlansCount = plans.filter((p) => p.active !== false).length
+  const activePlansCount = plans.filter((p) => p.active !== false && p.active !== 'false').length
   const lowestMonthlyPrice = plans.length > 0 ? Math.min(...plans.map((p) => p.monthlyPrice)) : 0
   const maxSavings = plans.length > 0
     ? Math.max(...plans.map((p) => calculateSavingsPercent(p.monthlyPrice, p.yearlyPrice)))
@@ -411,7 +420,7 @@ export default function SubscriptionPlans() {
               </button>
             </header>
 
-            <form onSubmit={handleSavePlan}>
+            <form onSubmit={handleSavePlan} className="sub-modal-form">
               <div className="sub-modal-body">
                 <div className="sub-form-group">
                   <label htmlFor="plan-name">

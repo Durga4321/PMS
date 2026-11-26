@@ -1,4 +1,4 @@
-import { isValidElement, useMemo, useState } from 'react'
+import { isValidElement, useEffect, useMemo, useState } from 'react'
 import SuperAdminSidebar from './SuperAdminSidebar'
 import SuperAdminTopbar from './SuperAdminTopbar'
 import './SuperAdminModulePage.css'
@@ -13,13 +13,23 @@ function searchableText(value) {
 function SuperAdminModulePage({ title, headers = [], rows = [], loading = false, error = '', action = null, children = null }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const pageSize = 5
   const tableHeaders = headers.length ? headers : ['Name', 'Details', 'Status']
+
+  useEffect(() => {
+    setPage(1)
+  }, [query])
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return rows
     return rows.filter((row) => row.map(searchableText).join(' ').toLowerCase().includes(normalizedQuery))
   }, [query, rows])
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const visibleRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
     <div className={`super-admin-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
@@ -70,9 +80,9 @@ function SuperAdminModulePage({ title, headers = [], rows = [], loading = false,
                 <tbody>
                   {loading ? (
                     <tr><td colSpan={tableHeaders.length}>Loading data...</td></tr>
-                  ) : filteredRows.length ? (
-                    filteredRows.map((row, rowIndex) => (
-                      <tr key={`${title}-${rowIndex}`}>
+                  ) : visibleRows.length ? (
+                    visibleRows.map((row, rowIndex) => (
+                      <tr key={`${title}-${(currentPage - 1) * pageSize + rowIndex}`}>
                         {tableHeaders.map((header, cellIndex) => <td key={header}>{row[cellIndex] ?? '-'}</td>)}
                       </tr>
                     ))
@@ -82,6 +92,32 @@ function SuperAdminModulePage({ title, headers = [], rows = [], loading = false,
                 </tbody>
               </table>
             </div>
+
+            {filteredRows.length > pageSize ? (
+              <div className="super-admin-module-pagination">
+                <div className="super-admin-module-pagination-info">
+                  Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filteredRows.length)} of {filteredRows.length} entries
+                </div>
+                <div className="super-admin-module-pagination-actions">
+                  <button type="button" disabled={currentPage === 1} onClick={() => setPage(1)}>First</button>
+                  <button type="button" disabled={currentPage === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={p === currentPage ? 'is-current' : ''}
+                        onClick={() => setPage(p)}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  <button type="button" disabled={currentPage === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+                  <button type="button" disabled={currentPage === totalPages} onClick={() => setPage(totalPages)}>Last</button>
+                </div>
+              </div>
+            ) : null}
           </section>
         </div>
       </main>

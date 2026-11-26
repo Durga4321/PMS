@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { getSubscriptionPlans } from '../services/subscriptionPlansService'
+import { getSubscriptionPlans, fetchSubscriptionPlansFromServer } from '../services/subscriptionPlansService'
 import { submitPlanInquiry } from '../services/planInquiryService'
 import { useToast } from '../components/ToastProvider'
 import ThemeToggle from '../components/ThemeToggle'
@@ -21,13 +21,43 @@ function Logo() {
 export default function PlanInquiry() {
   const [searchParams] = useSearchParams()
   const { showToast } = useToast()
-  const allPlans = useMemo(() => getSubscriptionPlans().filter((p) => p.active !== false), [])
+  const [allPlans, setAllPlans] = useState(() => getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false'))
+
+  useEffect(() => {
+    fetchSubscriptionPlansFromServer().then((latest) => {
+      if (Array.isArray(latest) && latest.length > 0) {
+        setAllPlans(latest.filter((p) => p.active !== false && p.active !== 'false'))
+      }
+    })
+    function onPlansUpdated(e) {
+      if (Array.isArray(e.detail)) {
+        setAllPlans(e.detail.filter((p) => p.active !== false && p.active !== 'false'))
+      }
+    }
+    function onStorageChange(e) {
+      if (!e.key || e.key === 'pms_subscription_plans_v2') {
+        setAllPlans(getSubscriptionPlans().filter((p) => p.active !== false && p.active !== 'false'))
+      }
+    }
+    window.addEventListener('pms:subscription-plans-updated', onPlansUpdated)
+    window.addEventListener('storage', onStorageChange)
+    return () => {
+      window.removeEventListener('pms:subscription-plans-updated', onPlansUpdated)
+      window.removeEventListener('storage', onStorageChange)
+    }
+  }, [])
 
   const initialPlanId = searchParams.get('plan') || (allPlans[0]?.id ?? 'starter')
   const initialCycle = searchParams.get('cycle') === 'yearly' ? 'yearly' : 'monthly'
 
   const [selectedPlanId, setSelectedPlanId] = useState(initialPlanId)
   const [billingCycle, setBillingCycle] = useState(initialCycle)
+
+  useEffect(() => {
+    if (allPlans.length > 0 && !allPlans.some((p) => p.id === selectedPlanId)) {
+      setSelectedPlanId(allPlans[0].id)
+    }
+  }, [allPlans, selectedPlanId])
   const [submitting, setSubmitting] = useState(false)
   const [submittedData, setSubmittedData] = useState(null)
 

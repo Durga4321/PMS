@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const apiTarget = (env.VITE_API_BASE_URL || env.REACT_APP_API_BASE_URL || 'https://wanting-pessimist-provolone.ngrok-free.dev').trim().replace(/\/+$/, '')
+  const apiTarget = (env.VITE_API_BASE_URL || env.REACT_APP_API_BASE_URL || 'https://jackpot-citrus-compare.ngrok-free.dev').trim().replace(/\/+$/, '')
 
   return {
     plugins: [react({ jsxImportSource: '@pms/i18n' })],
