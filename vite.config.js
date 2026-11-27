@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   // Default to active tunnel or local backend; override via VITE_API_BASE_URL in .env.development.local
-  const defaultTarget = 'https://jackpot-citrus-compare.ngrok-free.dev'
+  const defaultTarget = 'https://wanting-pessimist-provolone.ngrok-free.dev'
   const apiTarget = (env.VITE_API_BASE_URL || env.REACT_APP_API_BASE_URL || defaultTarget).trim().replace(/\/+$/, '')
   console.log(`[Vite Proxy] Effective /api target: ${apiTarget}`)
 

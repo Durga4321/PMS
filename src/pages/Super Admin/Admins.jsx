@@ -275,7 +275,7 @@ function Admins() {
     setLoading(true)
     setError(null)
     try {
-      const response = await listPharmacyAdmins({ page: 1, pageSize: 100 })
+      const response = await listPharmacyAdmins({ page: 1, pageSize: 100 }, { timeout: 60000 })
       const list = normalizeList(response)
       setAdmins(list)
     } catch (err) {
@@ -292,9 +292,10 @@ function Admins() {
     if (didLoadInitialData.current) return
     didLoadInitialData.current = true
 
-    loadAdmins()
-    loadRoleOptions()
-    loadPharmacyOptions()
+    loadAdmins().finally(() => {
+      loadRoleOptions()
+      loadPharmacyOptions()
+    })
   }, [loadAdmins, loadRoleOptions, loadPharmacyOptions])
 
   function openCreate() {
